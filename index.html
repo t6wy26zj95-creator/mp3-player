@@ -20,10 +20,11 @@
 }
 *{-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
+html{background:#0b1d24}
 body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
   padding:calc(env(safe-area-inset-top,0px) + 24px) 16px 0;box-sizing:border-box;background-color:#0b1d24;-webkit-text-size-adjust:100%}
-.bg-container{position:fixed;top:-5%;left:-5%;width:110%;height:110%;z-index:-2;background-size:cover;background-position:center;transition:background .3s ease}
-.bg-vignette{position:fixed;inset:0;background:radial-gradient(circle at center,rgba(0,0,0,0) 30%,rgba(0,0,0,.6) 100%);pointer-events:none;z-index:-1}
+.bg-container{position:fixed;top:-25%;bottom:-25%;left:-10%;right:-10%;z-index:-2;background-size:cover;background-position:center;transition:background .3s ease}
+.bg-vignette{position:fixed;top:-25%;bottom:-25%;left:-10%;right:-10%;background:radial-gradient(circle at center,rgba(0,0,0,0) 30%,rgba(0,0,0,.6) 100%);pointer-events:none;z-index:-1}
 
 .player-wrapper{position:relative;width:100%;max-width:580px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
   border:1px solid var(--glass-border);border-top:1px solid var(--glass-border-top);border-radius:24px;padding:20px;box-sizing:border-box;box-shadow:var(--glass-shadow);
@@ -107,6 +108,9 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .wallpaper-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
 .wall-thumb{height:36px;border-radius:8px;cursor:pointer;border:1px solid rgba(255,255,255,.15);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font-size:14px}
 .wall-thumb.active{border-color:#fff;box-shadow:0 0 10px rgba(255,255,255,.3)}
+.upload-btn{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff;font:600 13px -apple-system,system-ui,sans-serif;cursor:pointer}
+.upload-btn:active{background:rgba(255,255,255,.22)}
+.upload-btn.ghost{background:none;border-color:transparent;color:rgba(255,255,255,.6);font-weight:500;padding:6px}
 .slider-setting{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.6)}
 .slider-setting input{width:130px}
 </style>
@@ -176,7 +180,8 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 </div>
 <div class="floating-customizer" id="settings-panel">
   <div class="slider-setting"><span>Bg Blur</span><input type="range" id="blur-slider" min="0" max="30" step="1" value="0"></div>
-  <div class="wallpaper-grid" id="wall-grid"></div>
+  <button class="upload-btn" id="upload-wall">Upload wallpaper</button>
+  <button class="upload-btn ghost" id="reset-wall">Use default wallpaper</button>
 </div>
 
 <audio id="audio-element" playsinline></audio>
@@ -210,49 +215,25 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
   } catch (e) {}
 })();
 
-/* ---------- WALLPAPERS (built-in, no network needed) ---------- */
-const grads = [
-  'linear-gradient(160deg,#0b1d24,#1d4e5f 60%,#0b1d24)','linear-gradient(160deg,#1a1033,#5b2a86 55%,#e0567a)',
-  'linear-gradient(160deg,#04131f,#0a4a6e 50%,#22c1a0)','linear-gradient(160deg,#1b0b0b,#7a1f2b 55%,#f08a4b)',
-  'linear-gradient(160deg,#050505,#1c1c22 60%,#3a3a48)','linear-gradient(160deg,#0d2b1e,#1f6b4a 55%,#c9e265)',
-  'linear-gradient(160deg,#0a0f2c,#243b8f 55%,#8ab4ff)','linear-gradient(160deg,#2b0b2a,#a02c7a 55%,#ffb36b)'];
-let bgSel = store.get("bgSel") || "0";
+/* ---------- WALLPAPER ---------- */
+const DEFAULT_WALL = "https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?auto=format&fit=crop&w=1600&q=70";
+const FALLBACK_BG = "linear-gradient(160deg,#0b1d24,#1d4e5f 60%,#0b1d24)";
 const mainBg = $("main-bg");
 function applyBg() {
   mainBg.style.filter = `blur(${store.get("wallpaperBlur") || 0}px)`;
-  const cur = tracks.find(t => t.id === curId);
-  let v;
-  if (bgSel === "photo" && store.get("photoData")) v = `url('${store.get("photoData")}')`;
-  else if (bgSel === "art" && cur && cur.art) v = `url('${cur.art}')`;
-  else v = grads[parseInt(bgSel)] || grads[0];
-  mainBg.style.backgroundImage = v;
+  mainBg.style.backgroundImage = `url('${store.get("photoData") || DEFAULT_WALL}'), ${FALLBACK_BG}`;
 }
-function buildWalls() {
-  const g = $("wall-grid"); g.innerHTML = "";
-  const add = (key, bg, label) => {
-    const d = document.createElement("div");
-    d.className = "wall-thumb" + (bgSel === key ? " active" : "");
-    d.style.background = bg; d.textContent = label || "";
-    d.addEventListener("click", () => {
-      if (key === "photo") { $("photo-input").click(); return; }
-      bgSel = key; store.set("bgSel", key); applyBg(); buildWalls();
-    });
-    g.appendChild(d);
-  };
-  grads.forEach((s, i) => add(String(i), s));
-  add("art", "rgba(255,255,255,.12)", "♫");
-  add("photo", "rgba(255,255,255,.12)", "🖼");
-}
+$("upload-wall").addEventListener("click", () => $("photo-input").click());
+$("reset-wall").addEventListener("click", () => { store.set("photoData", ""); applyBg(); });
 $("photo-input").addEventListener("change", e => {
   const f = e.target.files[0]; if (!f) return;
   const img = new Image(), u = URL.createObjectURL(f);
   img.onload = () => {
-    const s = Math.min(1, 1200 / Math.max(img.width, img.height)), c = document.createElement("canvas");
-    c.width = img.width * s; c.height = img.height * s;
+    const sc = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+    c.width = img.width * sc; c.height = img.height * sc;
     c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-    store.set("photoData", c.toDataURL("image/jpeg", .8));
-    bgSel = "photo"; store.set("bgSel", "photo");
-    URL.revokeObjectURL(u); applyBg(); buildWalls();
+    store.set("photoData", c.toDataURL("image/jpeg", .82));
+    URL.revokeObjectURL(u); applyBg();
   };
   img.src = u; e.target.value = "";
 });
@@ -264,7 +245,7 @@ gearBtn.addEventListener("click", () => settingsPanel.classList.toggle("active")
 document.addEventListener("click", e => {
   if (!settingsPanel.contains(e.target) && !gearBtn.contains(e.target)) settingsPanel.classList.remove("active");
 });
-buildWalls(); applyBg();
+applyBg();
 
 /* ---------- SLIDER (mouse + touch) ---------- */
 function setupCustomSlider(id, cb) {
@@ -369,7 +350,6 @@ function refreshNowPlaying() {
   const art = t.art || albumCover(t.album), img = $("track-art-img");
   if (art) { img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; }
   else { img.style.display = "none"; $("fallback-art").style.display = "block"; }
-  if (bgSel === "art") applyBg();
 }
 async function processTrackAlbum(tr) {
   if (tr.artist === "Unknown Artist") return;
@@ -579,7 +559,6 @@ function loadTrack(id, autoplay) {
     navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.album,
       artwork: t.art ? [{ src: t.art, sizes: "512x512" }] : [] });
   }
-  if (bgSel === "art") applyBg();
   renderPlaylist();
   if (autoplay) playTrack();
 }
