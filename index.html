@@ -128,7 +128,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .artist-more{background:none;border:0;color:rgba(255,255,255,.6);font:600 12px -apple-system,system-ui,sans-serif;padding:8px 4px;cursor:pointer}
 .artist-sec{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);margin:14px 4px 0}
 .artist-albums{padding:10px 4px}
-.album-card.dim{opacity:.4;cursor:default}
+.album-card.dim{opacity:.4}
 .album-card .year{font-size:10px;color:rgba(255,255,255,.5);margin-top:-4px}
 .own-dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:#2ecc71;box-shadow:0 0 8px #2ecc71;z-index:2}
 .chips{display:flex;flex-wrap:wrap;gap:8px;padding:10px 4px}
@@ -140,6 +140,21 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .toast.show{opacity:1;transform:translateX(-50%)}
 .slider-setting{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.6)}
 .slider-setting input{width:130px}
+
+.del-badge{display:none;position:absolute;top:-6px;left:-6px;z-index:6;width:24px;height:24px;border-radius:50%;background:rgba(40,48,56,.92);border:1px solid rgba(255,255,255,.35);color:#fff;font:700 16px/22px -apple-system,system-ui,sans-serif;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.albums-grid.editing .del-badge{display:block}
+@keyframes jig{0%{transform:rotate(-1.6deg)}100%{transform:rotate(1.6deg)}}
+.albums-grid.editing .album-card[data-key]:not(.lifted)>img,.albums-grid.editing .album-card[data-key]:not(.lifted)>.all-tracks-icon{animation:jig .13s ease-in-out infinite alternate}
+.albums-grid.editing .album-card[data-key]:nth-child(even):not(.lifted)>img,.albums-grid.editing .album-card[data-key]:nth-child(even):not(.lifted)>.all-tracks-icon{animation-duration:.16s;animation-direction:alternate-reverse}
+.done-pill{position:sticky;top:0;z-index:30;margin:0 10px 0 auto;display:block;padding:6px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.25);background:rgba(15,23,30,.7);color:#fff;font:600 12px -apple-system,system-ui,sans-serif;cursor:pointer}
+.trash-toggle{display:flex;align-items:center;justify-content:center;gap:6px;align-self:flex-start;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:12px;color:#fff;padding:8px 12px;cursor:pointer;font:600 12px -apple-system,system-ui,sans-serif}
+.trash-toggle svg{width:18px;height:18px;fill:rgba(255,255,255,.85)}
+.trash-list{max-height:190px;overflow-y:auto;scrollbar-width:none}
+.trash-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.trash-row .item-art{width:34px;height:34px}
+.trash-row .nm{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trash-row button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:10px;padding:6px 10px;font:600 11px -apple-system,system-ui,sans-serif;cursor:pointer}
+.trash-empty{font-size:12px;color:rgba(255,255,255,.45);text-align:center;padding:10px}
 </style>
 </head>
 <body>
@@ -188,6 +203,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
   <div class="collapsible-content" id="drawer-box">
     <div class="albums-grid-container" id="albums-grid-wrapper" style="display:none;">
+      <button class="done-pill" id="edit-done" style="display:none">Done</button>
       <div class="albums-grid" id="albums-shelf"></div>
     </div>
     <div class="scroll-container-wrapper" id="playlist-wrapper" style="display:none;">
@@ -220,6 +236,8 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
   <div class="slider-setting"><span>Bg Blur</span><input type="range" id="blur-slider" min="0" max="30" step="1" value="0"></div>
   <button class="upload-btn" id="upload-wall">Upload wallpaper</button>
   <button class="upload-btn ghost" id="reset-wall">Use default wallpaper</button>
+  <button class="trash-toggle" id="trash-toggle" aria-label="Trash"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg><span id="trash-count"></span></button>
+  <div class="trash-list" id="trash-list" style="display:none"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -344,7 +362,13 @@ async function addFile(f) {
   const fk = `${f.name}|${f.size}|${f.lastModified}`;
   if (fileKeys.has(fk)) { dupCount++; return; }                       // same file picked again
   const t = await readTags(f);
-  const tr = { id: ++uid, title: t.title || f.name.replace(/\.[^.]+$/, ""), artist: t.artist || "Unknown Artist",
+  const stem = f.name.replace(/\.[^.]+$/, "").replace(/^\s*\d{1,3}\s*[-._)]\s*/, "");
+  let title0 = t.title || stem;
+  const sub3 = tagText(t.TIT3).trim();                                        // ID3 "subtitle" frame, e.g. "Live"
+  if (sub3 && !title0.toLowerCase().includes(sub3.toLowerCase())) title0 += ` (${sub3})`;
+  const fstem = stem.replace(/^[^-:]{1,40}\s*[-:]\s*/, m => norm(m).startsWith(norm(String(t.artist || "~"))) ? "" : m);
+  if (t.title && fstem.length > t.title.length && fstem.toLowerCase().startsWith(t.title.toLowerCase()) && /^\s*[\(\[]/.test(fstem.slice(t.title.length))) title0 = fstem; // file name carries the version suffix
+  const tr = { id: ++uid, title: title0, discName: tagText(t.TSST).trim(), artist: t.artist || "Unknown Artist",
     album: t.album || "Unknown Album", albumArtist: tagText(t.TPE2) || tagText(t.aART),
     disc: parseDisc(t), num: parseInt(t.track, 10) || 0, file: f, art: null };
   const tk = [tr.artist, tr.album, tr.disc, tr.num, tr.title].map(x => String(x).trim().toLowerCase()).join("|");
@@ -354,7 +378,7 @@ async function addFile(f) {
   if (t.picture) { try { tr.art = URL.createObjectURL(new Blob([new Uint8Array(t.picture.data)], { type: t.picture.format || "image/jpeg" })); } catch (e) {} }
   tracks.push(tr); tracks.sort(cmpTracks);
   scheduleAlbumWork(tr);
-  if (curId === null) loadTrack(tr.id, false);
+  if (curId === null && !trashed.has(tr.album)) loadTrack(tr.id, false);
 }
 const norm = s => String(s).toLowerCase().replace(/\(.*?\)|\[.*?\]/g, "").replace(/[^a-z0-9]/g, "");
 const albumP = {}, albumNotFound = {};
@@ -378,67 +402,62 @@ function fetchAlbumMeta(artist, album) {
 }
 
 /* --- find the track's real album when the file's tag is a playlist/collection --- */
-const mbCache = (() => { try { return JSON.parse(store.get("resolvedAlbums") || "{}"); } catch (e) { return {}; } })();
 let mbChain = Promise.resolve();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const cleanTitle = s => s.replace(/\s*[\(\[].*?[\)\]]/g, "").replace(/\s-\s.*$/, "").trim();
 const mainArtist = s => s.split(/\s*(?:;|,|&|\bfeat\.|\bft\.)\s*/i)[0].trim();
-const resolveKey = tr => norm(mainArtist(tr.artist)) + "|" + norm(cleanTitle(tr.title));
-async function findOriginalAlbum(tr) {
-  const title = cleanTitle(tr.title), artist = mainArtist(tr.artist);
-  try {
-    const q = `recording:"${title}" AND artist:"${artist}"`;
-    const d = await (await fetch(`https://musicbrainz.org/ws/2/recording?query=${encodeURIComponent(q)}&fmt=json&limit=15`)).json();
-    let best = null;
-    for (const rec of d.recordings || []) {
-      if ((rec.score || 0) < 90 || norm(rec.title) !== norm(title)) continue;
-      for (const rel of rec.releases || []) {
-        const rg = rel["release-group"] || {};
-        if (rg["primary-type"] !== "Album" || (rg["secondary-types"] || []).length) continue;
-        if (rel.status && rel.status !== "Official") continue;
-        const date = rel.date || "9999";
-        if (!best || date < best.date) best = { date, name: rg.title };
-      }
-    }
-    if (best) return best.name;
-  } catch (e) {}
-  try {
-    const d = await (await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getinfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artist)}&track=${encodeURIComponent(title)}&autocorrect=1&format=json`)).json();
-    if (d.track && d.track.album && d.track.album.title) return d.track.album.title;
-  } catch (e) {}
-  return null;
-}
 function refreshNowPlaying() {
   const t = tracks.find(x => x.id === curId); if (!t) return;
   const art = t.art || albumCover(t.album), img = $("track-art-img");
   if (art) { img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; }
   else { img.style.display = "none"; $("fallback-art").style.display = "block"; }
 }
-/* --- collections (playlist-style "albums") are kept out of the album grid; their songs stay in All Tracks --- */
-const albumKinds = (() => { try { return JSON.parse(store.get("albumKinds") || "{}"); } catch (e) { return {}; } })();
+/* --- deleted albums (Trash), persisted ---- */
+const trashed = new Set((() => { try { return JSON.parse(store.get("trashedAlbums") || "[]"); } catch (e) { return []; } })());
+const saveTrash = () => store.set("trashedAlbums", JSON.stringify([...trashed]));
 const albumSeen = new Set();
-const isRealAlbum = n => n !== "Unknown Album" && albumKinds[n] !== "c";
-function scheduleAlbumWork(tr) { if (albumSeen.has(tr.album)) return; albumSeen.add(tr.album); classifyAlbum(tr); }
-async function classifyAlbum(tr) {
-  const album = tr.album;
-  if (album === "Unknown Album" || albumKinds[album]) return;
-  const meta = await fetchAlbumMeta(tr.artist, album);              // also gives cover + missing tracks
-  if (meta || !albumNotFound[album]) return;                        // Last.fm knows it, or we're offline: keep as album
-  const inAlbum = tracks.filter(t => t.album === album);
-  const various = inAlbum.some(t => /^various artists?$/i.test(t.albumArtist || ""));
-  let collection = various || new Set(inAlbum.map(t => norm(mainArtist(t.artist)))).size >= 3;
-  if (!collection) {                                                // unknown album, but is the song released elsewhere?
-    const key = resolveKey(tr); let real = mbCache[key];
-    if (!real) {
-      real = await new Promise(res => { mbChain = mbChain.then(async () => { const r = await findOriginalAlbum(tr); await sleep(1100); res(r); }); });
-      if (real) { mbCache[key] = real; store.set("resolvedAlbums", JSON.stringify(mbCache)); }
-    }
-    collection = !!real && norm(real) !== norm(album);
-  }
-  if (collection) { albumKinds[album] = "c"; store.set("albumKinds", JSON.stringify(albumKinds)); renderAlbums(); renderPlaylist(); }
+const isRealAlbum = n => n !== "Unknown Album" && !trashed.has(n);
+const vis = () => tracks.filter(t => !trashed.has(t.album));
+function scheduleAlbumWork(tr) { if (albumSeen.has(tr.album)) return; albumSeen.add(tr.album); fetchAlbumMeta(tr.artist, tr.album); }
+
+/* --- album identity: base title + live flag (+ artist check), never substring matching --- */
+const LIVE_RE = /\b(live|in concert|concert|unplugged|mtv|sessions?)\b/i;
+const EDITION_RE = /\b(deluxe|expanded|remaster(?:ed)?|anniversary|edition|bonus|explicit|special|collector'?s?|super|reissue|version|original (?:game |motion picture )?soundtrack|ost|\d{4})\b/i;
+function albumSig(title) {
+  const t = String(title), live = LIVE_RE.test(t);
+  let x = t.replace(/[\(\[][^\)\]]*[\)\]]/g, m => EDITION_RE.test(m) && !LIVE_RE.test(m) ? "" : m)
+           .replace(/\s[-–:]\s*[^-–:]*\b(deluxe|remaster(?:ed)?|edition|expanded|anniversary)\b.*$/i, "");
+  const b = norm(x); return b ? b + (live ? "#live" : "") : "";
 }
-function albumCover(name) { const t = tracks.find(t => t.album === name && t.art); return t ? t.art : (albumMeta[name] && albumMeta[name].cover) || null; }
+function ownedAlbumKey(title, artist) {
+  const sig = albumSig(title); if (!sig) return null;
+  const an = artist ? norm(mainArtist(artist)) : null, v = vis();
+  for (const a of new Set(v.map(t => t.album))) {
+    if (!isRealAlbum(a) || albumSig(a) !== sig) continue;
+    if (!an || v.some(t => t.album === a && (norm(mainArtist(t.albumArtist || t.artist)) === an || norm(mainArtist(t.artist)) === an))) return a;
+  }
+  return null;
+}
+let currentCat = null, albumOrigin = null;             // catalog (Deezer) album view + where we came from
+const sn = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+function catEntries(cat) {
+  const local = cat.own ? vis().filter(t => t.album === cat.own) : [];
+  const plain = t => ({ track: t, title: t.title, num: t.num, disc: t.disc || 1 });
+  if (!cat.list || !cat.list.length) return local.map(plain);
+  const used = new Set(), out = [];
+  const take = fn => { const t = local.find(x => !used.has(x.id) && fn(x)); if (t) used.add(t.id); return t || null; };
+  cat.list.forEach(x => {
+    const t = take(l => sn(l.title) === sn(x.title)) || take(l => (l.disc || 1) === x.disc && l.num === x.num && norm(cleanTitle(l.title)) === norm(cleanTitle(x.title)));
+    out.push({ track: t, title: t ? t.title : x.title, num: x.num, disc: x.disc });
+  });
+  local.filter(t => !used.has(t.id)).forEach(t => out.push({ ...plain(t), disc: 99 }));
+  return out;
+}
+const verOf = s => { const m = String(s).match(/\b(live|demo|rough(?: mix| vocal)?|instrumental|acoustic|remix|alternate|session)\b/i); return m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : ""; };
+function albumCover(name) {
+  if (currentCat && name === currentCat.key) return currentCat.cover; const t = tracks.find(t => t.album === name && t.art); return t ? t.art : (albumMeta[name] && albumMeta[name].cover) || null; }
 function albumEntries(name) {
+  if (currentCat && name === currentCat.key) return catEntries(currentCat);
   const local = tracks.filter(t => t.album === name);              // already ordered disc -> track number
   const plain = () => local.map(t => ({ track: t, title: t.title, num: t.num, disc: t.disc || 1 }));
   const meta = albumMeta[name];
@@ -452,7 +471,7 @@ function albumEntries(name) {
   const byNum = new Map(local.map(t => [t.num, t]));
   return meta.tracks.map((n, i) => { const t = byNum.get(i + 1); return { track: t || null, title: t ? t.title : n, num: i + 1, disc: 1 }; });
 }
-function contextList() { return currentAlbum === "All Tracks" ? tracks : albumEntries(currentAlbum).filter(e => e.track).map(e => e.track); }
+function contextList() { return currentAlbum === "All Tracks" ? vis() : albumEntries(currentAlbum).filter(e => e.track).map(e => e.track); }
 
 /* ---------- RENDER ---------- */
 let albumOrder = []; try { albumOrder = JSON.parse(store.get("albumOrder") || "[]"); } catch (e) {}
@@ -472,21 +491,42 @@ function renderAlbums() {
   const shelf = $("albums-shelf"); shelf.innerHTML = "";
   const mk = (title, inner, onClick, key) => {
     const c = document.createElement("div"); c.className = "album-card";
-    c.innerHTML = inner + `<div class="album-card-title">${esc(title)}</div>`;
-    c.addEventListener("click", () => { if (suppressClick) { suppressClick = false; return; } onClick(); });
-    if (key !== undefined) { c.dataset.key = key; attachDrag(c); }
+    c.innerHTML = (key !== undefined ? '<div class="del-badge" aria-label="Delete">−</div>' : "") + inner + `<div class="album-card-title">${esc(title)}</div>`;
+    c.addEventListener("click", () => { if (suppressClick) { suppressClick = false; return; } if (editing) return; onClick(); });
+    if (key !== undefined) { c.dataset.key = key; attachDrag(c); c.querySelector(".del-badge").addEventListener("click", e => { e.stopPropagation(); trashAlbum(c, key); }); }
     shelf.appendChild(c); return c;
   };
   const folder = `<div class="all-tracks-icon"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></div>`;
-  mk("All Tracks", folder, () => { currentAlbum = "All Tracks"; openTracklist(); }).style.order = 0;
+  mk("All Tracks", folder, () => { albumOrigin = null; currentCat = null; currentAlbum = "All Tracks"; openTracklist(); }).style.order = 0;
   orderedAlbumNames().forEach((name, i) => {
     const cover = albumCover(name);
-    mk(name, cover ? `<img src="${cover}" alt="">` : `<div class="all-tracks-icon">${noteSvg}</div>`, () => { currentAlbum = name; openTracklist(); }, name).style.order = i + 1;
+    mk(name, cover ? `<img src="${cover}" alt="">` : `<div class="all-tracks-icon">${noteSvg}</div>`, () => { albumOrigin = null; currentCat = null; currentAlbum = name; openTracklist(); }, name).style.order = i + 1;
   });
 }
 
 /* ---- drag to reorder (long-press, then drag) ---- */
-let drag = null, suppressClick = false;
+let drag = null, suppressClick = false, editing = false;
+function setEdit(v) { editing = v; $("albums-shelf").classList.toggle("editing", v); $("edit-done").style.display = v ? "block" : "none"; }
+$("edit-done").addEventListener("click", () => setEdit(false));
+$("albums-grid-wrapper").addEventListener("click", e => { if (editing && (e.target.id === "albums-grid-wrapper" || e.target.id === "albums-shelf")) setEdit(false); });
+function trashAlbum(card, name) {
+  card.style.transition = "transform .22s ease,opacity .22s ease"; card.style.transform = "scale(.6)"; card.style.opacity = "0";
+  setTimeout(() => { trashed.add(name); saveTrash(); renderAlbums(); renderTrash(); if (!orderedAlbumNames().length) setEdit(false); toast("Moved to Trash"); }, 220);
+}
+function renderTrash() {
+  const names = [...trashed], box = $("trash-list"); $("trash-count").textContent = names.length || "";
+  box.innerHTML = ""; if (!names.length) { box.innerHTML = '<div class="trash-empty">Trash is empty</div>'; return; }
+  names.forEach(n => {
+    const row = document.createElement("div"); row.className = "trash-row";
+    row.innerHTML = itemHTML(albumCover(n), n, "").replace('<div class="item-text">', '<div class="item-text" style="display:none">') + '<div class="nm"></div>';
+    row.querySelector(".nm").textContent = n;
+    const b = document.createElement("button"); b.textContent = "Restore";
+    b.addEventListener("click", e => { e.stopPropagation(); trashed.delete(n); saveTrash(); renderTrash(); renderAlbums(); if (!curId) { const t = vis()[0]; if (t) loadTrack(t.id, false); } });
+    row.appendChild(b); box.appendChild(row);
+  });
+}
+$("trash-toggle").addEventListener("click", () => { const l = $("trash-list"); l.style.display = l.style.display === "none" ? "block" : "none"; renderTrash(); });
+renderTrash();
 document.addEventListener("touchmove", e => { if (drag && drag.active) e.preventDefault(); }, { passive: false });
 const cardsOf = () => [...$("albums-shelf").querySelectorAll(".album-card[data-key]")];
 const applyKeys = keys => { const cs = cardsOf(); keys.forEach((k, i) => { const c = cs.find(x => x.dataset.key === k); if (c) c.style.order = i + 1; }); };
@@ -505,10 +545,12 @@ function attachDrag(card) {
   card.addEventListener("contextmenu", e => e.preventDefault());
   card.addEventListener("pointerdown", e => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (e.target.closest(".del-badge")) return;
     const shelf = $("albums-shelf");
     drag = { card, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, active: false };
     drag.timer = setTimeout(() => {
       if (!drag) return;
+      if (!editing) setEdit(true);
       const gr = shelf.getBoundingClientRect();
       drag.active = true; drag.follow = false;
       drag.grabX = drag.x - gr.left - card.offsetLeft; drag.grabY = drag.y - gr.top - card.offsetTop;
@@ -519,7 +561,7 @@ function attachDrag(card) {
       if (navigator.vibrate) navigator.vibrate(12);
       setTimeout(() => { if (drag && drag.card === card) { drag.follow = true; card.style.transition = "none"; } }, 190);
       dragUpdate(); drag.raf = requestAnimationFrame(dragLoop);
-    }, e.pointerType === "mouse" ? 200 : 380);
+    }, editing ? 140 : e.pointerType === "mouse" ? 300 : 420);
   });
 }
 function dragUpdate() {
@@ -573,18 +615,19 @@ function itemHTML(art, title, sub) {
 function renderPlaylist() {
   const ui = $("playlist-ui"); ui.innerHTML = "";
   const all = currentAlbum === "All Tracks";
-  const entries = all ? tracks.map(t => ({ track: t, title: t.title, num: t.num })) : albumEntries(currentAlbum);
+  const entries = all ? vis().map(t => ({ track: t, title: t.title, num: t.num })) : albumEntries(currentAlbum);
+  if (!all && !entries.length) ui.innerHTML = '<div class="artist-note" style="text-align:center;padding:16px">Loading tracks…</div>';
   const multi = !all && entries.some(e => e.disc > 1); let lastDisc = null;
   entries.forEach(e => {
-    if (multi && e.disc !== lastDisc) { lastDisc = e.disc; const h = document.createElement("div"); h.className = "disc-h"; h.textContent = "Disc " + e.disc; ui.appendChild(h); }
+    if (multi && e.disc !== lastDisc) { lastDisc = e.disc; const h = document.createElement("div"); h.className = "disc-h"; h.textContent = e.disc >= 99 ? "More from your library" : "Disc " + e.disc + (e.track && e.track.discName ? " · " + e.track.discName : ""); ui.appendChild(h); }
     const t = e.track, item = document.createElement("div");
     item.className = "playlist-item" + (t ? "" : " missing") + (t && t.id === curId ? " active" : "");
     const label = (e.num ? e.num + ". " : "") + e.title;
     if (!t) {
-      item.innerHTML = itemHTML(albumCover(currentAlbum), label, "🔒 File missing");
+      item.innerHTML = itemHTML(albumCover(currentAlbum), label, "🔒 Not in your library");
       ui.appendChild(item); return;
     }
-    item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist);
+    item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : ""));
     item.addEventListener("click", () => loadTrack(t.id, true));
     const plus = document.createElement("button");
     plus.className = "circle-btn"; plus.textContent = "+";
@@ -637,13 +680,13 @@ function pauseTrack() { audio.pause(); playBtn.innerHTML = playIconSvg; }
 function playNext() {
   if (queue.length) { const id = queue.shift(); renderQueue(); loadTrack(id, true); return; }
   let list = contextList(); let i = list.findIndex(t => t.id === curId);
-  if (i === -1) { list = tracks; i = list.findIndex(t => t.id === curId); }
+  if (i === -1) { list = vis(); i = list.findIndex(t => t.id === curId); }
   if (list.length) loadTrack(list[(i + 1) % list.length].id, true);
 }
 function playPrev() {
   if (audio.currentTime > 3) { audio.currentTime = 0; return; }
   let list = contextList(); let i = list.findIndex(t => t.id === curId);
-  if (i === -1) { list = tracks; i = list.findIndex(t => t.id === curId); }
+  if (i === -1) { list = vis(); i = list.findIndex(t => t.id === curId); }
   if (list.length) loadTrack(list[(i - 1 + list.length) % list.length].id, true);
 }
 const fmt = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
@@ -712,7 +755,7 @@ async function wikiImage(name) {
   } catch (e) {}
   return null;
 }
-async function fetchAlbums(d) {
+async function fetchAlbumsMB(d) {
   let mbid = d.mbid;
   if (!mbid) {
     const r = await mbFetch(`https://musicbrainz.org/ws/2/artist?query=${enc('artist:"' + d.name + '"')}&fmt=json&limit=3`);
@@ -720,7 +763,8 @@ async function fetchAlbums(d) {
   }
   if (mbid) {
     const r = await mbFetch(`https://musicbrainz.org/ws/2/release-group?artist=${mbid}&type=album&limit=100&fmt=json`);
-    const rgs = ((r && r["release-groups"]) || []).filter(g => g["primary-type"] === "Album" && !(g["secondary-types"] || []).length);
+    const BAD = ["Live", "Compilation", "Remix", "Demo", "Bootleg", "Mixtape/Street", "DJ-mix", "Interview", "Spokenword", "Audiobook"];
+    const rgs = ((r && r["release-groups"]) || []).filter(g => g["primary-type"] === "Album" && !(g["secondary-types"] || []).some(x => BAD.includes(x)));
     if (rgs.length) return rgs.sort((a, b) => (a["first-release-date"] || "9999").localeCompare(b["first-release-date"] || "9999"))
       .map(g => ({ title: g.title, year: (g["first-release-date"] || "").slice(0, 4), cover: `https://coverartarchive.org/release-group/${g.id}/front-250` }));
   }
@@ -731,10 +775,36 @@ async function fetchAlbums(d) {
     });
   } catch (e) { return []; }
 }
+async function fetchAlbums(d) {
+  try {
+    let id = d.dzid;
+    if (!id) {
+      const r = await jsonp("https://api.deezer.com/search/artist?limit=10&q=" + enc(d.name));
+      const hit = (r.data || []).filter(x => norm(x.name) === norm(d.name)).sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0))[0];
+      id = hit && hit.id; d.dzid = id || null;
+    }
+    if (id) {
+      let all = [];
+      for (let i = 0; i < 5; i++) {
+        const r = await jsonp(`https://api.deezer.com/artist/${id}/albums?limit=100&index=${i * 100}`);
+        all = all.concat(r.data || []); if (!r.next || (r.data || []).length < 100) break;
+      }
+      const best = new Map();                          // collapse deluxe/remaster/explicit duplicates
+      all.filter(a => a.record_type === "album" || a.record_type === "ep").forEach(a => {
+        const sig = albumSig(a.title), cur = best.get(sig);
+        if (!cur || (a.release_date || "9999") < (cur.release_date || "9999")) best.set(sig, a);
+      });
+      const list = [...best.values()].sort((a, b) => (a.release_date || "9999").localeCompare(b.release_date || "9999"))
+        .map(a => ({ id: a.id, title: a.title, year: (a.release_date || "").slice(0, 4), cover: a.cover_medium || a.cover_big || null }));
+      if (list.length) return list;
+    }
+  } catch (e) {}
+  return fetchAlbumsMB(d);                             // fallback if Deezer is unreachable
+}
 async function loadArtist(name, onPartial) {
   const key = norm(name), c = artistCache[key];
-  if (c && c.full && Date.now() - c.t < 7 * 864e5) return c;
-  const d = { name, photo: c && c.photo, banner: c && c.banner, bio: "", tags: [], listeners: 0, similar: [], albums: [], mbid: null, t: Date.now() };
+  if (c && c.full && c.v === 2 && Date.now() - c.t < 7 * 864e5) return c;
+  const d = { name, photo: c && c.photo, banner: c && c.banner, bio: "", tags: [], listeners: 0, similar: [], albums: [], mbid: null, t: Date.now(), v: 2 };
   const [lf, adb] = await Promise.all([lastfmArtist(name), audioDb(name)]);
   if (lf) {
     d.name = lf.name || name; d.mbid = lf.mbid || null;
@@ -780,14 +850,14 @@ function renderArtist(d) {
   if (d.albumsLoading) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">Loading albums…</div>';
   else if (!d.loading && !(d.albums || []).length) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">No albums found.</div>';
   (d.albums || []).forEach(a => {
-    const own = ownedAlbumKey(a.title), c = document.createElement("div");
+    const own = ownedAlbumKey(a.title, d.name), c = document.createElement("div");
     c.className = "album-card" + (own ? "" : " dim");
     c.innerHTML = `${own ? '<div class="own-dot"></div>' : ""}<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>${a.year ? '<div class="year"></div>' : ""}`;
     c.querySelector(".album-card-title").textContent = a.title;
     if (a.year) c.querySelector(".year").textContent = a.year;
     const slot = c.querySelector(".ph-wrap"), ph = () => { slot.innerHTML = `<div class="all-tracks-icon">${noteSvg}</div>`; };
     if (a.cover) { const im = new Image(); im.loading = "lazy"; im.alt = ""; im.onerror = ph; im.src = a.cover; slot.appendChild(im); } else ph();
-    if (own) c.addEventListener("click", () => { currentAlbum = own; setTab(btnPlaylist); showOnly(playlistWrapper); renderPlaylist(); });
+    c.addEventListener("click", () => openCatalogAlbum(a, d.name));
     grid.appendChild(c);
   });
   if (d.similar && d.similar.length) {
@@ -795,16 +865,27 @@ function renderArtist(d) {
     d.similar.forEach(n => { const ch = document.createElement("div"); ch.className = "chip"; ch.textContent = n; ch.addEventListener("click", () => openArtist(n, "push")); ui.querySelector(".chips").appendChild(ch); });
   }
 }
-async function openArtist(name, mode) {
+async function openCatalogAlbum(a, artistName) {
+  const cat = currentCat = { key: "cat:" + (a.id || sn(a.title)), title: a.title, artist: artistName, cover: a.cover, own: ownedAlbumKey(a.title, artistName), list: null };
+  currentAlbum = cat.key; albumOrigin = { name: artistName, scroll: $("artist-ui").scrollTop };
+  $("back-to-grid-btn").querySelector("span").textContent = "Back";
+  showOnly(playlistWrapper); renderPlaylist(); $("playlist-ui").scrollTop = 0;
+  if (a.id) {
+    try { const r = await jsonp(`https://api.deezer.com/album/${a.id}/tracks?limit=100`); cat.list = (r.data || []).map((t, i) => ({ title: t.title, num: t.track_position || i + 1, disc: t.disk_number || 1 })); }
+    catch (e) { cat.list = []; }
+    if (currentCat === cat) renderPlaylist();
+  } else cat.list = [];
+}
+async function openArtist(name, mode, scroll) {
   name = mainArtist(name || ""); if (!name || name === "Unknown Artist") return;
   if (mode === "push") { if (currentArtistName) artistStack.push(currentArtistName); }
   else if (mode !== "back") artistStack = [];
   currentArtistName = name;
   setTab(btnArtists); showOnly(artistWrapper); drawerBox.classList.add("expanded");
-  $("artist-ui").scrollTop = 0;
+  $("artist-ui").scrollTop = scroll || 0;
   renderArtist({ name, loading: true });
   const d = await loadArtist(name, p => { if (currentArtistName === name) renderArtist(p); });
-  if (currentArtistName === name) renderArtist(d);
+  if (currentArtistName === name) { renderArtist(d); if (scroll) $("artist-ui").scrollTop = scroll; }
 }
 const photoQueue = [], photoTried = {}; let photoBusy = false;
 function needPhoto(name) {
@@ -829,7 +910,7 @@ async function pumpPhotos() {
 }
 function renderArtists() {
   const shelf = $("artists-shelf"); shelf.innerHTML = "";
-  const counts = {}; tracks.forEach(t => { const a = mainArtist(t.artist); if (a && a !== "Unknown Artist") counts[a] = (counts[a] || 0) + 1; });
+  const counts = {}; vis().forEach(t => { const a = mainArtist(t.artist); if (a && a !== "Unknown Artist") counts[a] = (counts[a] || 0) + 1; });
   const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
   if (!names.length) { shelf.innerHTML = '<div class="artist-note" style="grid-column:1/-1;text-align:center;padding:20px">Add songs to see artists.</div>'; return; }
   names.forEach(n => {
@@ -849,7 +930,10 @@ $("track-artist").addEventListener("click", () => { const t = tracks.find(x => x
 /* ---------- TABS ---------- */
 const btnQueue = $("btn-queue"), btnPlaylist = $("btn-playlist"), drawerBox = $("drawer-box");
 const queueWrapper = $("queue-wrapper"), playlistWrapper = $("playlist-wrapper"), albumsGridWrapper = $("albums-grid-wrapper");
-$("back-to-grid-btn").addEventListener("click", () => { playlistWrapper.style.display = "none"; albumsGridWrapper.style.display = "block"; });
+$("back-to-grid-btn").addEventListener("click", () => {
+  if (albumOrigin) { const o = albumOrigin; albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums"; openArtist(o.name, "back", o.scroll); return; }
+  currentCat = null; playlistWrapper.style.display = "none"; albumsGridWrapper.style.display = "block";
+});
 const btnArtists = $("btn-artists"), artistsWrapper = $("artists-wrapper"), artistWrapper = $("artist-wrapper");
 const allWraps = [queueWrapper, playlistWrapper, albumsGridWrapper, artistsWrapper, artistWrapper];
 function showOnly(el) {
@@ -858,6 +942,7 @@ function showOnly(el) {
 }
 function setTab(btn) { [btnQueue, btnPlaylist, btnArtists].forEach(b => b.classList.toggle("active", b === btn)); }
 function toggleTab(btn) {
+  albumOrigin = null; currentCat = null; setEdit(false); $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
   if (btn.classList.contains("active")) {
     setTab(null); drawerBox.classList.remove("expanded");
     setTimeout(() => { if (!drawerBox.classList.contains("expanded")) showOnly(null); }, 400);
