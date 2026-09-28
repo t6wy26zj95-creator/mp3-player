@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Player">
+<meta name="theme-color" content="#0b1d24">
 <title>Player</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 <style>
@@ -187,6 +192,20 @@ const playIconSvg = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
 const pauseIconSvg = `<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
 const noteSvg = `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- HOME SCREEN ICON ---------- */
+(function () {
+  try {
+    const c = document.createElement("canvas"); c.width = c.height = 180;
+    const x = c.getContext("2d"), g = x.createLinearGradient(0, 0, 180, 180);
+    g.addColorStop(0, "#1d4e5f"); g.addColorStop(1, "#0b1d24");
+    x.fillStyle = g; x.fillRect(0, 0, 180, 180);
+    x.fillStyle = "#fff"; x.beginPath(); x.ellipse(66, 128, 24, 18, -0.35, 0, 7); x.fill();
+    x.fillRect(84, 44, 12, 84); x.beginPath(); x.moveTo(96, 44); x.quadraticCurveTo(140, 56, 132, 96); x.lineTo(120, 92); x.quadraticCurveTo(122, 70, 96, 64); x.fill();
+    const l = document.createElement("link"); l.rel = "apple-touch-icon"; l.href = c.toDataURL("image/png");
+    document.head.appendChild(l);
+  } catch (e) {}
+})();
 
 /* ---------- WALLPAPERS (built-in, no network needed) ---------- */
 const grads = [
