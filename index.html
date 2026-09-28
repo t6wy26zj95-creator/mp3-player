@@ -75,8 +75,10 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .tab-btn.active{color:#fff;text-shadow:0 0 10px rgba(255,255,255,.3)}
 .add-btn{color:rgba(255,255,255,.7)}
 
-.collapsible-content{max-height:0;overflow:hidden;transition:max-height .4s cubic-bezier(.4,0,.2,1);border-top:0 solid rgba(255,255,255,.1);display:flex;flex-direction:column;gap:16px}
-.collapsible-content.expanded{max-height:500px;border-top-width:1px;padding-top:14px}
+.collapsible-content{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows var(--dur) var(--ease),opacity .28s ease}
+.collapsible-content.expanded{grid-template-rows:1fr;opacity:1}
+.drawer-inner{min-height:0;overflow:hidden}
+#view-host{box-sizing:border-box;overflow:hidden;border-top:1px solid rgba(255,255,255,.1);padding-top:14px;transition:height var(--dur) var(--ease)}
 
 .back-btn{display:flex;align-items:center;gap:8px;font:600 12px -apple-system,system-ui,sans-serif;color:rgba(255,255,255,.6);background:none;border:none;cursor:pointer;padding:8px 12px;margin-bottom:4px;border-radius:12px}
 .back-btn:active{color:#fff;background:rgba(255,255,255,.05)}
@@ -115,7 +117,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .upload-btn.ghost{background:none;border-color:transparent;color:rgba(255,255,255,.6);font-weight:500;padding:6px}
 .track-artist{cursor:pointer}
 #track-artist::after{content:" ›";opacity:.5}
-.collapsible-content.expanded.tall{max-height:620px}
+
 .artist-scroll{max-height:450px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:12px}
 .artist-scroll::-webkit-scrollbar{display:none}
 .artist-hero{position:relative;height:170px;border-radius:18px;background:linear-gradient(160deg,#1d4e5f,#0b1d24);background-size:cover;background-position:center 25%;overflow:hidden;border:1px solid rgba(255,255,255,.12);box-shadow:0 8px 20px rgba(0,0,0,.35)}
@@ -143,18 +145,29 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
 .del-badge{display:none;position:absolute;top:-6px;left:-6px;z-index:6;width:24px;height:24px;border-radius:50%;background:rgba(40,48,56,.92);border:1px solid rgba(255,255,255,.35);color:#fff;font:700 16px/22px -apple-system,system-ui,sans-serif;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .albums-grid.editing .del-badge{display:block}
-@keyframes jig{0%{transform:rotate(-1.6deg)}100%{transform:rotate(1.6deg)}}
-.albums-grid.editing .album-card[data-key]:not(.lifted)>img,.albums-grid.editing .album-card[data-key]:not(.lifted)>.all-tracks-icon{animation:jig .13s ease-in-out infinite alternate}
-.albums-grid.editing .album-card[data-key]:nth-child(even):not(.lifted)>img,.albums-grid.editing .album-card[data-key]:nth-child(even):not(.lifted)>.all-tracks-icon{animation-duration:.16s;animation-direction:alternate-reverse}
 .done-pill{position:sticky;top:0;z-index:30;margin:0 10px 0 auto;display:block;padding:6px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.25);background:rgba(15,23,30,.7);color:#fff;font:600 12px -apple-system,system-ui,sans-serif;cursor:pointer}
-.trash-toggle{display:flex;align-items:center;justify-content:center;gap:6px;align-self:flex-start;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:12px;color:#fff;padding:8px 12px;cursor:pointer;font:600 12px -apple-system,system-ui,sans-serif}
-.trash-toggle svg{width:18px;height:18px;fill:rgba(255,255,255,.85)}
-.trash-list{max-height:190px;overflow-y:auto;scrollbar-width:none}
-.trash-row{display:flex;align-items:center;gap:10px;padding:6px 0}
-.trash-row .item-art{width:34px;height:34px}
-.trash-row .nm{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.trash-row button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:10px;padding:6px 10px;font:600 11px -apple-system,system-ui,sans-serif;cursor:pointer}
-.trash-empty{font-size:12px;color:rgba(255,255,255,.45);text-align:center;padding:10px}
+.hidden-toggle{display:flex;align-items:center;justify-content:center;gap:6px;align-self:flex-start;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:12px;color:#fff;padding:8px 12px;cursor:pointer;font:600 12px -apple-system,system-ui,sans-serif}
+.hidden-toggle svg{width:18px;height:18px;fill:rgba(255,255,255,.85)}
+.hidden-list{max-height:190px;overflow-y:auto;scrollbar-width:none}
+.hidden-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.hidden-row .item-art{width:34px;height:34px}
+.hidden-row .nm{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hidden-row button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:10px;padding:6px 10px;font:600 11px -apple-system,system-ui,sans-serif;cursor:pointer}
+.hidden-empty{font-size:12px;color:rgba(255,255,255,.45);text-align:center;padding:10px}
+:root{--ease:cubic-bezier(.22,1,.36,1);--dur:.4s}
+@keyframes viewIn{from{opacity:0;transform:translate(var(--dx,0),var(--dy,0))}to{opacity:1;transform:none}}
+.v-in{animation:viewIn .34s var(--ease) both}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+.card-in{animation:cardIn .36s var(--ease) both}
+.player-btn,.tab-btn,.chip,.circle-btn,.upload-btn,.back-btn,.hidden-toggle,.done-pill{transition:background .22s var(--ease),color .22s var(--ease),transform .18s var(--ease),border-color .22s var(--ease),opacity .22s var(--ease)}
+.playlist-item,.queue-item,.hidden-row{transition:background .22s var(--ease),opacity .3s var(--ease)}
+.album-card img,.album-card .all-tracks-icon{transition:transform .28s var(--ease),opacity .3s ease,box-shadow .28s var(--ease)}
+#track-art-img{transition:opacity .3s ease}
+.floating-customizer{transition:opacity .26s var(--ease),transform .3s var(--ease)!important}
+.toast{transition:opacity .28s var(--ease),transform .32s var(--ease)!important}
+.albums-grid.editing .album-card[data-key]:not(.lifted)>img,.albums-grid.editing .album-card[data-key]:not(.lifted)>.all-tracks-icon{animation:jig .3s ease-in-out infinite alternate;animation-delay:calc(var(--j,0) * -.11s)}
+@keyframes jig{0%{transform:rotate(-.9deg)}100%{transform:rotate(.9deg)}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
@@ -201,7 +214,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
     </div>
   </div>
 
-  <div class="collapsible-content" id="drawer-box">
+  <div class="collapsible-content" id="drawer-box"><div class="drawer-inner"><div id="view-host">
     <div class="albums-grid-container" id="albums-grid-wrapper" style="display:none;">
       <button class="done-pill" id="edit-done" style="display:none">Done</button>
       <div class="albums-grid" id="albums-shelf"></div>
@@ -226,7 +239,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
       </button>
       <div class="artist-scroll" id="artist-ui"></div>
     </div>
-  </div>
+  </div></div></div>
 </div>
 
 <div class="gear-btn" id="gear-trigger">
@@ -236,8 +249,8 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
   <div class="slider-setting"><span>Bg Blur</span><input type="range" id="blur-slider" min="0" max="30" step="1" value="0"></div>
   <button class="upload-btn" id="upload-wall">Upload wallpaper</button>
   <button class="upload-btn ghost" id="reset-wall">Use default wallpaper</button>
-  <button class="trash-toggle" id="trash-toggle" aria-label="Trash"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg><span id="trash-count"></span></button>
-  <div class="trash-list" id="trash-list" style="display:none"></div>
+  <button class="hidden-toggle" id="hidden-toggle" aria-label="Hidden Albums" title="Hidden Albums"><svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2z"/></svg><span id="hidden-count"></span></button>
+  <div class="hidden-list" id="hidden-list" style="display:none"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -370,15 +383,15 @@ async function addFile(f) {
   if (t.title && fstem.length > t.title.length && fstem.toLowerCase().startsWith(t.title.toLowerCase()) && /^\s*[\(\[]/.test(fstem.slice(t.title.length))) title0 = fstem; // file name carries the version suffix
   const tr = { id: ++uid, title: title0, discName: tagText(t.TSST).trim(), artist: t.artist || "Unknown Artist",
     album: t.album || "Unknown Album", albumArtist: tagText(t.TPE2) || tagText(t.aART),
-    disc: parseDisc(t), num: parseInt(t.track, 10) || 0, file: f, art: null };
+    disc: parseDisc(t), num: parseInt(t.track, 10) || 0, year: parseInt(t.year, 10) || 0, file: f, art: null };
   const tk = [tr.artist, tr.album, tr.disc, tr.num, tr.title].map(x => String(x).trim().toLowerCase()).join("|");
   fileKeys.add(fk);
   if (tagKeys.has(tk)) { dupCount++; return; }                        // identical track already in this album
   tagKeys.add(tk);
   if (t.picture) { try { tr.art = URL.createObjectURL(new Blob([new Uint8Array(t.picture.data)], { type: t.picture.format || "image/jpeg" })); } catch (e) {} }
   tracks.push(tr); tracks.sort(cmpTracks);
-  scheduleAlbumWork(tr);
-  if (curId === null && !trashed.has(tr.album)) loadTrack(tr.id, false);
+  scheduleAlbumWork(tr); delete albumRelease[tr.album]; scheduleResolve();
+  if (curId === null) loadTrack(tr.id, false);
 }
 const norm = s => String(s).toLowerCase().replace(/\(.*?\)|\[.*?\]/g, "").replace(/[^a-z0-9]/g, "");
 const albumP = {}, albumNotFound = {};
@@ -413,11 +426,10 @@ function refreshNowPlaying() {
   else { img.style.display = "none"; $("fallback-art").style.display = "block"; }
 }
 /* --- deleted albums (Trash), persisted ---- */
-const trashed = new Set((() => { try { return JSON.parse(store.get("trashedAlbums") || "[]"); } catch (e) { return []; } })());
-const saveTrash = () => store.set("trashedAlbums", JSON.stringify([...trashed]));
+const hiddenSet = new Set((() => { try { return JSON.parse(store.get("hiddenAlbums") || store.get("trashedAlbums") || "[]"); } catch (e) { return []; } })());
+const saveHidden = () => store.set("hiddenAlbums", JSON.stringify([...hiddenSet]));
 const albumSeen = new Set();
-const isRealAlbum = n => n !== "Unknown Album" && !trashed.has(n);
-const vis = () => tracks.filter(t => !trashed.has(t.album));
+const isRealAlbum = n => n !== "Unknown Album" && !hiddenSet.has(n);
 function scheduleAlbumWork(tr) { if (albumSeen.has(tr.album)) return; albumSeen.add(tr.album); fetchAlbumMeta(tr.artist, tr.album); }
 
 /* --- album identity: base title + live flag (+ artist check), never substring matching --- */
@@ -429,19 +441,100 @@ function albumSig(title) {
            .replace(/\s[-–:]\s*[^-–:]*\b(deluxe|remaster(?:ed)?|edition|expanded|anniversary)\b.*$/i, "");
   const b = norm(x); return b ? b + (live ? "#live" : "") : "";
 }
-function ownedAlbumKey(title, artist) {
-  const sig = albumSig(title); if (!sig) return null;
-  const an = artist ? norm(mainArtist(artist)) : null, v = vis();
-  for (const a of new Set(v.map(t => t.album))) {
-    if (!isRealAlbum(a) || albumSig(a) !== sig) continue;
-    if (!an || v.some(t => t.album === a && (norm(mainArtist(t.albumArtist || t.artist)) === an || norm(mainArtist(t.artist)) === an))) return a;
-  }
-  return null;
-}
-let currentCat = null, albumOrigin = null;             // catalog (Deezer) album view + where we came from
+/* --- release identity ---------------------------------------------------------------
+   Ownership is per RELEASE (a Deezer album id), never per title. A local album is linked to a
+   release only when its actual tracks (titles / disc+number) are found on that release's tracklist.
+   Title, year and album name are only used to shortlist candidates and break ties.            */
+const relStore = (() => { try { return JSON.parse(store.get("releaseMap") || "{}"); } catch (e) { return {}; } })();
+const albumRelease = {}, relTracks = {}, dzCat = {};      // local album -> release id | 0 ; id -> tracklist ; artist -> catalog
 const sn = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+function dzCatalog(name) {
+  const k = norm(name);
+  return dzCat[k] || (dzCat[k] = (async () => {
+    try {
+      const r = await jsonp("https://api.deezer.com/search/artist?limit=10&q=" + enc(name));
+      const hit = (r.data || []).filter(x => norm(x.name) === k).sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0))[0];
+      if (!hit) return { id: null, albums: [] };
+      let all = [];
+      for (let i = 0; i < 5; i++) {
+        const p = await jsonp(`https://api.deezer.com/artist/${hit.id}/albums?limit=100&index=${i * 100}`);
+        all = all.concat(p.data || []); if (!p.next || (p.data || []).length < 100) break;
+      }
+      const seen = new Set(), albums = [];
+      all.filter(a => a.record_type === "album" || a.record_type === "ep").forEach(a => {
+        const k2 = sn(a.title) + "|" + a.release_date; if (seen.has(k2)) return; seen.add(k2);   // only exact re-listings are merged
+        albums.push({ id: a.id, title: a.title, year: (a.release_date || "").slice(0, 4), date: a.release_date || "", cover: a.cover_medium || a.cover_big || null });
+      });
+      albums.sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"));
+      return { id: hit.id, albums };
+    } catch (e) { delete dzCat[k]; return null; }
+  })());
+}
+async function relTrackList(id) {
+  if (relTracks[id]) return relTracks[id];
+  try {
+    let out = [];
+    for (let i = 0; i < 3; i++) {
+      const r = await jsonp(`https://api.deezer.com/album/${id}/tracks?limit=100&index=${i * 100}`);
+      out = out.concat(r.data || []); if (!r.next || (r.data || []).length < 100) break;
+    }
+    return relTracks[id] = out.map((t, i) => ({ title: t.title, num: t.track_position || i + 1, disc: t.disk_number || 1 }));
+  } catch (e) { return null; }
+}
+const tokSet = s => new Set(String(s).toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 1));
+function shortlist(name, albums) {
+  const sig = albumSig(name), tk = tokSet(name), live = LIVE_RE.test(name);
+  return albums.filter(a => LIVE_RE.test(a.title) === live).map(a => {
+    const s2 = albumSig(a.title), t2 = tokSet(a.title), inter = [...tk].filter(w => t2.has(w)).length, jac = inter / (tk.size + t2.size - inter || 1);
+    const rank = s2 === sig ? 3 : (s2.length > 3 && sig.length > 3 && (s2.includes(sig) || sig.includes(s2))) ? 2 : jac >= .5 ? 1 : 0;
+    return { a, rank, jac };
+  }).filter(x => x.rank).sort((x, y) => y.rank - x.rank || y.jac - x.jac).slice(0, 6).map(x => x.a);
+}
+function scoreRelease(L, name, year, cand, ctr) {
+  const used = new Set(); let m = 0;
+  L.forEach(t => {
+    let j = ctr.findIndex((x, k) => !used.has(k) && sn(x.title) === sn(t.title));
+    if (j < 0) j = ctr.findIndex((x, k) => !used.has(k) && x.num === t.num && x.disc === (t.disc || 1) && norm(cleanTitle(x.title)) === norm(cleanTitle(t.title)) && verOf(x.title) === verOf(t.title));
+    if (j >= 0) { used.add(j); m++; }
+  });
+  const cov = m / L.length; if (cov < .6 || !m) return -1;      // most of what you own must really be on that release
+  return cov * 100 + (sn(name) === sn(cand.title) ? 25 : 0) + (year && cand.year && +cand.year === year ? 10 : 0) + (m / ctr.length) * 20;
+}
+async function resolveAlbum(name) {
+  const L = tracks.filter(t => t.album === name); if (!L.length) return;
+  const cnt = {}; L.forEach(t => { const a = mainArtist(t.albumArtist || t.artist); cnt[a] = (cnt[a] || 0) + 1; });
+  const artist = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
+  if (name === "Unknown Album" || !artist || artist === "Unknown Artist") { albumRelease[name] = 0; return; }
+  const key = norm(artist) + "|" + sn(name), c = relStore[key];
+  if (c && c.n === L.length) { albumRelease[name] = c.id; return; }
+  const cat = await dzCatalog(artist); if (!cat) return;          // offline: stays unresolved, retried next time
+  const year = L.map(t => t.year).find(y => y) || 0; let best = null;
+  for (const cand of shortlist(name, cat.albums)) {
+    const ctr = await relTrackList(cand.id); if (!ctr) continue;
+    const sc = scoreRelease(L, name, year, cand, ctr); if (sc > 0 && (!best || sc > best.sc)) best = { sc, id: cand.id };
+  }
+  albumRelease[name] = best ? best.id : 0; relStore[key] = { id: albumRelease[name], n: L.length }; store.set("releaseMap", JSON.stringify(relStore));
+}
+let relTimer, relBusy = false;
+function scheduleResolve() { clearTimeout(relTimer); relTimer = setTimeout(runResolve, 1200); }
+async function runResolve() {
+  if (relBusy) { scheduleResolve(); return; } relBusy = true;
+  try { for (const n of [...new Set(tracks.map(t => t.album))]) if (albumRelease[n] === undefined) await resolveAlbum(n); } finally { relBusy = false; }
+  refreshOwnership();
+}
+function ownedAlbumKey(a) {
+  if (!a || !a.id) return null;
+  return Object.keys(albumRelease).find(n => albumRelease[n] == a.id && tracks.some(t => t.album === n)) || null;
+}
+function refreshOwnership() {
+  renderAlbums();
+  if (playlistWrapper.style.display === "block") renderPlaylist();
+  if (artistWrapper.style.display === "block" && lastArtist) { const ui = $("artist-ui"), y = ui.scrollTop; renderArtist(lastArtist, true); ui.scrollTop = y; }
+}
+let lastArtist = null;
+let currentCat = null, albumOrigin = null;             // catalog (Deezer) album view + where we came from
 function catEntries(cat) {
-  const local = cat.own ? vis().filter(t => t.album === cat.own) : [];
+  const own = cat.own !== undefined ? cat.own : ownedAlbumKey(cat), local = own ? tracks.filter(t => t.album === own) : [];
   const plain = t => ({ track: t, title: t.title, num: t.num, disc: t.disc || 1 });
   if (!cat.list || !cat.list.length) return local.map(plain);
   const used = new Set(), out = [];
@@ -458,6 +551,8 @@ function albumCover(name) {
   if (currentCat && name === currentCat.key) return currentCat.cover; const t = tracks.find(t => t.album === name && t.art); return t ? t.art : (albumMeta[name] && albumMeta[name].cover) || null; }
 function albumEntries(name) {
   if (currentCat && name === currentCat.key) return catEntries(currentCat);
+  const rid = albumRelease[name];
+  if (rid && relTracks[rid]) return catEntries({ id: rid, own: name, list: relTracks[rid] });
   const local = tracks.filter(t => t.album === name);              // already ordered disc -> track number
   const plain = () => local.map(t => ({ track: t, title: t.title, num: t.num, disc: t.disc || 1 }));
   const meta = albumMeta[name];
@@ -471,7 +566,7 @@ function albumEntries(name) {
   const byNum = new Map(local.map(t => [t.num, t]));
   return meta.tracks.map((n, i) => { const t = byNum.get(i + 1); return { track: t || null, title: t ? t.title : n, num: i + 1, disc: 1 }; });
 }
-function contextList() { return currentAlbum === "All Tracks" ? vis() : albumEntries(currentAlbum).filter(e => e.track).map(e => e.track); }
+function contextList() { return currentAlbum === "All Tracks" ? tracks : albumEntries(currentAlbum).filter(e => e.track).map(e => e.track); }
 
 /* ---------- RENDER ---------- */
 let albumOrder = []; try { albumOrder = JSON.parse(store.get("albumOrder") || "[]"); } catch (e) {}
@@ -490,10 +585,10 @@ function renderAlbums() {
   if (drag && drag.active) return;
   const shelf = $("albums-shelf"); shelf.innerHTML = "";
   const mk = (title, inner, onClick, key) => {
-    const c = document.createElement("div"); c.className = "album-card";
+    const c = document.createElement("div"); c.className = "album-card"; c.style.setProperty("--j", Math.floor(Math.random() * 6));
     c.innerHTML = (key !== undefined ? '<div class="del-badge" aria-label="Delete">−</div>' : "") + inner + `<div class="album-card-title">${esc(title)}</div>`;
     c.addEventListener("click", () => { if (suppressClick) { suppressClick = false; return; } if (editing) return; onClick(); });
-    if (key !== undefined) { c.dataset.key = key; attachDrag(c); c.querySelector(".del-badge").addEventListener("click", e => { e.stopPropagation(); trashAlbum(c, key); }); }
+    if (key !== undefined) { c.dataset.key = key; attachDrag(c); c.querySelector(".del-badge").addEventListener("click", e => { e.stopPropagation(); hideAlbum(c, key); }); }
     shelf.appendChild(c); return c;
   };
   const folder = `<div class="all-tracks-icon"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></div>`;
@@ -509,24 +604,33 @@ let drag = null, suppressClick = false, editing = false;
 function setEdit(v) { editing = v; $("albums-shelf").classList.toggle("editing", v); $("edit-done").style.display = v ? "block" : "none"; }
 $("edit-done").addEventListener("click", () => setEdit(false));
 $("albums-grid-wrapper").addEventListener("click", e => { if (editing && (e.target.id === "albums-grid-wrapper" || e.target.id === "albums-shelf")) setEdit(false); });
-function trashAlbum(card, name) {
-  card.style.transition = "transform .22s ease,opacity .22s ease"; card.style.transform = "scale(.6)"; card.style.opacity = "0";
-  setTimeout(() => { trashed.add(name); saveTrash(); renderAlbums(); renderTrash(); if (!orderedAlbumNames().length) setEdit(false); toast("Moved to Trash"); }, 220);
+function hideAlbum(card, name) {
+  card.style.transition = "transform .26s var(--ease),opacity .2s ease"; card.style.transform = "scale(.7)"; card.style.opacity = "0";
+  setTimeout(() => {
+    hiddenSet.add(name); saveHidden(); renderHidden();
+    flip(cardsOf().filter(c => c !== card), () => card.remove());
+    if (!orderedAlbumNames().length) setEdit(false);
+    toast("Hidden from Library");
+  }, 230);
 }
-function renderTrash() {
-  const names = [...trashed], box = $("trash-list"); $("trash-count").textContent = names.length || "";
-  box.innerHTML = ""; if (!names.length) { box.innerHTML = '<div class="trash-empty">Trash is empty</div>'; return; }
+function renderHidden() {
+  const names = [...hiddenSet], box = $("hidden-list"); $("hidden-count").textContent = names.length || "";
+  box.innerHTML = ""; if (!names.length) { box.innerHTML = '<div class="hidden-empty">No hidden albums</div>'; return; }
+  
   names.forEach(n => {
-    const row = document.createElement("div"); row.className = "trash-row";
+    const row = document.createElement("div"); row.className = "hidden-row";
     row.innerHTML = itemHTML(albumCover(n), n, "").replace('<div class="item-text">', '<div class="item-text" style="display:none">') + '<div class="nm"></div>';
     row.querySelector(".nm").textContent = n;
-    const b = document.createElement("button"); b.textContent = "Restore";
-    b.addEventListener("click", e => { e.stopPropagation(); trashed.delete(n); saveTrash(); renderTrash(); renderAlbums(); if (!curId) { const t = vis()[0]; if (t) loadTrack(t.id, false); } });
+    row.style.cursor = "pointer";
+    row.addEventListener("click", () => { settingsPanel.classList.remove("active"); albumOrigin = null; currentCat = null; currentAlbum = n; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
+      setTab(btnPlaylist); drawerBox.classList.add("expanded"); showOnly(playlistWrapper, 1); renderPlaylist(); });
+    const b = document.createElement("button"); b.textContent = "Unhide";
+    b.addEventListener("click", e => { e.stopPropagation(); hiddenSet.delete(n); saveHidden(); renderHidden(); renderAlbums(); if (!curId) { const t = tracks[0]; if (t) loadTrack(t.id, false); } });
     row.appendChild(b); box.appendChild(row);
   });
 }
-$("trash-toggle").addEventListener("click", () => { const l = $("trash-list"); l.style.display = l.style.display === "none" ? "block" : "none"; renderTrash(); });
-renderTrash();
+$("hidden-toggle").addEventListener("click", () => { const l = $("hidden-list"); l.style.display = l.style.display === "none" ? "block" : "none"; renderHidden(); });
+renderHidden();
 document.addEventListener("touchmove", e => { if (drag && drag.active) e.preventDefault(); }, { passive: false });
 const cardsOf = () => [...$("albums-shelf").querySelectorAll(".album-card[data-key]")];
 const applyKeys = keys => { const cs = cardsOf(); keys.forEach((k, i) => { const c = cs.find(x => x.dataset.key === k); if (c) c.style.order = i + 1; }); };
@@ -539,7 +643,7 @@ function flip(els, mutate) {
     e.style.transform = `translate(${first[i].left - l.left}px,${first[i].top - l.top}px)`;
   });
   void document.body.offsetHeight;
-  els.forEach(e => { e.style.transition = "transform .28s cubic-bezier(.2,.8,.2,1)"; e.style.transform = ""; });
+  els.forEach(e => { e.style.transition = "transform .32s var(--ease)"; e.style.transform = ""; });
 }
 function attachDrag(card) {
   card.addEventListener("contextmenu", e => e.preventDefault());
@@ -556,7 +660,7 @@ function attachDrag(card) {
       drag.grabX = drag.x - gr.left - card.offsetLeft; drag.grabY = drag.y - gr.top - card.offsetTop;
       drag.keys = [...cardsOf()].sort((a, b) => a.style.order - b.style.order).map(c => c.dataset.key);
       card.classList.add("lifted"); card.style.zIndex = 20;
-      card.style.transition = "transform .18s cubic-bezier(.2,.8,.2,1)";
+      card.style.transition = "transform .22s var(--ease)";
       $("albums-grid-wrapper").style.overflowY = "hidden";
       if (navigator.vibrate) navigator.vibrate(12);
       setTimeout(() => { if (drag && drag.card === card) { drag.follow = true; card.style.transition = "none"; } }, 190);
@@ -597,7 +701,7 @@ function endDrag() {
   suppressClick = true; setTimeout(() => { suppressClick = false; }, 400);
   $("albums-grid-wrapper").style.overflowY = "";
   const c = d.card;
-  c.style.transition = "transform .26s cubic-bezier(.2,.8,.2,1)"; c.style.transform = ""; c.classList.remove("lifted");
+  c.style.transition = "transform .3s var(--ease)"; c.style.transform = ""; c.classList.remove("lifted");
   setTimeout(() => { c.style.transition = ""; c.style.zIndex = ""; }, 280);
   saveOrder(d.keys);
 }
@@ -605,7 +709,7 @@ document.addEventListener("pointerup", endDrag);
 document.addEventListener("pointercancel", endDrag);
 
 function openTracklist() {
-  showOnly(playlistWrapper);
+  showOnly(playlistWrapper, 1);
   renderPlaylist();
 }
 function itemHTML(art, title, sub) {
@@ -615,11 +719,11 @@ function itemHTML(art, title, sub) {
 function renderPlaylist() {
   const ui = $("playlist-ui"); ui.innerHTML = "";
   const all = currentAlbum === "All Tracks";
-  const entries = all ? vis().map(t => ({ track: t, title: t.title, num: t.num })) : albumEntries(currentAlbum);
+  const entries = all ? tracks.map(t => ({ track: t, title: t.title, num: t.num })) : albumEntries(currentAlbum);
   if (!all && !entries.length) ui.innerHTML = '<div class="artist-note" style="text-align:center;padding:16px">Loading tracks…</div>';
   const multi = !all && entries.some(e => e.disc > 1); let lastDisc = null;
   entries.forEach(e => {
-    if (multi && e.disc !== lastDisc) { lastDisc = e.disc; const h = document.createElement("div"); h.className = "disc-h"; h.textContent = e.disc >= 99 ? "More from your library" : "Disc " + e.disc + (e.track && e.track.discName ? " · " + e.track.discName : ""); ui.appendChild(h); }
+    if (multi && e.disc !== lastDisc) { lastDisc = e.disc; const h = document.createElement("div"); h.className = "disc-h"; h.textContent = e.disc >= 99 ? "Also in your files" : "Disc " + e.disc + (e.track && e.track.discName ? " · " + e.track.discName : ""); ui.appendChild(h); }
     const t = e.track, item = document.createElement("div");
     item.className = "playlist-item" + (t ? "" : " missing") + (t && t.id === curId ? " active" : "");
     const label = (e.num ? e.num + ". " : "") + e.title;
@@ -663,7 +767,7 @@ function loadTrack(id, autoplay) {
   $("track-artist").innerText = t.artist;
   const img = $("track-art-img");
   const art = t.art || albumCover(t.album);
-  if (art) { img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; }
+  if (art) { if (img.getAttribute("src") !== art) { img.style.opacity = 0; img.onload = () => { img.style.opacity = 1; }; } img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; }
   else { img.style.display = "none"; $("fallback-art").style.display = "block"; }
   progressCtrl.setValue(0);
   $("current-time").innerText = "0:00"; $("total-duration").innerText = "0:00";
@@ -680,13 +784,13 @@ function pauseTrack() { audio.pause(); playBtn.innerHTML = playIconSvg; }
 function playNext() {
   if (queue.length) { const id = queue.shift(); renderQueue(); loadTrack(id, true); return; }
   let list = contextList(); let i = list.findIndex(t => t.id === curId);
-  if (i === -1) { list = vis(); i = list.findIndex(t => t.id === curId); }
+  if (i === -1) { list = tracks; i = list.findIndex(t => t.id === curId); }
   if (list.length) loadTrack(list[(i + 1) % list.length].id, true);
 }
 function playPrev() {
   if (audio.currentTime > 3) { audio.currentTime = 0; return; }
   let list = contextList(); let i = list.findIndex(t => t.id === curId);
-  if (i === -1) { list = vis(); i = list.findIndex(t => t.id === curId); }
+  if (i === -1) { list = tracks; i = list.findIndex(t => t.id === curId); }
   if (list.length) loadTrack(list[(i - 1 + list.length) % list.length].id, true);
 }
 const fmt = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
@@ -776,35 +880,14 @@ async function fetchAlbumsMB(d) {
   } catch (e) { return []; }
 }
 async function fetchAlbums(d) {
-  try {
-    let id = d.dzid;
-    if (!id) {
-      const r = await jsonp("https://api.deezer.com/search/artist?limit=10&q=" + enc(d.name));
-      const hit = (r.data || []).filter(x => norm(x.name) === norm(d.name)).sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0))[0];
-      id = hit && hit.id; d.dzid = id || null;
-    }
-    if (id) {
-      let all = [];
-      for (let i = 0; i < 5; i++) {
-        const r = await jsonp(`https://api.deezer.com/artist/${id}/albums?limit=100&index=${i * 100}`);
-        all = all.concat(r.data || []); if (!r.next || (r.data || []).length < 100) break;
-      }
-      const best = new Map();                          // collapse deluxe/remaster/explicit duplicates
-      all.filter(a => a.record_type === "album" || a.record_type === "ep").forEach(a => {
-        const sig = albumSig(a.title), cur = best.get(sig);
-        if (!cur || (a.release_date || "9999") < (cur.release_date || "9999")) best.set(sig, a);
-      });
-      const list = [...best.values()].sort((a, b) => (a.release_date || "9999").localeCompare(b.release_date || "9999"))
-        .map(a => ({ id: a.id, title: a.title, year: (a.release_date || "").slice(0, 4), cover: a.cover_medium || a.cover_big || null }));
-      if (list.length) return list;
-    }
-  } catch (e) {}
-  return fetchAlbumsMB(d);                             // fallback if Deezer is unreachable
+  const cat = await dzCatalog(d.name);
+  if (cat && cat.albums.length) { d.dzid = cat.id; return cat.albums; }
+  return fetchAlbumsMB(d);                             // fallback if Deezer is unreachable (no release ids -> nothing is marked owned)
 }
 async function loadArtist(name, onPartial) {
   const key = norm(name), c = artistCache[key];
-  if (c && c.full && c.v === 2 && Date.now() - c.t < 7 * 864e5) return c;
-  const d = { name, photo: c && c.photo, banner: c && c.banner, bio: "", tags: [], listeners: 0, similar: [], albums: [], mbid: null, t: Date.now(), v: 2 };
+  if (c && c.full && c.v === 3 && Date.now() - c.t < 7 * 864e5) return c;
+  const d = { name, photo: c && c.photo, banner: c && c.banner, bio: "", tags: [], listeners: 0, similar: [], albums: [], mbid: null, t: Date.now(), v: 3 };
   const [lf, adb] = await Promise.all([lastfmArtist(name), audioDb(name)]);
   if (lf) {
     d.name = lf.name || name; d.mbid = lf.mbid || null;
@@ -830,7 +913,8 @@ function ownedAlbumKey(title) {
   const n = norm(title); if (!n) return null;
   return [...new Set(tracks.map(t => t.album))].filter(isRealAlbum).find(a => { const m = norm(a); return m === n || (n.length > 4 && m.length > 4 && (m.includes(n) || n.includes(m))); }) || null;
 }
-function renderArtist(d) {
+function renderArtist(d, still) {
+  lastArtist = d;
   const ui = $("artist-ui");
   ui.innerHTML = `<div class="artist-hero"><div class="artist-hero-fade"></div><div class="artist-name"></div></div>
     <div class="artist-meta"></div><div class="artist-note" id="artist-note"></div>
@@ -849,9 +933,9 @@ function renderArtist(d) {
   const grid = $("artist-albums");
   if (d.albumsLoading) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">Loading albums…</div>';
   else if (!d.loading && !(d.albums || []).length) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">No albums found.</div>';
-  (d.albums || []).forEach(a => {
-    const own = ownedAlbumKey(a.title, d.name), c = document.createElement("div");
-    c.className = "album-card" + (own ? "" : " dim");
+  (d.albums || []).forEach((a, i) => {
+    const own = ownedAlbumKey(a), c = document.createElement("div");
+    c.className = "album-card" + (still ? "" : " card-in") + (own ? "" : " dim"); c.style.animationDelay = Math.min(i, 12) * 22 + "ms";
     c.innerHTML = `${own ? '<div class="own-dot"></div>' : ""}<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>${a.year ? '<div class="year"></div>' : ""}`;
     c.querySelector(".album-card-title").textContent = a.title;
     if (a.year) c.querySelector(".year").textContent = a.year;
@@ -866,22 +950,20 @@ function renderArtist(d) {
   }
 }
 async function openCatalogAlbum(a, artistName) {
-  const cat = currentCat = { key: "cat:" + (a.id || sn(a.title)), title: a.title, artist: artistName, cover: a.cover, own: ownedAlbumKey(a.title, artistName), list: null };
+  const cat = currentCat = { key: "cat:" + (a.id || sn(a.title)), id: a.id, title: a.title, artist: artistName, cover: a.cover, list: null };
   currentAlbum = cat.key; albumOrigin = { name: artistName, scroll: $("artist-ui").scrollTop };
   $("back-to-grid-btn").querySelector("span").textContent = "Back";
-  showOnly(playlistWrapper); renderPlaylist(); $("playlist-ui").scrollTop = 0;
-  if (a.id) {
-    try { const r = await jsonp(`https://api.deezer.com/album/${a.id}/tracks?limit=100`); cat.list = (r.data || []).map((t, i) => ({ title: t.title, num: t.track_position || i + 1, disc: t.disk_number || 1 })); }
-    catch (e) { cat.list = []; }
-    if (currentCat === cat) renderPlaylist();
-  } else cat.list = [];
+  showOnly(playlistWrapper, 1); renderPlaylist(); $("playlist-ui").scrollTop = 0;
+  cat.list = (a.id && await relTrackList(a.id)) || [];
+  if (currentCat === cat) renderPlaylist();
 }
 async function openArtist(name, mode, scroll) {
   name = mainArtist(name || ""); if (!name || name === "Unknown Artist") return;
   if (mode === "push") { if (currentArtistName) artistStack.push(currentArtistName); }
   else if (mode !== "back") artistStack = [];
   currentArtistName = name;
-  setTab(btnArtists); showOnly(artistWrapper); drawerBox.classList.add("expanded");
+  const wasArtist = artistWrapper.style.display === "block";
+  setTab(btnArtists); showOnly(artistWrapper, mode === "back" ? -1 : 1); drawerBox.classList.add("expanded");
   $("artist-ui").scrollTop = scroll || 0;
   renderArtist({ name, loading: true });
   const d = await loadArtist(name, p => { if (currentArtistName === name) renderArtist(p); });
@@ -910,7 +992,7 @@ async function pumpPhotos() {
 }
 function renderArtists() {
   const shelf = $("artists-shelf"); shelf.innerHTML = "";
-  const counts = {}; vis().forEach(t => { const a = mainArtist(t.artist); if (a && a !== "Unknown Artist") counts[a] = (counts[a] || 0) + 1; });
+  const counts = {}; tracks.forEach(t => { const a = mainArtist(t.artist); if (a && a !== "Unknown Artist") counts[a] = (counts[a] || 0) + 1; });
   const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
   if (!names.length) { shelf.innerHTML = '<div class="artist-note" style="grid-column:1/-1;text-align:center;padding:20px">Add songs to see artists.</div>'; return; }
   names.forEach(n => {
@@ -932,13 +1014,23 @@ const btnQueue = $("btn-queue"), btnPlaylist = $("btn-playlist"), drawerBox = $(
 const queueWrapper = $("queue-wrapper"), playlistWrapper = $("playlist-wrapper"), albumsGridWrapper = $("albums-grid-wrapper");
 $("back-to-grid-btn").addEventListener("click", () => {
   if (albumOrigin) { const o = albumOrigin; albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums"; openArtist(o.name, "back", o.scroll); return; }
-  currentCat = null; playlistWrapper.style.display = "none"; albumsGridWrapper.style.display = "block";
+  currentCat = null; showOnly(albumsGridWrapper, -1); renderAlbums();
 });
 const btnArtists = $("btn-artists"), artistsWrapper = $("artists-wrapper"), artistWrapper = $("artist-wrapper");
 const allWraps = [queueWrapper, playlistWrapper, albumsGridWrapper, artistsWrapper, artistWrapper];
-function showOnly(el) {
-  allWraps.forEach(w => { w.style.display = w === el ? "block" : "none"; });
-  drawerBox.classList.toggle("tall", el === artistWrapper || el === artistsWrapper);
+const viewHost = $("view-host");
+function showOnly(el, dir) {
+  const swap = () => { allWraps.forEach(w => { w.style.display = w === el ? "block" : "none"; }); };
+  const open = drawerBox.classList.contains("expanded") && el;
+  const h0 = viewHost.offsetHeight; swap();
+  if (!el) return;
+  el.style.setProperty("--dx", (dir || 0) * 18 + "px"); el.style.setProperty("--dy", dir ? "0px" : "8px");
+  el.classList.remove("v-in"); void el.offsetWidth; el.classList.add("v-in");
+  if (!open) return;
+  viewHost.style.transition = "none"; viewHost.style.height = "auto"; const h1 = viewHost.offsetHeight;
+  if (Math.abs(h1 - h0) < 2) { viewHost.style.transition = ""; viewHost.style.height = ""; return; }
+  viewHost.style.height = h0 + "px"; void viewHost.offsetHeight; viewHost.style.transition = ""; viewHost.style.height = h1 + "px";
+  clearTimeout(viewHost._t); viewHost._t = setTimeout(() => { viewHost.style.height = ""; }, 450);
 }
 function setTab(btn) { [btnQueue, btnPlaylist, btnArtists].forEach(b => b.classList.toggle("active", b === btn)); }
 function toggleTab(btn) {
@@ -948,6 +1040,7 @@ function toggleTab(btn) {
     setTimeout(() => { if (!drawerBox.classList.contains("expanded")) showOnly(null); }, 400);
     return;
   }
+  const wasOpen = drawerBox.classList.contains("expanded");
   setTab(btn);
   if (btn === btnPlaylist) { showOnly(albumsGridWrapper); renderAlbums(); }
   else if (btn === btnQueue) { showOnly(queueWrapper); renderQueue(); }
@@ -959,7 +1052,7 @@ btnPlaylist.addEventListener("click", () => toggleTab(btnPlaylist));
 btnArtists.addEventListener("click", () => toggleTab(btnArtists));
 $("artist-back").addEventListener("click", () => {
   if (artistStack.length) openArtist(artistStack.pop(), "back");
-  else { currentArtistName = ""; showOnly(artistsWrapper); renderArtists(); }
+  else { currentArtistName = ""; showOnly(artistsWrapper, -1); renderArtists(); }
 });
 </script>
 </body>
