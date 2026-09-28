@@ -19,12 +19,12 @@
   --glass-shadow:0 20px 50px rgba(0,0,0,.3),0 4px 15px rgba(0,0,0,.15),inset 0 0 2px rgba(255,255,255,.2);
 }
 *{-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
-html{background:#0b1d24}
+html{height:calc(100% + 120px);background-color:#0b1d24;background-repeat:no-repeat}
+body{height:100%}
 body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
   padding:calc(env(safe-area-inset-top,0px) + 24px) 16px 0;box-sizing:border-box;-webkit-text-size-adjust:100%}
-.bg-container{position:fixed;top:-5%;bottom:-15%;left:-3%;right:-3%;z-index:-2;background-size:cover;background-position:center;transition:background .3s ease}
-.bg-vignette{position:fixed;top:0;bottom:-15%;left:0;right:0;background:radial-gradient(circle at center,rgba(0,0,0,0) 30%,rgba(0,0,0,.6) 100%);pointer-events:none;z-index:-1}
+.bg-container{position:fixed;top:0;left:0;right:0;height:calc(100% + 120px);z-index:-2;background-size:cover;background-position:center;transition:background .3s ease}
+.bg-vignette{position:fixed;top:0;left:0;right:0;height:calc(100% + 120px);background:radial-gradient(circle at center,rgba(0,0,0,0) 30%,rgba(0,0,0,.6) 100%);pointer-events:none;z-index:-1}
 
 .player-wrapper{position:relative;width:100%;max-width:580px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
   border:1px solid var(--glass-border);border-top:1px solid var(--glass-border-top);border-radius:24px;padding:20px;box-sizing:border-box;box-shadow:var(--glass-shadow);
@@ -223,7 +223,13 @@ function applyBg() {
   mainBg.style.filter = `blur(${store.get("wallpaperBlur") || 0}px)`;
   const custom = store.get("photoData");
   mainBg.style.backgroundImage = `url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;
-  mainBg.style.backgroundPosition = custom ? "center" : "70% 24%, center";
+  const pos = custom ? "center" : "70% 24%";
+  mainBg.style.backgroundPosition = `${pos}, center`;
+  // Same wallpaper painted on the page canvas itself, so it also fills the strip under Safari's bar
+  const root = document.documentElement.style, vig = "radial-gradient(circle at center,rgba(0,0,0,0) 30%,rgba(0,0,0,.6) 100%)";
+  root.backgroundImage = `${vig}, url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;
+  root.backgroundSize = "100% 100%, cover, cover";
+  root.backgroundPosition = `center, ${pos}, center`;
 }
 $("upload-wall").addEventListener("click", () => $("photo-input").click());
 $("reset-wall").addEventListener("click", () => { store.set("photoData", ""); applyBg(); });
