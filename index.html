@@ -36,9 +36,12 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
 .albums-grid-container{max-height:240px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .albums-grid-container::-webkit-scrollbar{display:none}
-.albums-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:10px;align-items:start}
-.album-card{width:100%;min-width:0;cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
+.albums-grid{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:10px;align-items:start}
+.album-card{position:relative;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;width:100%;min-width:0;cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
 .album-card img,.album-card .all-tracks-icon{display:block;width:100%;max-width:100%;height:auto;min-width:0;aspect-ratio:1/1;border-radius:12px;border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 15px rgba(0,0,0,.3);object-fit:cover;transition:transform .2s ease;box-sizing:border-box}
+.album-card img{pointer-events:none;-webkit-user-drag:none}
+.album-card.lifted{z-index:20}
+.album-card.lifted img,.album-card.lifted .all-tracks-icon{box-shadow:0 20px 34px rgba(0,0,0,.55)}
 .album-card:active img,.album-card:active .all-tracks-icon{transform:scale(.96)}
 .album-card .all-tracks-icon{background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center}
 .album-card .all-tracks-icon svg{width:40px;height:40px;fill:rgba(255,255,255,.4)}
@@ -302,26 +305,90 @@ async function addFile(f) {
   if (t.picture) { try { art = URL.createObjectURL(new Blob([new Uint8Array(t.picture.data)], { type: t.picture.format || "image/jpeg" })); } catch (e) {} }
   const tr = { id: ++uid, title: t.title || f.name.replace(/\.[^.]+$/, ""), artist: t.artist || "Unknown Artist",
     album: t.album || "Unknown Album", num: parseInt(t.track, 10) || 0, file: f, art };
+  const rk = resolveKey(tr);
+  if (mbCache[rk] && mbCache[rk] !== tr.album) { tr.tagAlbum = tr.album; tr.album = mbCache[rk]; tr.art = null; }
   tracks.push(tr);
-  fetchAlbumMeta(tr.artist, tr.album);
+  processTrackAlbum(tr);
   tracks.sort((a, b) => a.album.localeCompare(b.album) || a.num - b.num || a.title.localeCompare(b.title));
   if (curId === null) loadTrack(tr.id, false);
 }
 const norm = s => String(s).toLowerCase().replace(/\(.*?\)|\[.*?\]/g, "").replace(/[^a-z0-9]/g, "");
-async function fetchAlbumMeta(artist, album) {
-  if (album === "Unknown Album" || artist === "Unknown Artist" || album in albumMeta) return;
-  albumMeta[album] = null;
+const albumP = {};
+function fetchAlbumMeta(artist, album) {
+  if (album === "Unknown Album" || artist === "Unknown Artist") return Promise.resolve(null);
+  if (albumP[album]) return albumP[album];
+  return albumP[album] = (async () => {
+    try {
+      const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 8000);
+      const url = `https://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(album)}&format=json`;
+      const data = await (await fetch(url, { signal: ctrl.signal })).json(); clearTimeout(to);
+      const a = data.album; if (!a) return null;
+      const img = (a.image || []).slice().reverse().find(i => i["#text"]);
+      let list = a.tracks && a.tracks.track ? a.tracks.track : [];
+      if (!Array.isArray(list)) list = [list];
+      albumMeta[album] = { artist, cover: img ? img["#text"] : null, tracks: list.map(t => t.name) };
+      renderAlbums(); renderPlaylist();
+      return albumMeta[album];
+    } catch (e) { return null; }
+  })();
+}
+
+/* --- find the track's real album when the file's tag is a playlist/collection --- */
+const mbCache = (() => { try { return JSON.parse(store.get("resolvedAlbums") || "{}"); } catch (e) { return {}; } })();
+let mbChain = Promise.resolve();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const cleanTitle = s => s.replace(/\s*[\(\[].*?[\)\]]/g, "").replace(/\s-\s.*$/, "").trim();
+const mainArtist = s => s.split(/\s*(?:;|,|&|\bfeat\.|\bft\.)\s*/i)[0].trim();
+const resolveKey = tr => norm(mainArtist(tr.artist)) + "|" + norm(cleanTitle(tr.title));
+async function findOriginalAlbum(tr) {
+  const title = cleanTitle(tr.title), artist = mainArtist(tr.artist);
   try {
-    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 8000);
-    const url = `https://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(album)}&format=json`;
-    const data = await (await fetch(url, { signal: ctrl.signal })).json(); clearTimeout(to);
-    const a = data.album; if (!a) return;
-    const img = (a.image || []).slice().reverse().find(i => i["#text"]);
-    let list = a.tracks && a.tracks.track ? a.tracks.track : [];
-    if (!Array.isArray(list)) list = [list];
-    albumMeta[album] = { artist, cover: img ? img["#text"] : null, tracks: list.map(t => t.name) };
-    renderAlbums(); renderPlaylist();
-  } catch (e) { /* offline or blocked: fall back to local files only */ }
+    const q = `recording:"${title}" AND artist:"${artist}"`;
+    const d = await (await fetch(`https://musicbrainz.org/ws/2/recording?query=${encodeURIComponent(q)}&fmt=json&limit=15`)).json();
+    let best = null;
+    for (const rec of d.recordings || []) {
+      if ((rec.score || 0) < 90 || norm(rec.title) !== norm(title)) continue;
+      for (const rel of rec.releases || []) {
+        const rg = rel["release-group"] || {};
+        if (rg["primary-type"] !== "Album" || (rg["secondary-types"] || []).length) continue;
+        if (rel.status && rel.status !== "Official") continue;
+        const date = rel.date || "9999";
+        if (!best || date < best.date) best = { date, name: rg.title };
+      }
+    }
+    if (best) return best.name;
+  } catch (e) {}
+  try {
+    const d = await (await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getinfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artist)}&track=${encodeURIComponent(title)}&autocorrect=1&format=json`)).json();
+    if (d.track && d.track.album && d.track.album.title) return d.track.album.title;
+  } catch (e) {}
+  return null;
+}
+function refreshNowPlaying() {
+  const t = tracks.find(x => x.id === curId); if (!t) return;
+  const art = t.art || albumCover(t.album), img = $("track-art-img");
+  if (art) { img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; }
+  else { img.style.display = "none"; $("fallback-art").style.display = "block"; }
+  if (bgSel === "art") applyBg();
+}
+async function processTrackAlbum(tr) {
+  if (tr.artist === "Unknown Artist") return;
+  const meta = await fetchAlbumMeta(tr.artist, tr.album);
+  const nt = norm(tr.title);
+  const listed = meta && meta.tracks.some(n => { const a = norm(n); return a && nt && (a === nt || a.includes(nt) || nt.includes(a)); });
+  if (listed) return;                                   // tag album is a real album containing this song
+  const key = resolveKey(tr);
+  let real = mbCache[key];
+  if (!real) {
+    real = await new Promise(res => { mbChain = mbChain.then(async () => { const r = await findOriginalAlbum(tr); await sleep(1100); res(r); }); });
+    if (real) { mbCache[key] = real; store.set("resolvedAlbums", JSON.stringify(mbCache)); }
+  }
+  if (!real || real === tr.album) return;
+  tr.tagAlbum = tr.album; tr.album = real; tr.art = null;
+  tracks.sort((a, b) => a.album.localeCompare(b.album) || a.num - b.num || a.title.localeCompare(b.title));
+  await fetchAlbumMeta(tr.artist, real);
+  renderAlbums(); renderPlaylist();
+  if (tr.id === curId) refreshNowPlaying();
 }
 function albumCover(name) { const t = tracks.find(t => t.album === name && t.art); return t ? t.art : (albumMeta[name] && albumMeta[name].cover) || null; }
 function albumEntries(name) {
@@ -339,20 +406,113 @@ function albumEntries(name) {
 function contextList() { return currentAlbum === "All Tracks" ? tracks : albumEntries(currentAlbum).filter(e => e.track).map(e => e.track); }
 
 /* ---------- RENDER ---------- */
+let albumOrder = []; try { albumOrder = JSON.parse(store.get("albumOrder") || "[]"); } catch (e) {}
+function orderedAlbumNames() {
+  const rank = n => { const i = albumOrder.indexOf(n); return i < 0 ? 1e6 : i; };
+  return [...new Set(tracks.map(t => t.album))].map((n, i) => [n, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
+}
+function saveOrder(keys) {
+  const old = albumOrder.slice(), vis = new Set(keys), inOld = keys.filter(k => old.includes(k));
+  const slots = old.map((k, i) => vis.has(k) ? i : -1).filter(i => i >= 0);
+  const res = old.slice(); slots.forEach((sl, j) => { res[sl] = inOld[j]; });
+  keys.forEach((k, i) => { if (!res.includes(k)) res.splice((i ? res.indexOf(keys[i - 1]) : -1) + 1, 0, k); });
+  albumOrder = res; store.set("albumOrder", JSON.stringify(res));
+}
 function renderAlbums() {
+  if (drag && drag.active) return;
   const shelf = $("albums-shelf"); shelf.innerHTML = "";
-  const mk = (title, inner, onClick) => {
+  const mk = (title, inner, onClick, key) => {
     const c = document.createElement("div"); c.className = "album-card";
     c.innerHTML = inner + `<div class="album-card-title">${esc(title)}</div>`;
-    c.addEventListener("click", onClick); shelf.appendChild(c);
+    c.addEventListener("click", () => { if (suppressClick) { suppressClick = false; return; } onClick(); });
+    if (key !== undefined) { c.dataset.key = key; attachDrag(c); }
+    shelf.appendChild(c); return c;
   };
   const folder = `<div class="all-tracks-icon"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></div>`;
-  mk("All Tracks", folder, () => { currentAlbum = "All Tracks"; openTracklist(); });
-  [...new Set(tracks.map(t => t.album))].forEach(name => {
+  mk("All Tracks", folder, () => { currentAlbum = "All Tracks"; openTracklist(); }).style.order = 0;
+  orderedAlbumNames().forEach((name, i) => {
     const cover = albumCover(name);
-    mk(name, cover ? `<img src="${cover}" alt="">` : `<div class="all-tracks-icon">${noteSvg}</div>`, () => { currentAlbum = name; openTracklist(); });
+    mk(name, cover ? `<img src="${cover}" alt="">` : `<div class="all-tracks-icon">${noteSvg}</div>`, () => { currentAlbum = name; openTracklist(); }, name).style.order = i + 1;
   });
 }
+
+/* ---- drag to reorder (long-press, then drag) ---- */
+let drag = null, suppressClick = false;
+document.addEventListener("touchmove", e => { if (drag && drag.active) e.preventDefault(); }, { passive: false });
+const cardsOf = () => [...$("albums-shelf").querySelectorAll(".album-card[data-key]")];
+const applyKeys = keys => { const cs = cardsOf(); keys.forEach((k, i) => { const c = cs.find(x => x.dataset.key === k); if (c) c.style.order = i + 1; }); };
+function flip(els, mutate) {
+  const first = els.map(e => e.getBoundingClientRect());
+  els.forEach(e => { e.style.transition = "none"; e.style.transform = ""; });
+  mutate();
+  els.forEach((e, i) => {
+    const l = e.getBoundingClientRect();
+    e.style.transform = `translate(${first[i].left - l.left}px,${first[i].top - l.top}px)`;
+  });
+  void document.body.offsetHeight;
+  els.forEach(e => { e.style.transition = "transform .28s cubic-bezier(.2,.8,.2,1)"; e.style.transform = ""; });
+}
+function attachDrag(card) {
+  card.addEventListener("contextmenu", e => e.preventDefault());
+  card.addEventListener("pointerdown", e => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const shelf = $("albums-shelf");
+    drag = { card, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, active: false };
+    drag.timer = setTimeout(() => {
+      if (!drag) return;
+      const gr = shelf.getBoundingClientRect();
+      drag.active = true; drag.follow = false;
+      drag.grabX = drag.x - gr.left - card.offsetLeft; drag.grabY = drag.y - gr.top - card.offsetTop;
+      drag.keys = [...cardsOf()].sort((a, b) => a.style.order - b.style.order).map(c => c.dataset.key);
+      card.classList.add("lifted"); card.style.zIndex = 20;
+      card.style.transition = "transform .18s cubic-bezier(.2,.8,.2,1)";
+      $("albums-grid-wrapper").style.overflowY = "hidden";
+      if (navigator.vibrate) navigator.vibrate(12);
+      setTimeout(() => { if (drag && drag.card === card) { drag.follow = true; card.style.transition = "none"; } }, 190);
+      dragUpdate(); drag.raf = requestAnimationFrame(dragLoop);
+    }, e.pointerType === "mouse" ? 200 : 380);
+  });
+}
+function dragUpdate() {
+  const d = drag, c = d.card, gr = $("albums-shelf").getBoundingClientRect();
+  const px = d.cx - gr.left, py = d.cy - gr.top;
+  const others = cardsOf().filter(o => o !== c);
+  const t = others.find(o => px >= o.offsetLeft && px <= o.offsetLeft + o.offsetWidth && py >= o.offsetTop && py <= o.offsetTop + o.offsetHeight);
+  if (t) {
+    const from = d.keys.indexOf(c.dataset.key), to = d.keys.indexOf(t.dataset.key);
+    if (from !== to && from >= 0 && to >= 0) flip(others, () => { d.keys.splice(to, 0, d.keys.splice(from, 1)[0]); applyKeys(d.keys); });
+  }
+  c.style.transform = `translate(${px - d.grabX - c.offsetLeft}px,${py - d.grabY - c.offsetTop}px) scale(1.08)`;
+}
+function dragLoop() {
+  if (!drag || !drag.active) return;
+  const box = $("albums-grid-wrapper"), r = box.getBoundingClientRect();
+  const dy = drag.cy < r.top + 36 ? -7 : drag.cy > r.bottom - 36 ? 7 : 0;
+  if (dy) { box.scrollTop += dy; dragUpdate(); }
+  drag.raf = requestAnimationFrame(dragLoop);
+}
+document.addEventListener("pointermove", e => {
+  if (!drag) return;
+  drag.cx = e.clientX; drag.cy = e.clientY;
+  if (!drag.active) { if (Math.hypot(drag.cx - drag.x, drag.cy - drag.y) > 8) { clearTimeout(drag.timer); drag = null; } return; }
+  dragUpdate();
+});
+function endDrag() {
+  if (!drag) return;
+  clearTimeout(drag.timer);
+  const d = drag; drag = null;
+  if (!d.active) return;
+  cancelAnimationFrame(d.raf);
+  suppressClick = true; setTimeout(() => { suppressClick = false; }, 400);
+  $("albums-grid-wrapper").style.overflowY = "";
+  const c = d.card;
+  c.style.transition = "transform .26s cubic-bezier(.2,.8,.2,1)"; c.style.transform = ""; c.classList.remove("lifted");
+  setTimeout(() => { c.style.transition = ""; c.style.zIndex = ""; }, 280);
+  saveOrder(d.keys);
+}
+document.addEventListener("pointerup", endDrag);
+document.addEventListener("pointercancel", endDrag);
+
 function openTracklist() {
   $("albums-grid-wrapper").style.display = "none";
   $("playlist-wrapper").style.display = "block";
