@@ -54,8 +54,9 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .album-art svg{width:24px;height:24px;fill:rgba(255,255,255,.4)}
 .track-text{display:flex;flex-direction:column;justify-content:center;gap:2px;overflow:hidden;flex:1}
 .track-title{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 5px rgba(0,0,0,.5)}
-.track-artist{font-size:13px;color:rgba(255,255,255,.6);text-shadow:0 1px 3px rgba(0,0,0,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track-artist{cursor:pointer;font-size:13px;color:rgba(255,255,255,.6);text-shadow:0 1px 3px rgba(0,0,0,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+.track-artist::after{content:' ›';opacity:.5}
 .progress-container{display:flex;align-items:center;flex-wrap:nowrap;gap:10px;font-size:11px;color:rgba(255,255,255,.7);width:100%;font-variant-numeric:tabular-nums}
 .controls-cluster{display:flex;align-items:center;gap:8px}
 .player-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 5px rgba(0,0,0,.2);padding:0}
@@ -99,6 +100,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .circle-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
 .circle-btn.success{background:#2ecc71;border-color:#2ecc71}
 
+.album-card img{background:rgba(255,255,255,.06)}
 .gear-btn{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);right:20px;width:42px;height:42px;background:rgba(15,23,30,.4);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:11;opacity:.75}
 .gear-btn svg{width:18px;height:18px;fill:rgba(255,255,255,.8)}
 .floating-customizer{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 74px);right:20px;width:min(280px,calc(100% - 40px));background:rgba(15,23,30,.65);backdrop-filter:blur(30px) saturate(160%);-webkit-backdrop-filter:blur(30px) saturate(160%);
@@ -111,6 +113,31 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .upload-btn{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff;font:600 13px -apple-system,system-ui,sans-serif;cursor:pointer}
 .upload-btn:active{background:rgba(255,255,255,.22)}
 .upload-btn.ghost{background:none;border-color:transparent;color:rgba(255,255,255,.6);font-weight:500;padding:6px}
+.track-artist{cursor:pointer}
+#track-artist::after{content:" ›";opacity:.5}
+.collapsible-content.expanded.tall{max-height:620px}
+.artist-scroll{max-height:450px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:12px}
+.artist-scroll::-webkit-scrollbar{display:none}
+.artist-hero{position:relative;height:170px;border-radius:18px;background:linear-gradient(160deg,#1d4e5f,#0b1d24);background-size:cover;background-position:center 25%;overflow:hidden;border:1px solid rgba(255,255,255,.12);box-shadow:0 8px 20px rgba(0,0,0,.35)}
+.artist-hero-fade{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.78),rgba(0,0,0,0) 65%)}
+.artist-name{position:absolute;left:16px;right:16px;bottom:12px;font-size:26px;font-weight:700;line-height:1.1;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.artist-meta{font-size:12px;color:rgba(255,255,255,.6);margin:12px 4px 0}
+.artist-note{font-size:12px;color:rgba(255,255,255,.45);margin:10px 4px}
+.artist-bio{font-size:13px;line-height:1.45;color:rgba(255,255,255,.82);margin:10px 4px 0}
+.artist-bio.clamp{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.artist-more{background:none;border:0;color:rgba(255,255,255,.6);font:600 12px -apple-system,system-ui,sans-serif;padding:8px 4px;cursor:pointer}
+.artist-sec{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);margin:14px 4px 0}
+.artist-albums{padding:10px 4px}
+.album-card.dim{opacity:.4;cursor:default}
+.album-card .year{font-size:10px;color:rgba(255,255,255,.5);margin-top:-4px}
+.own-dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:#2ecc71;box-shadow:0 0 8px #2ecc71;z-index:2}
+.chips{display:flex;flex-wrap:wrap;gap:8px;padding:10px 4px}
+.chip{padding:8px 13px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);font-size:12px;cursor:pointer}
+.chip:active{background:rgba(255,255,255,.22)}
+.artist-card img,.artist-card .all-tracks-icon{border-radius:50%!important}
+.disc-h{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);padding:12px 12px 4px}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);transform:translateX(-50%) translateY(10px);background:rgba(15,23,30,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);padding:10px 16px;border-radius:14px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:30;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%)}
 .slider-setting{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.6)}
 .slider-setting input{width:130px}
 </style>
@@ -155,6 +182,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
     <div class="tab-buttons">
       <button class="tab-btn" id="btn-queue">Up Next</button>
       <button class="tab-btn" id="btn-playlist">Library</button>
+      <button class="tab-btn" id="btn-artists">Artists</button>
     </div>
   </div>
 
@@ -172,6 +200,16 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
     <div class="scroll-container-wrapper" id="queue-wrapper" style="display:none;">
       <div class="queue-container" id="queue-ui"></div>
     </div>
+    <div class="albums-grid-container" id="artists-wrapper" style="display:none;max-height:360px;">
+      <div class="albums-grid" id="artists-shelf"></div>
+    </div>
+    <div class="scroll-container-wrapper" id="artist-wrapper" style="display:none;max-height:none;padding-bottom:0;">
+      <button class="back-btn" id="artist-back">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        <span>Back</span>
+      </button>
+      <div class="artist-scroll" id="artist-ui"></div>
+    </div>
   </div>
 </div>
 
@@ -184,6 +222,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
   <button class="upload-btn ghost" id="reset-wall">Use default wallpaper</button>
 </div>
 
+<div class="toast" id="toast"></div>
 <audio id="audio-element" playsinline></audio>
 
 <script>
@@ -279,8 +318,10 @@ $("file-input").addEventListener("change", async e => {
   $("player-main").style.display = "flex";
   $("controls-main").style.display = "flex";
   $("footer-main").style.display = "flex";
+  dupCount = 0;
   for (const f of files) await addFile(f);
   renderAlbums(); renderPlaylist();
+  if (dupCount) toast(`Skipped ${dupCount} duplicate${dupCount > 1 ? "s" : ""}`);
 });
 function readTags(f) {
   return new Promise(res => {
@@ -288,21 +329,35 @@ function readTags(f) {
     try { jsmediatags.read(f, { onSuccess: t => res(t.tags || {}), onError: () => res({}) }); } catch (e) { res({}); }
   });
 }
+const fileKeys = new Set(), tagKeys = new Set(); let dupCount = 0;
+let toastTimer;
+function toast(msg) { const el = $("toast"); el.textContent = msg; el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2600); }
+const cmpTracks = (a, b) => a.album.localeCompare(b.album) || (a.disc || 1) - (b.disc || 1) || (a.num || 1e6) - (b.num || 1e6) || a.title.localeCompare(b.title);
+const tagText = fr => (fr && fr.data != null ? String(fr.data) : "");
+function parseDisc(t) {
+  let v = null;
+  if (t.TPOS && t.TPOS.data != null) v = t.TPOS.data;
+  else if (t.disk && t.disk.data != null) v = typeof t.disk.data === "object" ? t.disk.data.disk : t.disk.data;
+  const n = parseInt(v, 10); return n > 0 ? n : 0;
+}
 async function addFile(f) {
+  const fk = `${f.name}|${f.size}|${f.lastModified}`;
+  if (fileKeys.has(fk)) { dupCount++; return; }                       // same file picked again
   const t = await readTags(f);
-  let art = null;
-  if (t.picture) { try { art = URL.createObjectURL(new Blob([new Uint8Array(t.picture.data)], { type: t.picture.format || "image/jpeg" })); } catch (e) {} }
   const tr = { id: ++uid, title: t.title || f.name.replace(/\.[^.]+$/, ""), artist: t.artist || "Unknown Artist",
-    album: t.album || "Unknown Album", num: parseInt(t.track, 10) || 0, file: f, art };
-  const rk = resolveKey(tr);
-  if (mbCache[rk] && mbCache[rk] !== tr.album) { tr.tagAlbum = tr.album; tr.album = mbCache[rk]; tr.art = null; }
-  tracks.push(tr);
-  processTrackAlbum(tr);
-  tracks.sort((a, b) => a.album.localeCompare(b.album) || a.num - b.num || a.title.localeCompare(b.title));
+    album: t.album || "Unknown Album", albumArtist: tagText(t.TPE2) || tagText(t.aART),
+    disc: parseDisc(t), num: parseInt(t.track, 10) || 0, file: f, art: null };
+  const tk = [tr.artist, tr.album, tr.disc, tr.num, tr.title].map(x => String(x).trim().toLowerCase()).join("|");
+  fileKeys.add(fk);
+  if (tagKeys.has(tk)) { dupCount++; return; }                        // identical track already in this album
+  tagKeys.add(tk);
+  if (t.picture) { try { tr.art = URL.createObjectURL(new Blob([new Uint8Array(t.picture.data)], { type: t.picture.format || "image/jpeg" })); } catch (e) {} }
+  tracks.push(tr); tracks.sort(cmpTracks);
+  scheduleAlbumWork(tr);
   if (curId === null) loadTrack(tr.id, false);
 }
 const norm = s => String(s).toLowerCase().replace(/\(.*?\)|\[.*?\]/g, "").replace(/[^a-z0-9]/g, "");
-const albumP = {};
+const albumP = {}, albumNotFound = {};
 function fetchAlbumMeta(artist, album) {
   if (album === "Unknown Album" || artist === "Unknown Artist") return Promise.resolve(null);
   if (albumP[album]) return albumP[album];
@@ -311,7 +366,7 @@ function fetchAlbumMeta(artist, album) {
       const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 8000);
       const url = `https://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(album)}&format=json`;
       const data = await (await fetch(url, { signal: ctrl.signal })).json(); clearTimeout(to);
-      const a = data.album; if (!a) return null;
+      const a = data.album; if (!a) { if (data.error) albumNotFound[album] = true; return null; }
       const img = (a.image || []).slice().reverse().find(i => i["#text"]);
       let list = a.tracks && a.tracks.track ? a.tracks.track : [];
       if (!Array.isArray(list)) list = [list];
@@ -359,37 +414,43 @@ function refreshNowPlaying() {
   if (art) { img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; }
   else { img.style.display = "none"; $("fallback-art").style.display = "block"; }
 }
-async function processTrackAlbum(tr) {
-  if (tr.artist === "Unknown Artist") return;
-  const meta = await fetchAlbumMeta(tr.artist, tr.album);
-  const nt = norm(tr.title);
-  const listed = meta && meta.tracks.some(n => { const a = norm(n); return a && nt && (a === nt || a.includes(nt) || nt.includes(a)); });
-  if (listed) return;                                   // tag album is a real album containing this song
-  const key = resolveKey(tr);
-  let real = mbCache[key];
-  if (!real) {
-    real = await new Promise(res => { mbChain = mbChain.then(async () => { const r = await findOriginalAlbum(tr); await sleep(1100); res(r); }); });
-    if (real) { mbCache[key] = real; store.set("resolvedAlbums", JSON.stringify(mbCache)); }
+/* --- collections (playlist-style "albums") are kept out of the album grid; their songs stay in All Tracks --- */
+const albumKinds = (() => { try { return JSON.parse(store.get("albumKinds") || "{}"); } catch (e) { return {}; } })();
+const albumSeen = new Set();
+const isRealAlbum = n => n !== "Unknown Album" && albumKinds[n] !== "c";
+function scheduleAlbumWork(tr) { if (albumSeen.has(tr.album)) return; albumSeen.add(tr.album); classifyAlbum(tr); }
+async function classifyAlbum(tr) {
+  const album = tr.album;
+  if (album === "Unknown Album" || albumKinds[album]) return;
+  const meta = await fetchAlbumMeta(tr.artist, album);              // also gives cover + missing tracks
+  if (meta || !albumNotFound[album]) return;                        // Last.fm knows it, or we're offline: keep as album
+  const inAlbum = tracks.filter(t => t.album === album);
+  const various = inAlbum.some(t => /^various artists?$/i.test(t.albumArtist || ""));
+  let collection = various || new Set(inAlbum.map(t => norm(mainArtist(t.artist)))).size >= 3;
+  if (!collection) {                                                // unknown album, but is the song released elsewhere?
+    const key = resolveKey(tr); let real = mbCache[key];
+    if (!real) {
+      real = await new Promise(res => { mbChain = mbChain.then(async () => { const r = await findOriginalAlbum(tr); await sleep(1100); res(r); }); });
+      if (real) { mbCache[key] = real; store.set("resolvedAlbums", JSON.stringify(mbCache)); }
+    }
+    collection = !!real && norm(real) !== norm(album);
   }
-  if (!real || real === tr.album) return;
-  tr.tagAlbum = tr.album; tr.album = real; tr.art = null;
-  tracks.sort((a, b) => a.album.localeCompare(b.album) || a.num - b.num || a.title.localeCompare(b.title));
-  await fetchAlbumMeta(tr.artist, real);
-  renderAlbums(); renderPlaylist();
-  if (tr.id === curId) refreshNowPlaying();
+  if (collection) { albumKinds[album] = "c"; store.set("albumKinds", JSON.stringify(albumKinds)); renderAlbums(); renderPlaylist(); }
 }
 function albumCover(name) { const t = tracks.find(t => t.album === name && t.art); return t ? t.art : (albumMeta[name] && albumMeta[name].cover) || null; }
 function albumEntries(name) {
-  const local = tracks.filter(t => t.album === name), meta = albumMeta[name];
-  if (!meta || !meta.tracks.length) return local.map(t => ({ track: t, title: t.title, num: t.num }));
-  const used = new Set(), found = meta.tracks.map(() => null);
-  const pass = fn => meta.tracks.forEach((n, i) => { if (found[i]) return; const t = local.find(x => !used.has(x.id) && fn(x, n, i)); if (t) { used.add(t.id); found[i] = t; } });
-  pass((x, n) => norm(x.title) === norm(n));
-  pass((x, n, i) => x.num === i + 1);
-  pass((x, n) => norm(n).length > 2 && (norm(x.title).includes(norm(n)) || norm(n).includes(norm(x.title))));
-  const out = meta.tracks.map((n, i) => ({ track: found[i], title: found[i] ? found[i].title : n, num: i + 1 }));
-  local.filter(x => !used.has(x.id)).forEach(t => out.push({ track: t, title: t.title, num: t.num }));
-  return out;
+  const local = tracks.filter(t => t.album === name);              // already ordered disc -> track number
+  const plain = () => local.map(t => ({ track: t, title: t.title, num: t.num, disc: t.disc || 1 }));
+  const meta = albumMeta[name];
+  if (!meta || !meta.tracks.length || !local.length) return plain();
+  if (local.some(t => (t.disc || 1) > 1)) return plain();          // multi-disc: never guess where missing tracks go
+  const nums = local.map(t => t.num);
+  if (nums.some(n => !(n > 0)) || new Set(nums).size !== nums.length) return plain();
+  if (meta.tracks.length < Math.max(...nums)) return plain();
+  const agree = local.filter(t => { const a = norm(meta.tracks[t.num - 1] || ""), b = norm(t.title); return a && b && (a === b || a.includes(b) || b.includes(a)); }).length;
+  if (agree / local.length < 0.6) return plain();                  // Last.fm list looks like a different edition
+  const byNum = new Map(local.map(t => [t.num, t]));
+  return meta.tracks.map((n, i) => { const t = byNum.get(i + 1); return { track: t || null, title: t ? t.title : n, num: i + 1, disc: 1 }; });
 }
 function contextList() { return currentAlbum === "All Tracks" ? tracks : albumEntries(currentAlbum).filter(e => e.track).map(e => e.track); }
 
@@ -397,7 +458,7 @@ function contextList() { return currentAlbum === "All Tracks" ? tracks : albumEn
 let albumOrder = []; try { albumOrder = JSON.parse(store.get("albumOrder") || "[]"); } catch (e) {}
 function orderedAlbumNames() {
   const rank = n => { const i = albumOrder.indexOf(n); return i < 0 ? 1e6 : i; };
-  return [...new Set(tracks.map(t => t.album))].map((n, i) => [n, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
+  return [...new Set(tracks.map(t => t.album))].filter(isRealAlbum).map((n, i) => [n, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
 }
 function saveOrder(keys) {
   const old = albumOrder.slice(), vis = new Set(keys), inOld = keys.filter(k => old.includes(k));
@@ -502,8 +563,7 @@ document.addEventListener("pointerup", endDrag);
 document.addEventListener("pointercancel", endDrag);
 
 function openTracklist() {
-  $("albums-grid-wrapper").style.display = "none";
-  $("playlist-wrapper").style.display = "block";
+  showOnly(playlistWrapper);
   renderPlaylist();
 }
 function itemHTML(art, title, sub) {
@@ -514,7 +574,9 @@ function renderPlaylist() {
   const ui = $("playlist-ui"); ui.innerHTML = "";
   const all = currentAlbum === "All Tracks";
   const entries = all ? tracks.map(t => ({ track: t, title: t.title, num: t.num })) : albumEntries(currentAlbum);
+  const multi = !all && entries.some(e => e.disc > 1); let lastDisc = null;
   entries.forEach(e => {
+    if (multi && e.disc !== lastDisc) { lastDisc = e.disc; const h = document.createElement("div"); h.className = "disc-h"; h.textContent = "Disc " + e.disc; ui.appendChild(h); }
     const t = e.track, item = document.createElement("div");
     item.className = "playlist-item" + (t ? "" : " missing") + (t && t.id === curId ? " active" : "");
     const label = (e.num ? e.num + ". " : "") + e.title;
@@ -600,23 +662,220 @@ if ("mediaSession" in navigator) {
   m.setActionHandler("nexttrack", playNext); m.setActionHandler("previoustrack", playPrev);
 }
 
+/* ---------- JSONP (Deezer) ---------- */
+function jsonp(url) {
+  return new Promise((res, rej) => {
+    const cb = "dz" + Math.random().toString(36).slice(2), sc = document.createElement("script");
+    const done = () => { clearTimeout(t); delete window[cb]; sc.remove(); };
+    const t = setTimeout(() => { done(); rej(); }, 8000);
+    window[cb] = d => { done(); res(d); };
+    sc.onerror = () => { done(); rej(); };
+    sc.src = url + "&output=jsonp&callback=" + cb; document.head.appendChild(sc);
+  });
+}
+
+/* ---------- ARTISTS ---------- */
+const artistCache = (() => { try { return JSON.parse(store.get("artistCache") || "{}"); } catch (e) { return {}; } })();
+const saveArtists = () => store.set("artistCache", JSON.stringify(artistCache));
+const enc = encodeURIComponent;
+let mbChain2 = Promise.resolve(), currentArtistName = "", artistStack = [];
+function mbFetch(url) {
+  return new Promise(res => { mbChain2 = mbChain2.then(async () => {
+    let r = null; try { r = await (await fetch(url)).json(); } catch (e) {}
+    await sleep(1300); res(r);
+  }); });
+}
+const fmtNum = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1e3 ? Math.round(n / 1e3) + "K" : String(n);
+const plainText = h => new DOMParser().parseFromString(h || "", "text/html").body.textContent.trim();
+async function lastfmArtist(name) {
+  try { const j = await (await fetch(`https://ws.audioscrobbler.com/2.0/?method=artist.getinfo&api_key=${LASTFM_API_KEY}&artist=${enc(name)}&autocorrect=1&format=json`)).json(); return j.artist || null; } catch (e) { return null; }
+}
+async function audioDb(name) {
+  try {
+    const j = await (await fetch(`https://www.theaudiodb.com/api/v1/json/2/search.php?s=${enc(name)}`)).json();
+    const a = j.artists && j.artists[0];
+    if (!a || norm(a.strArtist) !== norm(name)) return null;
+    return { thumb: a.strArtistThumb, fanart: a.strArtistFanart || a.strArtistFanart2, bio: a.strBiographyEN, genre: a.strGenre, mbid: a.strMusicBrainzID };
+  } catch (e) { return null; }
+}
+async function deezerPhoto(name) {
+  try {
+    const d = await jsonp("https://api.deezer.com/search/artist?limit=5&q=" + encodeURIComponent(name));
+    const hit = (d.data || []).find(x => norm(x.name) === norm(name));
+    return hit ? (hit.picture_xl || hit.picture_big || null) : null;
+  } catch (e) { return null; }
+}
+async function wikiImage(name) {
+  try {
+    const j = await (await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${enc(name.replace(/ /g, "_"))}`)).json();
+    if (j.type === "standard" && /band|singer|musician|rapper|duo|group|composer|producer|\bDJ\b|songwriter|orchestra/i.test(j.description || "") && j.thumbnail) return j.thumbnail.source;
+  } catch (e) {}
+  return null;
+}
+async function fetchAlbums(d) {
+  let mbid = d.mbid;
+  if (!mbid) {
+    const r = await mbFetch(`https://musicbrainz.org/ws/2/artist?query=${enc('artist:"' + d.name + '"')}&fmt=json&limit=3`);
+    const a = ((r && r.artists) || []).find(x => norm(x.name) === norm(d.name)); mbid = a && a.id;
+  }
+  if (mbid) {
+    const r = await mbFetch(`https://musicbrainz.org/ws/2/release-group?artist=${mbid}&type=album&limit=100&fmt=json`);
+    const rgs = ((r && r["release-groups"]) || []).filter(g => g["primary-type"] === "Album" && !(g["secondary-types"] || []).length);
+    if (rgs.length) return rgs.sort((a, b) => (a["first-release-date"] || "9999").localeCompare(b["first-release-date"] || "9999"))
+      .map(g => ({ title: g.title, year: (g["first-release-date"] || "").slice(0, 4), cover: `https://coverartarchive.org/release-group/${g.id}/front-250` }));
+  }
+  try {
+    const j = await (await fetch(`https://ws.audioscrobbler.com/2.0/?method=artist.gettopalbums&api_key=${LASTFM_API_KEY}&artist=${enc(d.name)}&autocorrect=1&limit=12&format=json`)).json();
+    return ((j.topalbums && j.topalbums.album) || []).filter(a => a.name && a.name !== "(null)").map(a => {
+      const im = (a.image || []).slice().reverse().find(i => i["#text"]); return { title: a.name, year: "", cover: im ? im["#text"] : null };
+    });
+  } catch (e) { return []; }
+}
+async function loadArtist(name, onPartial) {
+  const key = norm(name), c = artistCache[key];
+  if (c && c.full && Date.now() - c.t < 7 * 864e5) return c;
+  const d = { name, photo: c && c.photo, banner: c && c.banner, bio: "", tags: [], listeners: 0, similar: [], albums: [], mbid: null, t: Date.now() };
+  const [lf, adb] = await Promise.all([lastfmArtist(name), audioDb(name)]);
+  if (lf) {
+    d.name = lf.name || name; d.mbid = lf.mbid || null;
+    d.bio = plainText((lf.bio && lf.bio.summary) || "").replace(/\s*Read more on Last\.fm.*$/i, "");
+    d.listeners = parseInt(lf.stats && lf.stats.listeners, 10) || 0;
+    d.tags = ((lf.tags && lf.tags.tag) || []).map(t => t.name).slice(0, 4);
+    d.similar = ((lf.similar && lf.similar.artist) || []).map(x => x.name).slice(0, 6);
+  }
+  if (adb) {
+    if (!d.mbid) d.mbid = adb.mbid || null;
+    if (!d.bio && adb.bio) d.bio = adb.bio.slice(0, 700);
+    if (!d.tags.length && adb.genre) d.tags = [adb.genre];
+    if (adb.fanart || adb.thumb) { d.banner = adb.fanart || adb.thumb; d.photo = adb.thumb || adb.fanart; }
+  }
+  if (!d.banner) { const dz = await deezerPhoto(d.name); if (dz) d.banner = d.photo = dz; }
+  if (!d.banner) { const w = await wikiImage(name); if (w) d.banner = d.photo = w; }
+  onPartial({ ...d, albumsLoading: true });
+  d.albums = await fetchAlbums(d);
+  if (lf || adb) { d.full = true; artistCache[key] = d; saveArtists(); }
+  return d;
+}
+function ownedAlbumKey(title) {
+  const n = norm(title); if (!n) return null;
+  return [...new Set(tracks.map(t => t.album))].filter(isRealAlbum).find(a => { const m = norm(a); return m === n || (n.length > 4 && m.length > 4 && (m.includes(n) || n.includes(m))); }) || null;
+}
+function renderArtist(d) {
+  const ui = $("artist-ui");
+  ui.innerHTML = `<div class="artist-hero"><div class="artist-hero-fade"></div><div class="artist-name"></div></div>
+    <div class="artist-meta"></div><div class="artist-note" id="artist-note"></div>
+    <div id="artist-bio-box"></div>
+    <div class="artist-sec">Albums</div><div class="albums-grid artist-albums" id="artist-albums"></div>
+    <div id="artist-sim-box"></div>`;
+  ui.querySelector(".artist-name").textContent = d.name;
+  const img = d.banner || d.photo; if (img) ui.querySelector(".artist-hero").style.backgroundImage = `url("${img}")`;
+  ui.querySelector(".artist-meta").textContent = [d.tags && d.tags.slice(0, 3).join(" · "), d.listeners ? fmtNum(d.listeners) + " listeners" : ""].filter(Boolean).join("  •  ");
+  if (d.loading) $("artist-note").textContent = "Loading…";
+  if (d.bio) {
+    $("artist-bio-box").innerHTML = `<div class="artist-bio clamp"></div><button class="artist-more">Read more</button>`;
+    const bio = ui.querySelector(".artist-bio"); bio.textContent = d.bio;
+    ui.querySelector(".artist-more").addEventListener("click", e => { const cl = bio.classList.toggle("clamp"); e.target.textContent = cl ? "Read more" : "Show less"; });
+  }
+  const grid = $("artist-albums");
+  if (d.albumsLoading) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">Loading albums…</div>';
+  else if (!d.loading && !(d.albums || []).length) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">No albums found.</div>';
+  (d.albums || []).forEach(a => {
+    const own = ownedAlbumKey(a.title), c = document.createElement("div");
+    c.className = "album-card" + (own ? "" : " dim");
+    c.innerHTML = `${own ? '<div class="own-dot"></div>' : ""}<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>${a.year ? '<div class="year"></div>' : ""}`;
+    c.querySelector(".album-card-title").textContent = a.title;
+    if (a.year) c.querySelector(".year").textContent = a.year;
+    const slot = c.querySelector(".ph-wrap"), ph = () => { slot.innerHTML = `<div class="all-tracks-icon">${noteSvg}</div>`; };
+    if (a.cover) { const im = new Image(); im.loading = "lazy"; im.alt = ""; im.onerror = ph; im.src = a.cover; slot.appendChild(im); } else ph();
+    if (own) c.addEventListener("click", () => { currentAlbum = own; setTab(btnPlaylist); showOnly(playlistWrapper); renderPlaylist(); });
+    grid.appendChild(c);
+  });
+  if (d.similar && d.similar.length) {
+    $("artist-sim-box").innerHTML = '<div class="artist-sec">Similar artists</div><div class="chips"></div>';
+    d.similar.forEach(n => { const ch = document.createElement("div"); ch.className = "chip"; ch.textContent = n; ch.addEventListener("click", () => openArtist(n, "push")); ui.querySelector(".chips").appendChild(ch); });
+  }
+}
+async function openArtist(name, mode) {
+  name = mainArtist(name || ""); if (!name || name === "Unknown Artist") return;
+  if (mode === "push") { if (currentArtistName) artistStack.push(currentArtistName); }
+  else if (mode !== "back") artistStack = [];
+  currentArtistName = name;
+  setTab(btnArtists); showOnly(artistWrapper); drawerBox.classList.add("expanded");
+  $("artist-ui").scrollTop = 0;
+  renderArtist({ name, loading: true });
+  const d = await loadArtist(name, p => { if (currentArtistName === name) renderArtist(p); });
+  if (currentArtistName === name) renderArtist(d);
+}
+const photoQueue = [], photoTried = {}; let photoBusy = false;
+function needPhoto(name) {
+  const k = norm(name), c = artistCache[k];
+  if ((c && (c.photo || c.banner)) || photoTried[k]) return;
+  photoTried[k] = 1; photoQueue.push(name); pumpPhotos();
+}
+async function pumpPhotos() {
+  if (photoBusy) return; photoBusy = true;
+  while (photoQueue.length) {
+    const n = photoQueue.shift(), k = norm(n);
+    const c = artistCache[k] || (artistCache[k] = { name: n, t: Date.now() });
+    let p = await deezerPhoto(n);
+    if (!p) { const adb = await audioDb(n); p = adb && (adb.thumb || adb.fanart); }
+    if (!p) p = await wikiImage(n);
+    if (p) c.photo = c.banner = p;
+    saveArtists();
+    if (artistsWrapper.style.display === "block") renderArtists();
+    await sleep(450);
+  }
+  photoBusy = false;
+}
+function renderArtists() {
+  const shelf = $("artists-shelf"); shelf.innerHTML = "";
+  const counts = {}; tracks.forEach(t => { const a = mainArtist(t.artist); if (a && a !== "Unknown Artist") counts[a] = (counts[a] || 0) + 1; });
+  const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+  if (!names.length) { shelf.innerHTML = '<div class="artist-note" style="grid-column:1/-1;text-align:center;padding:20px">Add songs to see artists.</div>'; return; }
+  names.forEach(n => {
+    const c = artistCache[norm(n)], photo = c && (c.photo || c.banner);
+    if (!photo) needPhoto(n);
+    const card = document.createElement("div"); card.className = "album-card artist-card";
+    card.innerHTML = `<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>`;
+    card.querySelector(".album-card-title").textContent = n;
+    const slot = card.querySelector(".ph-wrap"), ph = () => { slot.innerHTML = `<div class="all-tracks-icon" style="font-size:30px;font-weight:700;color:rgba(255,255,255,.45)"></div>`; slot.firstChild.textContent = n.trim().charAt(0).toUpperCase(); };
+    if (photo) { const im = new Image(); im.alt = ""; im.onerror = ph; im.src = photo; slot.appendChild(im); } else ph();
+    card.addEventListener("click", () => openArtist(n));
+    shelf.appendChild(card);
+  });
+}
+$("track-artist").addEventListener("click", () => { const t = tracks.find(x => x.id === curId); if (t) openArtist(t.artist); });
+
 /* ---------- TABS ---------- */
 const btnQueue = $("btn-queue"), btnPlaylist = $("btn-playlist"), drawerBox = $("drawer-box");
 const queueWrapper = $("queue-wrapper"), playlistWrapper = $("playlist-wrapper"), albumsGridWrapper = $("albums-grid-wrapper");
 $("back-to-grid-btn").addEventListener("click", () => { playlistWrapper.style.display = "none"; albumsGridWrapper.style.display = "block"; });
+const btnArtists = $("btn-artists"), artistsWrapper = $("artists-wrapper"), artistWrapper = $("artist-wrapper");
+const allWraps = [queueWrapper, playlistWrapper, albumsGridWrapper, artistsWrapper, artistWrapper];
+function showOnly(el) {
+  allWraps.forEach(w => { w.style.display = w === el ? "block" : "none"; });
+  drawerBox.classList.toggle("tall", el === artistWrapper || el === artistsWrapper);
+}
+function setTab(btn) { [btnQueue, btnPlaylist, btnArtists].forEach(b => b.classList.toggle("active", b === btn)); }
 function toggleTab(btn) {
   if (btn.classList.contains("active")) {
-    btn.classList.remove("active"); drawerBox.classList.remove("expanded");
-    setTimeout(() => { if (!drawerBox.classList.contains("expanded")) { queueWrapper.style.display = playlistWrapper.style.display = albumsGridWrapper.style.display = "none"; } }, 400);
+    setTab(null); drawerBox.classList.remove("expanded");
+    setTimeout(() => { if (!drawerBox.classList.contains("expanded")) showOnly(null); }, 400);
     return;
   }
-  btnQueue.classList.remove("active"); btnPlaylist.classList.remove("active"); btn.classList.add("active");
-  if (btn === btnPlaylist) { albumsGridWrapper.style.display = "block"; playlistWrapper.style.display = "none"; queueWrapper.style.display = "none"; renderAlbums(); }
-  else { queueWrapper.style.display = "block"; albumsGridWrapper.style.display = "none"; playlistWrapper.style.display = "none"; renderQueue(); }
+  setTab(btn);
+  if (btn === btnPlaylist) { showOnly(albumsGridWrapper); renderAlbums(); }
+  else if (btn === btnQueue) { showOnly(queueWrapper); renderQueue(); }
+  else { showOnly(artistsWrapper); renderArtists(); }
   drawerBox.classList.add("expanded");
 }
 btnQueue.addEventListener("click", () => toggleTab(btnQueue));
 btnPlaylist.addEventListener("click", () => toggleTab(btnPlaylist));
+btnArtists.addEventListener("click", () => toggleTab(btnArtists));
+$("artist-back").addEventListener("click", () => {
+  if (artistStack.length) openArtist(artistStack.pop(), "back");
+  else { currentArtistName = ""; showOnly(artistsWrapper); renderArtists(); }
+});
 </script>
 </body>
 </html>
