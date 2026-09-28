@@ -158,7 +158,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 @keyframes viewIn{from{opacity:0;transform:translate(var(--dx,0),var(--dy,0))}to{opacity:1;transform:none}}
 .v-in{animation:viewIn .34s var(--ease) both}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
-.card-in{animation:cardIn .36s var(--ease) both}
+.card-in{animation:cardIn .36s var(--ease) backwards}
 .player-btn,.tab-btn,.chip,.circle-btn,.upload-btn,.back-btn,.hidden-toggle,.done-pill{transition:background .22s var(--ease),color .22s var(--ease),transform .18s var(--ease),border-color .22s var(--ease),opacity .22s var(--ease)}
 .playlist-item,.queue-item,.hidden-row{transition:background .22s var(--ease),opacity .3s var(--ease)}
 .album-card img,.album-card .all-tracks-icon{transition:transform .28s var(--ease),opacity .3s ease,box-shadow .28s var(--ease)}
@@ -381,8 +381,9 @@ async function addFile(f) {
   if (sub3 && !title0.toLowerCase().includes(sub3.toLowerCase())) title0 += ` (${sub3})`;
   const fstem = stem.replace(/^[^-:]{1,40}\s*[-:]\s*/, m => norm(m).startsWith(norm(String(t.artist || "~"))) ? "" : m);
   if (t.title && fstem.length > t.title.length && fstem.toLowerCase().startsWith(t.title.toLowerCase()) && /^\s*[\(\[]/.test(fstem.slice(t.title.length))) title0 = fstem; // file name carries the version suffix
-  const tr = { id: ++uid, title: title0, discName: tagText(t.TSST).trim(), artist: t.artist || "Unknown Artist",
-    album: t.album || "Unknown Album", albumArtist: tagText(t.TPE2) || tagText(t.aART),
+  const cl = x => String(x == null ? "" : x).replace(/\0/g, "").trim();
+  const tr = { id: ++uid, title: cl(title0), discName: cl(tagText(t.TSST)), artist: cl(t.artist) || "Unknown Artist", isrc: cl(tagText(t.TSRC)),
+    album: cl(t.album) || "Unknown Album", albumArtist: cl(tagText(t.TPE2) || tagText(t.aART)),
     disc: parseDisc(t), num: parseInt(t.track, 10) || 0, year: parseInt(t.year, 10) || 0, file: f, art: null };
   const tk = [tr.artist, tr.album, tr.disc, tr.num, tr.title].map(x => String(x).trim().toLowerCase()).join("|");
   fileKeys.add(fk);
@@ -441,23 +442,33 @@ function albumSig(title) {
            .replace(/\s[-–:]\s*[^-–:]*\b(deluxe|remaster(?:ed)?|edition|expanded|anniversary)\b.*$/i, "");
   const b = norm(x); return b ? b + (live ? "#live" : "") : "";
 }
+let dzChain = Promise.resolve();
+function dz(url) {                                   // serialised (Deezer allows ~50 calls / 5 s), retries on quota/network errors
+  return new Promise((res, rej) => { dzChain = dzChain.then(async () => {
+    for (let i = 0; i < 4; i++) {
+      try { const d = await jsonp(url); if (d && d.error) throw new Error("dz"); res(d); await sleep(100); return; }
+      catch (e) { if (i === 3) { rej(e); return; } await sleep(900 * (i + 1)); }
+    }
+  }); });
+}
 /* --- release identity ---------------------------------------------------------------
    Ownership is per RELEASE (a Deezer album id), never per title. A local album is linked to a
    release only when its actual tracks (titles / disc+number) are found on that release's tracklist.
    Title, year and album name are only used to shortlist candidates and break ties.            */
-const relStore = (() => { try { return JSON.parse(store.get("releaseMap") || "{}"); } catch (e) { return {}; } })();
-const albumRelease = {}, relTracks = {}, dzCat = {};      // local album -> release id | 0 ; id -> tracklist ; artist -> catalog
+const relStore = (() => { try { return JSON.parse(store.get("releaseMap2") || "{}"); } catch (e) { return {}; } })();
+const relDebug = {}, albumRelease = {}, relTracks = {}, dzCat = {};      // local album -> release id | 0 ; id -> tracklist ; artist -> catalog
 const sn = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
 function dzCatalog(name) {
   const k = norm(name);
   return dzCat[k] || (dzCat[k] = (async () => {
     try {
-      const r = await jsonp("https://api.deezer.com/search/artist?limit=10&q=" + enc(name));
+      const r = await dz("https://api.deezer.com/search/artist?limit=10&q=" + enc(name));
       const hit = (r.data || []).filter(x => norm(x.name) === k).sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0))[0];
+      if (!r.data) throw new Error("dz");
       if (!hit) return { id: null, albums: [] };
       let all = [];
       for (let i = 0; i < 5; i++) {
-        const p = await jsonp(`https://api.deezer.com/artist/${hit.id}/albums?limit=100&index=${i * 100}`);
+        const p = await dz(`https://api.deezer.com/artist/${hit.id}/albums?limit=100&index=${i * 100}`);
         all = all.concat(p.data || []); if (!p.next || (p.data || []).length < 100) break;
       }
       const seen = new Set(), albums = [];
@@ -475,9 +486,11 @@ async function relTrackList(id) {
   try {
     let out = [];
     for (let i = 0; i < 3; i++) {
-      const r = await jsonp(`https://api.deezer.com/album/${id}/tracks?limit=100&index=${i * 100}`);
-      out = out.concat(r.data || []); if (!r.next || (r.data || []).length < 100) break;
+      const r = await dz(`https://api.deezer.com/album/${id}/tracks?limit=100&index=${i * 100}`);
+      if (!r.data) throw new Error("dz");
+      out = out.concat(r.data); if (!r.next || r.data.length < 100) break;
     }
+    if (!out.length) return null;
     return relTracks[id] = out.map((t, i) => ({ title: t.title, num: t.track_position || i + 1, disc: t.disk_number || 1 }));
   } catch (e) { return null; }
 }
@@ -507,20 +520,40 @@ async function resolveAlbum(name) {
   if (name === "Unknown Album" || !artist || artist === "Unknown Artist") { albumRelease[name] = 0; return; }
   const key = norm(artist) + "|" + sn(name), c = relStore[key];
   if (c && c.n === L.length) { albumRelease[name] = c.id; return; }
-  const cat = await dzCatalog(artist); if (!cat) return;          // offline: stays unresolved, retried next time
-  const year = L.map(t => t.year).find(y => y) || 0; let best = null;
-  for (const cand of shortlist(name, cat.albums)) {
-    const ctr = await relTrackList(cand.id); if (!ctr) continue;
-    const sc = scoreRelease(L, name, year, cand, ctr); if (sc > 0 && (!best || sc > best.sc)) best = { sc, id: cand.id };
-  }
-  albumRelease[name] = best ? best.id : 0; relStore[key] = { id: albumRelease[name], n: L.length }; store.set("releaseMap", JSON.stringify(relStore));
+  const cat = await dzCatalog(artist); if (!cat) return "retry";
+  const year = L.map(t => t.year).find(y => y) || 0; let best = null, ok = true; const tried = [], seen = new Set(), cands = [];
+  const add = c => { if (c && !seen.has(c.id)) { seen.add(c.id); cands.push(c); } };
+  const isrc = (L.find(t => t.isrc) || {}).isrc;                    // recording ID -> Deezer's own release for that recording
+  if (isrc) { try { const r = await dz("https://api.deezer.com/track/isrc:" + enc(isrc)); if (r && r.album && r.album.id) add(cat.albums.find(a => a.id == r.album.id) || { id: r.album.id, title: r.album.title || "", year: "" }); } catch (e) {} }
+  const first = cands.slice();
+  shortlist(name, cat.albums).forEach(add);
+  const evalC = async list => { for (const cand of list) {
+    const ctr = await relTrackList(cand.id); if (!ctr) { ok = false; continue; }
+    const sc = scoreRelease(L, name, year, cand, ctr); tried.push((cand.title || cand.id) + ": " + (sc > 0 ? Math.round(sc) : "no"));
+    if (sc > 0 && (!best || sc > best.sc)) best = { sc, id: cand.id };
+  } };
+  await evalC(first);
+  if (best && first.length && albumSig(first[0].title) === albumSig(name) && sn(first[0].title) === sn(name)) cands.length = 0;   // ISRC release verified and identically titled: done
+  else { const rest0 = cands.filter(c => !first.includes(c)); await evalC(rest0); }
+  if (!best) { const live = LIVE_RE.test(name), rest = cat.albums.filter(a => !seen.has(a.id) && LIVE_RE.test(a.title) === live).slice(0, 6); rest.forEach(a => seen.add(a.id)); await evalC(rest); }   // titles differ? verify by tracks anyway
+  relDebug[name] = artist + " · " + cat.albums.length + " releases · " + (tried.join(", ") || "none checked") + (isrc ? " · ISRC " + isrc : "");
+  if (!best && !ok) return "retry";
+  albumRelease[name] = best ? best.id : 0;
+  if (ok) { relStore[key] = { id: albumRelease[name], n: L.length }; store.set("releaseMap2", JSON.stringify(relStore)); }
 }
-let relTimer, relBusy = false;
+let relTimer, relBusy = false; const relTries = {};
+const resolving = () => tracks.some(t => albumRelease[t.album] === undefined);
 function scheduleResolve() { clearTimeout(relTimer); relTimer = setTimeout(runResolve, 1200); }
 async function runResolve() {
   if (relBusy) { scheduleResolve(); return; } relBusy = true;
-  try { for (const n of [...new Set(tracks.map(t => t.album))]) if (albumRelease[n] === undefined) await resolveAlbum(n); } finally { relBusy = false; }
+  let again = false;
+  try {
+    for (const n of [...new Set(tracks.map(t => t.album))]) if (albumRelease[n] === undefined) {
+      if ((await resolveAlbum(n)) === "retry") { if ((relTries[n] = (relTries[n] || 0) + 1) < 4) again = true; else albumRelease[n] = 0; }
+    }
+  } finally { relBusy = false; }
   refreshOwnership();
+  if (again) { clearTimeout(relTimer); relTimer = setTimeout(runResolve, 5000); }
 }
 function ownedAlbumKey(a) {
   if (!a || !a.id) return null;
@@ -721,6 +754,8 @@ function renderPlaylist() {
   const all = currentAlbum === "All Tracks";
   const entries = all ? tracks.map(t => ({ track: t, title: t.title, num: t.num })) : albumEntries(currentAlbum);
   if (!all && !entries.length) ui.innerHTML = '<div class="artist-note" style="text-align:center;padding:16px">Loading tracks…</div>';
+  if (currentCat && !resolving() && !albumEntries(currentAlbum).some(e => e.track)) { const ds = Object.keys(relDebug).filter(n => norm(relDebug[n].split(" · ")[0]) === norm(currentCat.artist)).map(n => n + " → " + relDebug[n].split(" · ").slice(1).join(" · ")); if (ds.length) { const n = document.createElement("div"); n.className = "artist-note"; n.style.fontSize = "10px"; n.textContent = "Matching: " + ds.join(" | "); ui.appendChild(n); } }
+  if (currentCat && resolving()) { const n = document.createElement("div"); n.className = "artist-note"; n.textContent = "Checking your library…"; ui.appendChild(n); }
   const multi = !all && entries.some(e => e.disc > 1); let lastDisc = null;
   entries.forEach(e => {
     if (multi && e.disc !== lastDisc) { lastDisc = e.disc; const h = document.createElement("div"); h.className = "disc-h"; h.textContent = e.disc >= 99 ? "Also in your files" : "Disc " + e.disc + (e.track && e.track.discName ? " · " + e.track.discName : ""); ui.appendChild(h); }
@@ -847,7 +882,7 @@ async function audioDb(name) {
 }
 async function deezerPhoto(name) {
   try {
-    const d = await jsonp("https://api.deezer.com/search/artist?limit=5&q=" + encodeURIComponent(name));
+    const d = await dz("https://api.deezer.com/search/artist?limit=5&q=" + encodeURIComponent(name));
     const hit = (d.data || []).find(x => norm(x.name) === norm(name));
     return hit ? (hit.picture_xl || hit.picture_big || null) : null;
   } catch (e) { return null; }
@@ -909,10 +944,6 @@ async function loadArtist(name, onPartial) {
   if (lf || adb) { d.full = true; artistCache[key] = d; saveArtists(); }
   return d;
 }
-function ownedAlbumKey(title) {
-  const n = norm(title); if (!n) return null;
-  return [...new Set(tracks.map(t => t.album))].filter(isRealAlbum).find(a => { const m = norm(a); return m === n || (n.length > 4 && m.length > 4 && (m.includes(n) || n.includes(m))); }) || null;
-}
 function renderArtist(d, still) {
   lastArtist = d;
   const ui = $("artist-ui");
@@ -935,7 +966,7 @@ function renderArtist(d, still) {
   else if (!d.loading && !(d.albums || []).length) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">No albums found.</div>';
   (d.albums || []).forEach((a, i) => {
     const own = ownedAlbumKey(a), c = document.createElement("div");
-    c.className = "album-card" + (still ? "" : " card-in") + (own ? "" : " dim"); c.style.animationDelay = Math.min(i, 12) * 22 + "ms";
+    c.className = "album-card" + (still ? "" : " card-in") + (own || resolving() ? "" : " dim"); c.style.animationDelay = Math.min(i, 12) * 22 + "ms";
     c.innerHTML = `${own ? '<div class="own-dot"></div>' : ""}<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>${a.year ? '<div class="year"></div>' : ""}`;
     c.querySelector(".album-card-title").textContent = a.title;
     if (a.year) c.querySelector(".year").textContent = a.year;
@@ -958,6 +989,7 @@ async function openCatalogAlbum(a, artistName) {
   if (currentCat === cat) renderPlaylist();
 }
 async function openArtist(name, mode, scroll) {
+  if (resolving()) scheduleResolve();
   name = mainArtist(name || ""); if (!name || name === "Unknown Artist") return;
   if (mode === "push") { if (currentArtistName) artistStack.push(currentArtistName); }
   else if (mode !== "back") artistStack = [];
