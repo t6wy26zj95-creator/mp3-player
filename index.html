@@ -235,24 +235,15 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .sk-card .ln{width:60%;height:9px;border-radius:5px}
 .fade-img{opacity:0}.fade-img.in{opacity:1}
 /* rim light: a highlight that travels round the cover's edge; colours come from the artwork, speed from the music */
-.art-rim{position:absolute;left:calc(var(--inset) + var(--art-x));top:2px;width:66px;height:66px;border-radius:12px;box-sizing:border-box;padding:1.5px;pointer-events:none;z-index:2;
-  opacity:var(--rim-o,.2);--rim-rgb:255,255,255;--rim-rgb2:255,255,255;
-  background:conic-gradient(from var(--rim-a,0deg),rgba(var(--rim-rgb),0) 0deg,rgba(var(--rim-rgb),1) 45deg,rgba(var(--rim-rgb),0) 110deg,rgba(var(--rim-rgb2),0) 190deg,rgba(var(--rim-rgb2),.6) 230deg,rgba(var(--rim-rgb2),0) 280deg);
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
-.art-rim.off{display:none}
 
 /* rim light, stronger: thicker ring, wider highlight, faint tinted base ring; replaces the grey cover border */
-.art-rim{padding:2.5px;opacity:var(--rim-o,.75);
-  background:conic-gradient(from var(--rim-a,0deg),rgba(var(--rim-rgb),0) 0deg,rgba(var(--rim-rgb),1) 55deg,rgba(var(--rim-rgb),0) 140deg,rgba(var(--rim-rgb2),0) 185deg,rgba(var(--rim-rgb2),.75) 235deg,rgba(var(--rim-rgb2),0) 300deg),linear-gradient(rgba(var(--rim-rgb),.22),rgba(var(--rim-rgb),.22))}
 .album-art{border-color:transparent}
 
 /* rim light v3: sharp ring + a blurred copy of it as a soft halo (blur sits on a wrapper so the ring mask can't cut it) */
-.art-rim{padding:0;background:none;-webkit-mask:none;mask:none;
-  --rim-grad:conic-gradient(from var(--rim-a,0deg),rgba(var(--rim-rgb),0) 0deg,rgba(var(--rim-rgb),1) 55deg,rgba(var(--rim-rgb),0) 150deg,rgba(var(--rim-rgb2),0) 185deg,rgba(var(--rim-rgb2),.85) 235deg,rgba(var(--rim-rgb2),0) 305deg),linear-gradient(rgba(var(--rim-rgb),.18),rgba(var(--rim-rgb),.18))}
-.art-rim i{position:absolute;inset:0;border-radius:12px;box-sizing:border-box;padding:3px;background:var(--rim-grad);
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
-.art-rim .rg{position:absolute;inset:-6px;filter:blur(6px);opacity:.95}
-.art-rim .rg i{inset:6px;padding:6px}
+
+/* rim light: a comet drawn on a small canvas (94px = cover 66px + 14px of room for its glow) */
+.art-rim{position:absolute;left:calc(var(--inset) + var(--art-x) - 14px);top:-12px;width:94px;height:94px;pointer-events:none;z-index:2}
+.art-rim.off{display:none}
 </style>
 </head>
 <body>
@@ -272,7 +263,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
   <div class="track-info-container" id="player-main" style="display:none;">
     <div class="art-bloom" id="art-bloom"></div>
-    <div class="art-rim off" id="art-rim"><div class="rg"><i></i></div><i class="rs"></i></div>
+    <canvas class="art-rim off" id="art-rim"></canvas>
     <div class="album-art" id="album-art-box">
       <svg id="fallback-art" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
       <img id="track-art-img" style="display:none;">
@@ -1325,10 +1316,24 @@ function pulseLoop() {
   pulseLoop.t = on ? now : 0;
   if (playing) rimA = (rimA + (14 + pulse * 46) * dt) % 360;            // one lap ~25 s, faster on loud passages; stops when paused
   const tx = parseFloat(document.documentElement.style.getPropertyValue("--tx")) || 0;
-  rim.style.setProperty("--rim-a", (rimA + tx * 30).toFixed(1) + "deg"); rim.style.setProperty("--rim-o", (.7 + pulse * .3).toFixed(3));
+  rimAng = rimA + tx * 30; rimP = pulse; drawRim();
   if (on) pRaf = requestAnimationFrame(pulseLoop);
 }
-let rimA = 0;
+let rimA = 0, rimAng = 0, rimP = 0, rimCol = "255,255,255";
+function drawRim() {
+  const cv = $("art-rim"); if (!cv || cv.classList.contains("off")) return;
+  const S = 94, dpr = Math.min(3, window.devicePixelRatio || 1);
+  if (cv.width !== S * dpr) cv.width = cv.height = S * dpr;
+  const x = cv.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, S, S);
+  const a = 15.5, w = 63, r = 10.5;                                   // the cover's edge, inset by half the stroke
+  const path = () => { x.beginPath(); x.moveTo(a + r, a); x.arcTo(a + w, a, a + w, a + w, r); x.arcTo(a + w, a + w, a, a + w, r); x.arcTo(a, a + w, a, a, r); x.arcTo(a, a, a + w, a, r); x.closePath(); };
+  path(); x.lineWidth = 1.5; x.strokeStyle = "rgba(255,255,255,.07)"; x.stroke();      // barely-there resting edge
+  if (!x.createConicGradient) return;
+  const k = .35 + rimP * .65, c = rimCol, g = x.createConicGradient((rimAng - 100) * Math.PI / 180, S / 2, S / 2);
+  g.addColorStop(0, `rgba(${c},0)`); g.addColorStop(.14, `rgba(${c},${.2 * k})`); g.addColorStop(.26, `rgba(${c},${.7 * k})`);
+  g.addColorStop(.28, `rgba(${c},${k})`); g.addColorStop(.3, `rgba(${c},0)`); g.addColorStop(1, `rgba(${c},0)`);   // bright head, fading tail behind it
+  path(); x.lineWidth = 2; x.lineCap = "round"; x.strokeStyle = g; x.shadowColor = `rgba(${c},.9)`; x.shadowBlur = 4 + rimP * 5; x.stroke();   // glow follows the comet only
+}
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
 /* ---------- glow layer ----------
@@ -1377,7 +1382,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) star
 /* rim light colours from the current cover */
 (function () {
   const rim = $("art-rim"), img = $("track-art-img"), cache = new Map();
-  const soft = c => c.map(v => Math.round(v + (255 - v) * .65)).join(",");
+  const soft = c => c.map(v => Math.round(v + (255 - v) * .45)).join(",");
   function pal(src) {
     if (cache.has(src)) return Promise.resolve(cache.get(src));
     return new Promise(res => {
@@ -1397,7 +1402,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) star
   }
   function sync() {
     const src = img.style.display !== "none" && img.getAttribute("src"); rim.classList.toggle("off", !src); if (!src) return;
-    pal(src).then(p => { if (img.getAttribute("src") !== src) return; rim.style.setProperty("--rim-rgb", p ? p[0] : "255,255,255"); rim.style.setProperty("--rim-rgb2", p ? p[1] : "255,255,255"); });
+    pal(src).then(p => { if (img.getAttribute("src") !== src) return; rimCol = p ? p[0] : "255,255,255"; drawRim(); });
   }
   new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
 })();
