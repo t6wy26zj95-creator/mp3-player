@@ -242,8 +242,16 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 /* rim light v3: sharp ring + a blurred copy of it as a soft halo (blur sits on a wrapper so the ring mask can't cut it) */
 
 /* rim light: a comet drawn on a small canvas (94px = cover 66px + 14px of room for its glow) */
-.art-rim{position:absolute;left:calc(var(--inset) + var(--art-x) - 14px);top:-12px;width:94px;height:94px;pointer-events:none;z-index:2}
-.art-rim.off{display:none}
+
+/* cover light: soft wedge of artwork-picked colour circling behind the cover (GPU rotate only), glass sheen on the cover, energy-driven bloom */
+.art-light{position:absolute;left:calc(var(--inset) + var(--art-x) - 22px);top:-20px;width:110px;height:110px;border-radius:50%;pointer-events:none;filter:blur(15px);
+  background:conic-gradient(rgba(var(--lc,200,215,225),0) 0deg,rgba(var(--lc,200,215,225),.9) 50deg,rgba(var(--lc,200,215,225),0) 135deg,rgba(var(--lc2,200,215,225),0) 190deg,rgba(var(--lc2,200,215,225),.55) 245deg,rgba(var(--lc2,200,215,225),0) 320deg);
+  transform:rotate(var(--ang,0deg));opacity:calc((.24 + var(--en,0) * .26 + var(--pulse,0) * .22 + var(--br,.5) * .05) * var(--lk,1))}
+.art-bloom{opacity:calc(.32 + var(--en,0) * .06 + var(--pulse,0) * .22 + var(--br,.5) * .06);
+  transform:translate3d(calc(var(--tx,0) * 12px),calc(var(--ty,0) * 12px),0) scale(calc(1.5 + var(--pulse,0) * .12 + var(--br,.5) * .05))}
+.album-art::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(115deg,rgba(255,255,255,0) 38%,rgba(255,255,255,.17) 50%,rgba(255,255,255,0) 62%) calc(var(--sh,.5) * 100%) 0/300% 100% no-repeat;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),inset 0 1px 1px rgba(255,255,255,.22)}
 </style>
 </head>
 <body>
@@ -263,7 +271,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
   <div class="track-info-container" id="player-main" style="display:none;">
     <div class="art-bloom" id="art-bloom"></div>
-    <canvas class="art-rim off" id="art-rim"></canvas>
+    <div class="art-light" id="art-light"></div>
     <div class="album-art" id="album-art-box">
       <svg id="fallback-art" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
       <img id="track-art-img" style="display:none;">
@@ -1275,7 +1283,7 @@ $("artist-back").addEventListener("click", () => {
    The track is decoded once, offline, into a smooth loudness+bass envelope (30/frames per second).
    The glow then just reads that envelope at audio.currentTime, so playback is never routed through Web Audio. */
 const envCache = new Map(); let env = null, envId = null, pulse = 0, pRaf = 0;
-const pulseEls = () => [$("art-bloom"), $("glow-layer"), $("progress-slider").querySelector(".slider-thumb")];
+const pulseEls = () => [$("art-bloom"), $("glow-layer"), $("player-main"), $("progress-slider").querySelector(".slider-thumb")];
 function envelope(ab) {
   const chs = []; for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
   const N = ab.length, hop = Math.round(ab.sampleRate / 30), F = Math.floor(N / hop), nc = chs.length;
@@ -1312,28 +1320,17 @@ function pulseLoop() {
   }
   const nv = pulse + (target - pulse) * (target > pulse ? .14 : .04);   // quick-ish rise, slow fall
   if (Math.abs(nv - pulse) > .0015) { pulse = nv; const v = pulse.toFixed(3); pulseEls().forEach(el => el && el.style.setProperty("--pulse", v)); }
-  const now = performance.now(), dt = Math.min(.1, (now - (pulseLoop.t || now)) / 1000), rim = $("art-rim"), on = playing || pulse > .01;
-  pulseLoop.t = on ? now : 0;
-  if (playing) rimA = (rimA + (14 + pulse * 46) * dt) % 360;            // one lap ~25 s, faster on loud passages; stops when paused
-  const tx = parseFloat(document.documentElement.style.getPropertyValue("--tx")) || 0;
-  rimAng = rimA + tx * 30; rimP = pulse; drawRim();
-  if (on) pRaf = requestAnimationFrame(pulseLoop);
+  const now = performance.now(), dt = Math.min(.1, (now - (pulseLoop.t || now)) / 1000);
+  if (!playing && energy < .02 && pulseLoop.t && now - pulseLoop.t < 45) { pRaf = requestAnimationFrame(pulseLoop); return; }   // idle: ~20 fps is plenty
+  pulseLoop.t = now;
+  energy += ((playing ? 1 : 0) - energy) * (1 - Math.exp(-dt / (playing ? .4 : 1.8)));   // one smooth "how alive" level: quick up, slow settle down
+  rimA = (rimA + (5 + energy * (9 + pulse * 30)) * dt) % 360;                              // slow drift when idle, faster and music-driven when playing
+  const tx = parseFloat(document.documentElement.style.getPropertyValue("--tx")) || 0, pm = $("player-main").style;
+  pm.setProperty("--ang", (rimA + tx * 25).toFixed(1) + "deg"); pm.setProperty("--en", energy.toFixed(3));
+  pm.setProperty("--br", (.5 + .5 * Math.sin(now / 2600)).toFixed(3)); pm.setProperty("--sh", (.5 + tx * .3 + .18 * Math.sin(now / 5200)).toFixed(3));
+  pRaf = requestAnimationFrame(pulseLoop);
 }
-let rimA = 0, rimAng = 0, rimP = 0, rimCol = "255,255,255";
-function drawRim() {
-  const cv = $("art-rim"); if (!cv || cv.classList.contains("off")) return;
-  const S = 94, dpr = Math.min(3, window.devicePixelRatio || 1);
-  if (cv.width !== S * dpr) cv.width = cv.height = S * dpr;
-  const x = cv.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, S, S);
-  const a = 15.5, w = 63, r = 10.5;                                   // the cover's edge, inset by half the stroke
-  const path = () => { x.beginPath(); x.moveTo(a + r, a); x.arcTo(a + w, a, a + w, a + w, r); x.arcTo(a + w, a + w, a, a + w, r); x.arcTo(a, a + w, a, a, r); x.arcTo(a, a, a + w, a, r); x.closePath(); };
-  path(); x.lineWidth = 1.5; x.strokeStyle = "rgba(255,255,255,.07)"; x.stroke();      // barely-there resting edge
-  if (!x.createConicGradient) return;
-  const k = .35 + rimP * .65, c = rimCol, g = x.createConicGradient((rimAng - 100) * Math.PI / 180, S / 2, S / 2);
-  g.addColorStop(0, `rgba(${c},0)`); g.addColorStop(.14, `rgba(${c},${.2 * k})`); g.addColorStop(.26, `rgba(${c},${.7 * k})`);
-  g.addColorStop(.28, `rgba(${c},${k})`); g.addColorStop(.3, `rgba(${c},0)`); g.addColorStop(1, `rgba(${c},0)`);   // bright head, fading tail behind it
-  path(); x.lineWidth = 2; x.lineCap = "round"; x.strokeStyle = g; x.shadowColor = `rgba(${c},.9)`; x.shadowBlur = 4 + rimP * 5; x.stroke();   // glow follows the comet only
-}
+let rimA = 0, energy = 0;
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
 /* ---------- glow layer ----------
@@ -1379,33 +1376,42 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) star
   new MutationObserver(() => kick(900)).observe(drawerBox, { attributes: true, attributeFilter: ["class"] });
   document.addEventListener("visibilitychange", () => kick(900));
 })();
-/* rim light colours from the current cover */
+/* cover light colours: cluster the artwork into hue buckets, score them for how good they look as a glow, then correct the winner */
 (function () {
-  const rim = $("art-rim"), img = $("track-art-img"), cache = new Map();
-  const soft = c => c.map(v => Math.round(v + (255 - v) * .45)).join(",");
+  const img = $("track-art-img"), pm = $("player-main"), cache = new Map(), NEUTRAL = { c1: "200,215,225", c2: "200,215,225", k: .55 };
+  const toHsl = (r, g, b) => { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn; let h = 0, s = 0;
+    if (d) { s = d / (1 - Math.abs(2 * l - 1)); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; } return [h, s, l]; };
+  const toRgb = (h, s, l) => { const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+    const v = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]; return v.map(t => Math.round((t + m) * 255)).join(","); };
+  const hd = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+  function score(d) {
+    const B = Array.from({ length: 12 }, () => ({ n: 0, r: 0, g: 0, b: 0 })); let tot = 0;
+    for (let i = 0; i < d.length; i += 4) { const [h, s, l] = toHsl(d[i], d[i + 1], d[i + 2]); tot++; if (s < .2 || l < .12 || l > .92) continue; const k = Math.floor(h / 30) % 12, o = B[k]; o.n++; o.r += d[i]; o.g += d[i + 1]; o.b += d[i + 2]; }
+    const cs = B.filter(o => o.n > tot * .03).map(o => { const [h, s, l] = toHsl(o.r / o.n, o.g / o.n, o.b / o.n);
+      let sc = Math.pow(o.n / tot, .6) * Math.min(1, s / .55) * Math.max(.2, 1 - Math.abs(l - .55) * 1.5);   // representative x colourful x glow-friendly lightness
+      if (h > 25 && h < 75 && s < .45) sc *= .5;                                                            // muddy brown / olive
+      if (h > 165 && h < 205) sc *= .7;                                                                     // would vanish against the teal UI
+      return { h, s, l, sc }; }).sort((a, b) => b.sc - a.sc);
+    if (!cs.length || cs[0].sc < .06) return NEUTRAL;                                                       // muted cover: gentle neutral light instead of a forced colour
+    const a = cs[0], b = cs.find(x => x !== a && hd(x.h, a.h) >= 40 && x.sc > a.sc * .35) || { h: (a.h + 28) % 360, s: a.s, l: a.l };
+    const fix = x => toRgb(x.h, Math.min(.85, Math.max(.55, x.s)), Math.min(.68, Math.max(.55, x.l)));      // keep it a real colour: fix saturation/lightness, don't wash to white
+    return { c1: fix(a), c2: fix(b), k: 1 };
+  }
   function pal(src) {
     if (cache.has(src)) return Promise.resolve(cache.get(src));
     return new Promise(res => {
       const im = new Image(); im.crossOrigin = "anonymous";
-      im.onload = () => { let out = null;
-        try {
-          const c = document.createElement("canvas"); c.width = c.height = 12; const x = c.getContext("2d"); x.drawImage(im, 0, 0, 12, 12);
-          const d = x.getImageData(0, 0, 12, 12).data, px = [];
-          for (let i = 0; i < d.length; i += 4) { const r = d[i], g = d[i + 1], b = d[i + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b); px.push({ c: [r, g, b], s: (mx - mn) / (mx || 1) * (.4 + mx / 255) }); }
-          px.sort((p, q) => q.s - p.s);
-          const a = px[0], b2 = px.find(p => p.s > .1 && Math.hypot(p.c[0] - a.c[0], p.c[1] - a.c[1], p.c[2] - a.c[2]) > 90) || a;
-          out = [soft(a.c), soft(b2.c)];
-        } catch (e) {}
-        cache.set(src, out); res(out); };
-      im.onerror = () => res(null); im.src = src;
+      im.onload = () => { let o = NEUTRAL; try { const c = document.createElement("canvas"); c.width = c.height = 24; const x = c.getContext("2d"); x.drawImage(im, 0, 0, 24, 24); o = score(x.getImageData(0, 0, 24, 24).data); } catch (e) {} cache.set(src, o); res(o); };
+      im.onerror = () => res(NEUTRAL); im.src = src;
     });
   }
   function sync() {
-    const src = img.style.display !== "none" && img.getAttribute("src"); rim.classList.toggle("off", !src); if (!src) return;
-    pal(src).then(p => { if (img.getAttribute("src") !== src) return; rimCol = p ? p[0] : "255,255,255"; drawRim(); });
+    const src = img.style.display !== "none" && img.getAttribute("src"); if (!src) return;
+    pal(src).then(o => { if (img.getAttribute("src") !== src) return; pm.style.setProperty("--lc", o.c1); pm.style.setProperty("--lc2", o.c2); pm.style.setProperty("--lk", o.k); });
   }
   new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
 })();
+startPulse();
 </script>
 </body>
 </html>
