@@ -201,9 +201,6 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
   transform:translate3d(calc(var(--tx,0) * 12px),calc(var(--ty,0) * 12px),0) scale(calc(1.5 + var(--pulse,0) * .12));pointer-events:none}
 /* every album cover gets a quiet static glow taken from its own artwork */
 .album-card{isolation:isolate}
-.album-card[style*="--art"]::before{content:'';position:absolute;left:0;top:0;width:100%;aspect-ratio:1/1;border-radius:12px;background:var(--art) center/cover no-repeat;
-  filter:blur(14px) saturate(1.5);opacity:.38;transform:scale(1.1);z-index:-1;pointer-events:none;transition:opacity .3s var(--ease)}
-.albums-grid.editing .album-card::before{opacity:0!important}
 /* progress dot glows with the music */
 .slider-thumb{box-shadow:0 2px 6px rgba(0,0,0,.4),0 0 calc(8px + var(--pulse,0) * 10px) calc(1px + var(--pulse,0) * 2px) rgba(255,255,255,calc(.5 + var(--pulse,0) * .3))}
 /* glow was cut off by the scroll/drawer boxes: give it room inside them (layout stays put via matching negative margins) */
@@ -211,7 +208,16 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .albums-grid-container,.artist-scroll{margin:-14px -20px 0;padding-inline:20px;padding-top:14px}
 .artist-scroll{padding-bottom:28px}
 .albums-grid{padding-bottom:24px}
-.album-card[style*="--art"]::before{filter:blur(12px) saturate(1.5);transform:scale(1.06)}
+
+/* ===== glow layer: glows live outside the scrollers, are positioned by JS, and fade at the scroller's edges ===== */
+#glow-layer{position:absolute;left:0;right:0;top:0;height:0;overflow:hidden;z-index:-1;pointer-events:none;opacity:0;transition:opacity .3s var(--ease);
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}
+#glow-layer.on{opacity:1}
+#glow-layer.off .glow{opacity:0!important}
+.glow{position:absolute;left:0;top:0;border-radius:14px;background-size:cover;background-position:center;filter:blur(15px) saturate(1.5);opacity:0;transition:opacity .4s var(--ease);will-change:transform}
+.glow.in{opacity:.4}
+.glow.in.dim{opacity:.16}
+.glow.in.live{opacity:calc(.5 + var(--pulse,0) * .35);transition:none}
 </style>
 </head>
 <body>
@@ -220,6 +226,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 <div class="bg-vignette"></div>
 
 <div class="player-wrapper">
+  <div id="glow-layer" aria-hidden="true"></div>
 
   <div class="drop-zone" id="drop-zone">
     Tap to choose your songs<br>
@@ -1222,7 +1229,7 @@ $("artist-back").addEventListener("click", () => {
    The track is decoded once, offline, into a smooth loudness+bass envelope (30/frames per second).
    The glow then just reads that envelope at audio.currentTime, so playback is never routed through Web Audio. */
 const envCache = new Map(); let env = null, envId = null, pulse = 0, pRaf = 0;
-const pulseEls = () => [$("art-bloom"), $("progress-slider").querySelector(".slider-thumb")];
+const pulseEls = () => [$("art-bloom"), $("glow-layer"), $("progress-slider").querySelector(".slider-thumb")];
 function envelope(ab) {
   const chs = []; for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
   const N = ab.length, hop = Math.round(ab.sampleRate / 30), F = Math.floor(N / hop), nc = chs.length;
@@ -1263,6 +1270,49 @@ function pulseLoop() {
 }
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
+/* ---------- glow layer ----------
+   One layer behind the drawer content, not inside any scroller. Each cover's glow is positioned from the
+   cover's on-screen rect every frame (only while the drawer is open), so it can spill past the scroller's edge
+   and is faded there by the layer's mask, while the covers themselves stay clipped by their scroller. */
+(function () {
+  const layer = $("glow-layer"), inner = document.querySelector(".drawer-inner"), wrap = document.querySelector(".player-wrapper"), M = 22;
+  const map = new Map(); let raf = 0, stopAt = 0;
+  function frame() {
+    raf = 0;
+    const open = drawerBox.classList.contains("expanded");
+    if (!open && performance.now() > stopAt) { layer.classList.remove("on"); map.forEach(g => g.remove()); map.clear(); return; }
+    // reads
+    const wr = wrap.getBoundingClientRect(), di = inner.getBoundingClientRect();
+    const cs = [...viewHost.querySelectorAll('.album-card[style*="--art"]')].filter(c => c.offsetParent);
+    const rects = cs.map(c => c.getBoundingClientRect());
+    const sc = cs.length && cs[0].closest(".albums-grid-container,.artist-scroll"), sr = sc ? sc.getBoundingClientRect() : di;
+    const rt = Math.max(sr.top, di.top), rb = Math.max(rt, Math.min(sr.bottom, di.bottom)), H = rb - rt + 2 * M;
+    const cur = tracks.find(t => t.id === curId), curAlbum = cur && cur.album;
+    // writes
+    layer.classList.toggle("on", open); layer.classList.toggle("off", editing);
+    layer.style.top = (rt - wr.top - 1 - M) + "px"; layer.style.height = H + "px";
+    const seen = new Set();
+    cs.forEach((c, i) => {
+      let g = map.get(c);
+      if (!g) {
+        const m = /url\("(.*)"\)/.exec(c.style.getPropertyValue("--art")); if (!m) return;
+        g = document.createElement("div"); g.className = "glow"; g.style.backgroundImage = `url("${m[1]}")`;
+        layer.appendChild(g); map.set(c, g); requestAnimationFrame(() => g.classList.add("in"));
+      }
+      seen.add(c);
+      const r = rects[i], y = r.top - rt + M, vis = y + r.width > -50 && y < H + 50;
+      g.style.display = vis ? "" : "none";
+      if (vis) { g.style.width = g.style.height = r.width + "px"; g.style.transform = `translate3d(${r.left - wr.left - 1}px,${y}px,0) scale(1.1)`; }
+      g.classList.toggle("dim", c.classList.contains("dim"));
+      g.classList.toggle("live", !!curAlbum && c.dataset.key === curAlbum);
+    });
+    map.forEach((g, c) => { if (!seen.has(c)) { g.remove(); map.delete(c); } });
+    raf = requestAnimationFrame(frame);
+  }
+  const kick = ms => { stopAt = Math.max(stopAt, performance.now() + ms); if (!raf) raf = requestAnimationFrame(frame); };
+  new MutationObserver(() => kick(900)).observe(drawerBox, { attributes: true, attributeFilter: ["class"] });
+  document.addEventListener("visibilitychange", () => kick(900));
+})();
 </script>
 </body>
 </html>
