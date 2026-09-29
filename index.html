@@ -188,16 +188,24 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 /* ===== one idea: clear glass + the cover's own glow. Tilt only moves that glow (and the wallpaper a hair). ===== */
-:root{--inset:10px;--glass-blur:blur(3px) saturate(150%) brightness(.92)}
+:root{--inset:10px;--glass-blur:blur(3px) saturate(150%) brightness(.92);--cw:114px;--art-x:24px}   /* --cw = prev+play+next width (3x34 + 2x6); cover (66px) is centred over that group */
 .player-wrapper{background:linear-gradient(rgba(6,18,26,.13),rgba(6,18,26,.13)),var(--glass-bg)}
 .bg-container{transform:translate3d(calc(var(--tx,0) * -6px),calc(var(--ty,0) * -6px),0) scale(1.04);will-change:transform}
 /* corner highlight: fixed size (px), so it no longer grows when the drawer opens; no tilt */
 .player-wrapper::before{background:linear-gradient(135deg,rgba(255,255,255,.17) 0,rgba(255,255,255,.04) 90px,rgba(255,255,255,0) 170px)}
 .player-wrapper::after{content:none}
 .track-info-container{position:relative;align-items:center}
-.album-art{width:66px;height:66px;box-sizing:border-box;border-radius:12px;margin-left:0;position:relative;z-index:1}
-.art-bloom{position:absolute;left:var(--inset);top:2px;width:66px;height:66px;border-radius:12px;background-size:cover;background-position:center;
-  filter:blur(20px) saturate(1.6);opacity:.5;transform:translate3d(calc(var(--tx,0) * 12px),calc(var(--ty,0) * 12px),0) scale(1.6);pointer-events:none;transition:opacity .4s var(--ease)}
+.album-art{width:66px;height:66px;box-sizing:border-box;border-radius:12px;margin-left:var(--art-x);position:relative;z-index:1}
+.art-bloom{position:absolute;left:calc(var(--inset) + var(--art-x));top:2px;width:66px;height:66px;border-radius:12px;background-size:cover;background-position:center;
+  filter:blur(20px) saturate(1.6);opacity:calc(.38 + var(--pulse,0) * .24);
+  transform:translate3d(calc(var(--tx,0) * 12px),calc(var(--ty,0) * 12px),0) scale(calc(1.5 + var(--pulse,0) * .12));pointer-events:none}
+/* every album cover gets a quiet static glow taken from its own artwork */
+.album-card{isolation:isolate}
+.album-card[style*="--art"]::before{content:'';position:absolute;left:0;top:0;width:100%;aspect-ratio:1/1;border-radius:12px;background:var(--art) center/cover no-repeat;
+  filter:blur(14px) saturate(1.5);opacity:.38;transform:scale(1.1);z-index:-1;pointer-events:none;transition:opacity .3s var(--ease)}
+.albums-grid.editing .album-card::before{opacity:0!important}
+/* progress dot glows with the music */
+.slider-thumb{box-shadow:0 2px 6px rgba(0,0,0,.4),0 0 calc(8px + var(--pulse,0) * 10px) calc(1px + var(--pulse,0) * 2px) rgba(255,255,255,calc(.5 + var(--pulse,0) * .3))}
 </style>
 </head>
 <body>
@@ -669,7 +677,8 @@ function renderAlbums() {
   mk("All Tracks", folder, () => { albumOrigin = null; currentCat = null; currentAlbum = "All Tracks"; openTracklist(); }).style.order = 0;
   orderedAlbumNames().forEach((name, i) => {
     const cover = albumCover(name);
-    mk(name, cover ? `<img src="${cover}" alt="">` : `<div class="all-tracks-icon">${noteSvg}</div>`, () => { albumOrigin = null; currentCat = null; currentAlbum = name; openTracklist(); }, name).style.order = i + 1;
+    const card = mk(name, cover ? `<img src="${cover}" alt="">` : `<div class="all-tracks-icon">${noteSvg}</div>`, () => { albumOrigin = null; currentCat = null; currentAlbum = name; openTracklist(); }, name); card.style.order = i + 1;
+    if (cover) card.style.setProperty("--art", `url("${String(cover).replace(/"/g, "%22")}")`);
   });
 }
 
@@ -842,7 +851,7 @@ function renderQueue() {
 let curUrl = null;
 function loadTrack(id, autoplay) {
   const t = tracks.find(x => x.id === id); if (!t) return;
-  curId = id;
+  curId = id; analyze(t);
   if (curUrl) URL.revokeObjectURL(curUrl); curUrl = URL.createObjectURL(t.file); audio.src = curUrl;
   if (ctxIds().includes(id)) ctxCur = id;
   $("track-title").innerText = t.title;
@@ -906,7 +915,7 @@ audio.addEventListener("timeupdate", () => {
 });
 function syncPos() { const m = navigator.mediaSession; if (m && m.setPositionState && isFinite(audio.duration)) { try { m.setPositionState({ duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime, audio.duration) }); } catch (e) {} } }
 audio.addEventListener("loadedmetadata", () => { $("total-duration").innerText = fmt(audio.duration); syncPos(); });
-audio.addEventListener("play", () => { playBtn.innerHTML = pauseIconSvg; if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; syncPos(); });
+audio.addEventListener("play", () => { startPulse(); playBtn.innerHTML = pauseIconSvg; if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; syncPos(); });
 audio.addEventListener("pause", () => { if (audio.ended) return; playBtn.innerHTML = playIconSvg; if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; syncPos(); });
 audio.addEventListener("seeked", syncPos);
 audio.addEventListener("ended", playNext);
@@ -1047,7 +1056,7 @@ function renderArtist(d, still) {
   (d.albums || []).forEach((a, i) => {
     const own = ownedAlbumKey(a), c = document.createElement("div");
     c.className = "album-card" + (still ? "" : " card-in") + (own ? "" : " dim"); c.style.animationDelay = Math.min(i, 12) * 22 + "ms";
-    c._a = a; c.dataset.aid = "1";
+    c._a = a; c.dataset.aid = "1"; if (a.cover) c.style.setProperty("--art", `url("${String(a.cover).replace(/"/g, "%22")}")`);
     c.innerHTML = `${own ? '<div class="own-dot"></div>' : ""}<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>${a.year ? '<div class="year"></div>' : ""}`;
     c.querySelector(".album-card-title").textContent = a.title;
     if (a.year) c.querySelector(".year").textContent = a.year;
@@ -1202,6 +1211,52 @@ $("artist-back").addEventListener("click", () => {
   function sync() { const src = img.style.display !== "none" && img.getAttribute("src"); bloom.style.backgroundImage = src ? `url("${src}")` : ""; bloom.style.opacity = src ? "" : "0"; }
   new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
 })();
+
+/* ---------- music-reactive glow ----------
+   The track is decoded once, offline, into a smooth loudness+bass envelope (30/frames per second).
+   The glow then just reads that envelope at audio.currentTime, so playback is never routed through Web Audio. */
+const envCache = new Map(); let env = null, envId = null, pulse = 0, pRaf = 0;
+const pulseEls = () => [$("art-bloom"), $("progress-slider").querySelector(".slider-thumb")];
+function envelope(ab) {
+  const chs = []; for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
+  const N = ab.length, hop = Math.round(ab.sampleRate / 30), F = Math.floor(N / hop), nc = chs.length;
+  const full = new Float32Array(F), bass = new Float32Array(F), al = 1 - Math.exp(-2 * Math.PI * 150 / ab.sampleRate); let lp = 0;
+  for (let f = 0; f < F; f++) {
+    let sf = 0, sb = 0;
+    for (let i = f * hop, e = i + hop; i < e; i++) { let x = 0; for (let c = 0; c < nc; c++) x += chs[c][i]; x /= nc; lp += al * (x - lp); sf += x * x; sb += lp * lp; }
+    full[f] = Math.sqrt(sf / hop); bass[f] = Math.sqrt(sb / hop);
+  }
+  const nz = a => { const t = Float32Array.from(a).sort(), lo = t[Math.floor(F * .05)], hi = t[Math.floor(F * .97)], d = hi - lo || 1; return a.map(v => Math.max(0, Math.min(1, (v - lo) / d))); };
+  const b = nz(bass), fl = nz(full), m = new Float32Array(F);
+  for (let f = 0; f < F; f++) m[f] = .55 * b[f] + .45 * fl[f];
+  const out = new Float32Array(F);                                   // ~170 ms moving average: no jitter
+  for (let f = 0; f < F; f++) { let s = 0, n = 0; for (let k = -3; k <= 3; k++) { const v = m[f + k]; if (v !== undefined) { s += v; n++; } } out[f] = s / n; }
+  return out;
+}
+async function analyze(t) {
+  env = null; envId = t.id;
+  if (envCache.has(t.id)) { env = envCache.get(t.id); return; }
+  try {
+    if (t.file.size > 80e6) return;
+    const buf = await t.file.arrayBuffer(), OC = window.OfflineAudioContext || window.webkitOfflineAudioContext, ctx = new OC(1, 1, 22050);
+    const ab = await new Promise((res, rej) => { const r = ctx.decodeAudioData(buf, res, rej); if (r && r.then) r.then(res, rej); });
+    const e = envelope(ab); envCache.set(t.id, e); if (envId === t.id) env = e;
+  } catch (err) {}                                                   // no envelope -> the glow just breathes slowly
+}
+function startPulse() { if (!pRaf && !matchMedia("(prefers-reduced-motion:reduce)").matches) pRaf = requestAnimationFrame(pulseLoop); }
+function pulseLoop() {
+  pRaf = 0;
+  const playing = !audio.paused && !document.hidden; let target = 0;
+  if (playing) {
+    if (env) target = env[Math.min(env.length - 1, Math.max(0, Math.floor(audio.currentTime * 30)))];
+    else target = .4 + .15 * Math.sin(performance.now() / 1500);
+  }
+  const nv = pulse + (target - pulse) * (target > pulse ? .14 : .04);   // quick-ish rise, slow fall
+  if (Math.abs(nv - pulse) > .0015) { pulse = nv; const v = pulse.toFixed(3); pulseEls().forEach(el => el && el.style.setProperty("--pulse", v)); }
+  if (playing || pulse > .01) pRaf = requestAnimationFrame(pulseLoop);
+}
+audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
+document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
 </script>
 </body>
 </html>
