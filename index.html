@@ -9,6 +9,15 @@
 <meta name="apple-mobile-web-app-title" content="Player">
 <meta name="theme-color" content="#0b1d24">
 <title>Player</title>
+<script>
+/* Telegram Mini App: Telegram's script is loaded only when the page was really opened inside Telegram
+   (it passes #tgWebApp... in the URL), so the home-screen app never waits on telegram.org. */
+(function () {
+  var inTg = /tgWebApp/.test(location.hash + location.search);
+  try { inTg = inTg || !!sessionStorage.getItem("__telegram__initParams"); } catch (e) {}
+  if (inTg) { document.documentElement.classList.add("tg"); document.write('<script src="https://telegram.org/js/telegram-web-app.js?63"><\/script>'); }
+})();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 <style>
 :root{
@@ -293,6 +302,17 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
   background:linear-gradient(90deg,rgba(255,255,255,0) 0,rgba(255,255,255,.35) 25%,rgba(255,255,255,.9) 45%,#fff 50%,rgba(255,255,255,.9) 55%,rgba(255,255,255,.35) 75%,rgba(255,255,255,0) 100%) -120px 0/84px 100% no-repeat;
   -webkit-background-clip:text;background-clip:text;
   filter:drop-shadow(0 0 1.5px rgba(255,255,255,.9)) drop-shadow(0 0 6px rgba(var(--lc,200,215,225),.75))}
+
+/* ===== inside Telegram (html.tg) =====
+   No Safari toolbar to paint under, so the page is exactly the screen and never scrolls itself. In full-screen mode
+   Telegram draws its Close / ⋯ pills over the top of the page: --tg-content-safe-area-inset-top keeps the player below them. */
+html.tg{height:100%;overflow:hidden;overscroll-behavior:none}
+html.tg .bg-container,html.tg .bg-vignette{height:100%}
+html.tg body{--tg-top:max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px));--tg-bot:max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px));
+  padding-top:calc(var(--tg-top) + var(--tg-content-safe-area-inset-top,0px) + 16px);overscroll-behavior:none}
+html.tg .gear-btn{bottom:calc(var(--tg-bot) + 20px)}
+html.tg .floating-customizer{bottom:calc(var(--tg-bot) + 74px)}
+html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 </style>
 </head>
 <body>
@@ -389,7 +409,27 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
 <script>
 const $ = id => document.getElementById(id);
-const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+/* ---------- TELEGRAM ----------
+   TG is Telegram's Mini App object when the player runs inside Telegram, and null everywhere else (Safari, the home-screen
+   app), so every Telegram-only line below is skipped outside it. tgAt(v) = "this Telegram app supports Bot API v". */
+const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return w && w.platform && w.platform !== "unknown" ? w : null; })();
+const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
+function haptic(kind) {                               // "light" | "medium" | "select". Telegram's haptics also work on iPhone; navigator.vibrate is the fallback (Android browsers)
+  if (tgAt("6.1")) { try { kind === "select" ? TG.HapticFeedback.selectionChanged() : TG.HapticFeedback.impactOccurred(kind); } catch (e) {} return; }
+  if (kind !== "select" && navigator.vibrate) navigator.vibrate(kind === "medium" ? 15 : 12);
+}
+/* Telegram may clear the web view's storage (low space, cache cleanup). Settings and caches are mirrored into Telegram's
+   DeviceStorage (on the phone, 5 MB per bot); if the local copy is gone at launch it is pulled back once and the page reloads. */
+const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
+const MIRROR = ["photoData", "wallpaperBlur", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache"], mirrorT = {};
+const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}
+  if (tgStore && MIRROR.includes(k)) { clearTimeout(mirrorT[k]); mirrorT[k] = setTimeout(() => { try { tgStore.setItem(k, String(v)); } catch (e) {} }, 800); }}};
+if (tgStore && !store.get("tgMark")) (function () {
+  let left = MIRROR.length, got = 0;
+  const done = () => { if (--left) return; try { localStorage.setItem("tgMark", "1"); } catch (e) {} if (got && store.get("tgMark")) location.reload(); };   // reload only if the mark stuck (no reload loop when storage is blocked)
+  MIRROR.forEach(k => { try { tgStore.getItem(k, (err, v) => { if (!err && v) { try { localStorage.setItem(k, v); got++; } catch (e) {} } done(); }); } catch (e) { done(); } });
+})();
 
 const LASTFM_API_KEY = "dbe9aea2d4e59436f4b2015d1f0e027a";
 const albumMeta = {};
@@ -835,7 +875,7 @@ function attachDrag(card) {
       card.classList.add("lifted"); card.style.zIndex = 20;
       card.style.transition = "transform .22s var(--ease)";
       $("albums-grid-wrapper").style.overflowY = "hidden";
-      if (navigator.vibrate) navigator.vibrate(12);
+      haptic("light");
       setTimeout(() => { if (drag && drag.card === card) { drag.follow = true; card.style.transition = "none"; } }, 190);
       drag.sx = card.offsetLeft; drag.sy = card.offsetTop;
       dragUpdate(); drag.raf = requestAnimationFrame(dragLoop);
@@ -850,7 +890,7 @@ function dragUpdate() {
     return px >= o.offsetLeft + ix && px <= o.offsetLeft + o.offsetWidth - ix && py >= o.offsetTop + iy && py <= o.offsetTop + o.offsetHeight - iy; });
   if (t) {
     const from = d.keys.indexOf(c.dataset.key), to = d.keys.indexOf(t.dataset.key);
-    if (from !== to && from >= 0 && to >= 0) flip(others, () => { d.keys.splice(to, 0, d.keys.splice(from, 1)[0]); applyKeys(d.keys); });
+    if (from !== to && from >= 0 && to >= 0) { haptic("select"); flip(others, () => { d.keys.splice(to, 0, d.keys.splice(from, 1)[0]); applyKeys(d.keys); }); }
   }
   d.ax = px - d.grabX; d.ay = py - d.grabY;                          // target (absolute, grid coords); dragLoop glides the tile toward it
 }
@@ -987,7 +1027,7 @@ function toggleShuffle() {
   shuffle = !shuffle; shufKey = "";
   $("shuf-ind").classList.toggle("on", shuffle);
   toast(shuffle ? "Shuffle on" : "Shuffle off");
-  if (navigator.vibrate) navigator.vibrate(15);
+  haptic("medium");
 }
 function playNext() {
   if (queue.length) { const id = queue.shift(); renderQueue(); loadTrack(id, true); return; }
@@ -1307,6 +1347,19 @@ let tiltAt = 0;                                                      // last tim
     tx = cl((e.gamma - bG) / 14); ty = cl((e.beta - bB) / 14); go();
   }
   const D = window.DeviceOrientationEvent, mb = $("motion-btn");
+  const tgOri = tgAt("8.0") && TG.DeviceOrientation;
+  if (tgOri) {                                                // inside Telegram: its own motion sensor API (radians), no Safari permission prompt, no button
+    const d2r = 180 / Math.PI;
+    const feed = () => { if (tgOri.beta != null && tgOri.gamma != null) ori({ beta: tgOri.beta * d2r, gamma: tgOri.gamma * d2r }); };
+    const start = () => { try { tgOri.start({ refresh_rate: 50 }, ok => { if (!ok) useWeb(); }); } catch (e) { useWeb(); } };
+    TG.onEvent("deviceOrientationChanged", feed);
+    TG.onEvent("deviceOrientationFailed", useWeb);
+    TG.onEvent("deactivated", () => { try { tgOri.stop(); } catch (e) {} });   // minimised: sensor off to save battery
+    TG.onEvent("activated", start);
+    start();
+  } else useWeb();
+  function useWeb() {                                         // browser / home-screen app (and the fallback if Telegram's sensor fails)
+  if (useWeb.on) return; useWeb.on = true;
   addEventListener("deviceorientation", e => { if (mb) mb.style.display = "none"; ori(e); });   // flows once permission exists
   if (D && D.requestPermission && mb) {                       // iOS: ask from a dedicated button, never from a tap that also opens the file picker
     mb.style.display = "block";
@@ -1319,6 +1372,7 @@ let tiltAt = 0;                                                      // last tim
       };
       addEventListener("click", once, true);
     }
+  }
   }
   addEventListener("pointermove", e => { if (e.pointerType === "mouse") { tx = (e.clientX / innerWidth - .5) * 2; ty = (e.clientY / innerHeight - .5) * 2; go(); } });
 })();
@@ -1333,6 +1387,41 @@ let tiltAt = 0;                                                      // last tim
     box.style.setProperty("--art-on", src && img.style.opacity !== "0" ? "1" : "0");       // refraction fades in with the new cover, never ahead of it
   }
   new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
+})();
+
+/* ---------- TELEGRAM MINI APP ----------
+   Everything here runs only inside Telegram. The player itself is unchanged; this just fits it into Telegram's frame. */
+if (TG) (function () {
+  const BG = "#0b1d24", open = () => drawerBox.classList.contains("expanded"), shown = el => el.style.display === "block";
+  try { TG.ready(); TG.expand(); } catch (e) {}                                   // hide Telegram's loading screen, take the full height
+  try {
+    if (tgAt("6.1")) { TG.setHeaderColor(BG); TG.setBackgroundColor(BG); }
+    if (tgAt("7.10")) TG.setBottomBarColor(BG);
+    if (tgAt("7.7")) TG.disableVerticalSwipes();                                 // otherwise pulling down on a list, or dragging an album, closes the app
+    if (tgAt("8.0") && /^(ios|android)$/.test(TG.platform) && !TG.isFullscreen) TG.requestFullscreen();   // edge to edge, like the home-screen app
+  } catch (e) {}
+  /* Telegram's own back button (top left) mirrors the in-app ones: settings or edit mode -> close; album tracks -> albums;
+     artist page -> previous artist or the artist list; any open tab -> close the drawer. With nothing open it shows Close. */
+  if (tgAt("6.1")) {
+    const back = TG.BackButton;
+    const need = () => settingsPanel.classList.contains("active") || editing || open();
+    const sync = () => { need() ? back.show() : back.hide(); };
+    back.onClick(() => {
+      if (settingsPanel.classList.contains("active")) settingsPanel.classList.remove("active");
+      else if (editing) setEdit(false);
+      else if (open() && shown(playlistWrapper)) $("back-to-grid-btn").click();
+      else if (open() && shown(artistWrapper)) $("artist-back").click();
+      else { const a = [btnQueue, btnPlaylist, btnArtists].find(b => b.classList.contains("active")); if (a) toggleTab(a); }
+      haptic("light");
+    });
+    const mo = new MutationObserver(sync);
+    [drawerBox, settingsPanel, $("albums-shelf")].forEach(el => mo.observe(el, { attributes: true, attributeFilter: ["class"] }));
+    sync();
+  }
+  /* "Settings" in Telegram's ⋯ menu opens the same panel as the gear button */
+  if (tgAt("7.0")) { try { TG.SettingsButton.show(); TG.SettingsButton.onClick(() => { settingsPanel.classList.add("active"); haptic("light"); }); } catch (e) {} }
+  /* small taps feel native with Telegram's haptics */
+  [playBtn, $("prev-btn"), $("skip-btn")].forEach(b => b.addEventListener("click", () => haptic("light")));
 })();
 
 /* ---------- music-reactive glow ----------
