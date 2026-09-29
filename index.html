@@ -503,18 +503,23 @@ document.addEventListener("click", e => {
 applyBg();
 
 /* ---------- SLIDER (mouse + touch) ---------- */
-function setupCustomSlider(id, cb) {
+/* While the finger moves only the bar (and the time label, via onMove) follow it; the song seeks once, on release.
+   Seeking on every move fired dozens of seeks per drag, and while streaming each one is a new network request,
+   so on a slow phone the seek landed somewhere random or snapped back. */
+function setupCustomSlider(id, cb, onMove) {
   const slider = $(id), fill = slider.querySelector(".slider-fill"), thumb = slider.querySelector(".slider-thumb");
-  let dragging = false;
+  let dragging = false, last = 0;
   const visual = p => { p = Math.max(0, Math.min(100, p)); fill.style.width = p + "%"; thumb.style.left = p + "%"; };
-  const handle = e => { const r = slider.getBoundingClientRect(); const p = (e.clientX - r.left) / r.width * 100; visual(p); cb(Math.max(0, Math.min(1, p / 100))); };
+  const handle = e => { const r = slider.getBoundingClientRect(); const p = (e.clientX - r.left) / r.width * 100; visual(p); last = Math.max(0, Math.min(1, p / 100)); if (onMove) onMove(last); };
   slider.addEventListener("pointerdown", e => { dragging = true; slider.setPointerCapture(e.pointerId); handle(e); });
   slider.addEventListener("pointermove", e => { if (dragging) handle(e); });
-  const end = () => { dragging = false; };
-  slider.addEventListener("pointerup", end); slider.addEventListener("pointercancel", end);
-  return { setValue: v => { if (!dragging) visual(v * 100); } };
+  slider.addEventListener("pointerup", e => { if (!dragging) return; handle(e); dragging = false; cb(last); });
+  slider.addEventListener("pointercancel", () => { dragging = false; });
+  return { setValue: v => { if (!dragging) visual(v * 100); }, get dragging() { return dragging; } };
 }
-const progressCtrl = setupCustomSlider("progress-slider", v => { if (isFinite(audio.duration)) audio.currentTime = v * audio.duration; });
+const progressCtrl = setupCustomSlider("progress-slider",
+  v => { if (isFinite(audio.duration)) seekTo(v * audio.duration); },
+  v => { if (isFinite(audio.duration)) $("current-time").innerText = fmt(v * audio.duration); });
 
 /* ---------- LOADING SONGS ---------- */
 function showPlayerUI() { $("drop-zone").style.display = "none"; $("player-main").style.display = "flex"; $("controls-main").style.display = "flex"; $("footer-main").style.display = "flex"; }
@@ -597,9 +602,19 @@ const cleanTitle = s => s.replace(/\s*[\(\[].*?[\)\]]/g, "").replace(/\s-\s.*$/,
 const mainArtist = s => s.split(/\s*(?:;|,|&|\bfeat\.|\bft\.)\s*/i)[0].trim();
 function refreshNowPlaying() {
   const t = tracks.find(x => x.id === curId); if (!t) return;
-  const art = t.art || albumCover(t.album), img = $("track-art-img");
-  if (art) { img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; }
-  else { img.style.display = "none"; $("fallback-art").style.display = "block"; }
+  setCover(t.art || albumCover(t.album));
+}
+/* Cover change: the old cover stays on screen until the new one is downloaded and decoded, then they swap in one frame.
+   (Before, the cover went invisible first and faded back in once loaded: a visible blank gap on a slow phone.) */
+let artReq = 0;
+function setCover(art) {
+  const img = $("track-art-img"), req = ++artReq;
+  if (!art) { img.style.display = "none"; $("fallback-art").style.display = "block"; return; }
+  if (img.getAttribute("src") === art && img.style.display !== "none") return;
+  const pre = new Image(); pre.src = art;
+  const show = () => { if (req !== artReq) return; img.style.opacity = ""; img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; };
+  const fail = () => { if (req !== artReq) return; img.style.display = "none"; $("fallback-art").style.display = "block"; };   // broken cover: show the note icon, not an empty box
+  if (pre.decode) pre.decode().then(show, fail); else { pre.onload = show; pre.onerror = fail; }
 }
 /* --- deleted albums (Trash), persisted ---- */
 const hiddenSet = new Set((() => { try { return JSON.parse(store.get("hiddenAlbums") || store.get("trashedAlbums") || "[]"); } catch (e) { return []; } })());
@@ -993,10 +1008,7 @@ function loadTrack(id, autoplay) {
   if (ctxIds().includes(id)) ctxCur = id;
   $("track-title").innerText = t.title; sparkStop();
   $("track-artist").innerText = t.artist;
-  const img = $("track-art-img");
-  const art = t.art || albumCover(t.album);
-  if (art) { if (img.getAttribute("src") !== art) { img.style.opacity = 0; img.onload = () => { img.style.opacity = 1; }; } img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; }
-  else { img.style.display = "none"; $("fallback-art").style.display = "block"; }
+  setCover(t.art || albumCover(t.album));
   progressCtrl.setValue(0);
   $("current-time").innerText = "0:00"; $("total-duration").innerText = "0:00";
   playBtn.innerHTML = playIconSvg;
@@ -1004,11 +1016,24 @@ function loadTrack(id, autoplay) {
     navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.album,
       artwork: (t.art || albumCover(t.album)) ? [{ src: t.art || albumCover(t.album), sizes: "512x512" }] : [] });
   }
-  renderPlaylist();
+  if (playlistWrapper.style.display === "block") renderPlaylist();     // only rebuild the list if it's on screen; it's rebuilt when opened anyway
   if (autoplay && !later) playTrack();
 }
 function playTrack() { audio.play().then(() => { playBtn.innerHTML = pauseIconSvg; }).catch(() => {}); }
 function pauseTrack() { audio.pause(); playBtn.innerHTML = playIconSvg; }
+/* Seek. A bot song that is still playing from the stream but has meanwhile fully downloaded switches to that local copy
+   right here: the seek interrupts the sound anyway, so the switch can't be heard, and every later seek is instant
+   instead of a new request to the server. */
+function seekTo(time) {
+  const t = tracks.find(x => x.id === curId);
+  if (t && t.remote && t.file && !curUrl) {
+    const wasPlaying = !audio.paused;
+    curUrl = URL.createObjectURL(t.file); audio.src = curUrl;
+    audio.addEventListener("loadedmetadata", () => { audio.currentTime = Math.min(time, audio.duration || time); if (wasPlaying) playTrack(); syncPos(); }, { once: true });
+    return;
+  }
+  audio.currentTime = time;
+}
 /* play context = the list the current track was started from; shuffle reorders just that list */
 let playCtx = null, ctxCur = null, shuffle = false, shufOrder = [], shufKey = "";
 const allIds = () => tracks.map(t => t.id);
@@ -1041,14 +1066,14 @@ function playNext() {
   const id = stepId(1); if (id != null) loadTrack(id, true);
 }
 function playPrev() {
-  if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+  if (audio.currentTime > 3) { seekTo(0); return; }
   const id = stepId(-1); if (id != null) loadTrack(id, true);
 }
 const fmt = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
 audio.addEventListener("timeupdate", () => {
   if (!isFinite(audio.duration)) return;
   progressCtrl.setValue(audio.currentTime / audio.duration);
-  $("current-time").innerText = fmt(audio.currentTime);
+  if (!progressCtrl.dragging) $("current-time").innerText = fmt(audio.currentTime);
 });
 function syncPos() { const m = navigator.mediaSession; if (m && m.setPositionState && isFinite(audio.duration)) { try { m.setPositionState({ duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime, audio.duration) }); } catch (e) {} } }
 audio.addEventListener("loadedmetadata", () => { $("total-duration").innerText = fmt(audio.duration); syncPos(); });
@@ -1067,7 +1092,7 @@ if ("mediaSession" in navigator) {                    // headphone / lock-screen
   const m = navigator.mediaSession, h = (a, f) => { try { m.setActionHandler(a, f); } catch (e) {} };
   h("play", playTrack); h("pause", pauseTrack); h("nexttrack", playNext); h("previoustrack", playPrev);
   h("seekbackward", null); h("seekforward", null);     // unset so iOS shows previous/next instead of ±10s
-  h("seekto", d => { if (d && d.seekTime != null) { audio.currentTime = d.seekTime; syncPos(); } });
+  h("seekto", d => { if (d && d.seekTime != null) { seekTo(d.seekTime); syncPos(); } });
 }
 
 /* ---------- JSONP (Deezer) ---------- */
@@ -1644,25 +1669,59 @@ function bandEvents(L, M, H) {
   }
   return ev;
 }
+/* The envelope maths runs in a Web Worker, so the page keeps drawing while a song is analysed, and it starts a moment
+   after the song does, so it never competes with the cover and the first notes. Only a mono copy of the decoded audio
+   is kept and handed to the worker (the decoded stereo buffer is dropped straight away), which roughly halves the
+   memory spike on low-RAM phones. Results are identical: envelope() averaged the channels to mono anyway. */
+let envWorker = null; const envJobs = new Map(); let envJobId = 0;
+function envWorkerGet() {
+  if (envWorker !== null) return envWorker;
+  try {
+    const src = envelope.toString() + "\n" + bandEvents.toString() +
+      "\nonmessage = e => { const { id, data, sr } = e.data;" +
+      " const out = envelope({ numberOfChannels: 1, sampleRate: sr, length: data.length, getChannelData: () => data });" +
+      " postMessage({ id, out, events: out.events }, [out.buffer]); };";
+    envWorker = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+    envWorker.onmessage = e => { const j = envJobs.get(e.data.id); if (!j) return; envJobs.delete(e.data.id); const out = e.data.out; out.events = e.data.events; j.res(out); };
+    envWorker.onerror = () => { envJobs.forEach(j => j.rej()); envJobs.clear(); envWorker = false; };
+  } catch (e) { envWorker = false; }
+  return envWorker;
+}
+function envCompute(mono, sr) {
+  const w = envWorkerGet(), fake = { numberOfChannels: 1, sampleRate: sr, length: mono.length, getChannelData: () => mono };
+  if (!w) return Promise.resolve(envelope(fake));                    // no workers here: same maths on the page, as before
+  return new Promise((res, rej) => { const id = ++envJobId; envJobs.set(id, { res, rej }); w.postMessage({ id, data: mono, sr }, [mono.buffer]); });
+}
 async function analyze(t) {
   env = null; envId = t.id;
   if (envCache.has(t.id)) { env = envCache.get(t.id); return; }
+  if (!t.file || t.file.size > 80e6) return;
+  await sleep(1500); if (envId !== t.id) return;                     // skipped on before it started: nothing to do
   try {
-    if (!t.file || t.file.size > 80e6) return;
     const buf = await t.file.arrayBuffer(), OC = window.OfflineAudioContext || window.webkitOfflineAudioContext, ctx = new OC(1, 1, 22050);
-    const ab = await new Promise((res, rej) => { const r = ctx.decodeAudioData(buf, res, rej); if (r && r.then) r.then(res, rej); });
-    const e = envelope(ab); envCache.set(t.id, e); if (envId === t.id) env = e;
+    let ab = await new Promise((res, rej) => { const r = ctx.decodeAudioData(buf, res, rej); if (r && r.then) r.then(res, rej); });
+    if (envId !== t.id) return;
+    const n = ab.length, nc = ab.numberOfChannels, sr = ab.sampleRate, mono = new Float32Array(n);
+    for (let c = 0; c < nc; c++) { const d = ab.getChannelData(c); for (let i = 0; i < n; i++) mono[i] += d[i]; }
+    if (nc > 1) for (let i = 0; i < n; i++) mono[i] /= nc;
+    ab = null;
+    const e = await envCompute(mono, sr); envCache.set(t.id, e); if (envId === t.id) env = e;
   } catch (err) {}                                                   // no envelope -> the glow just breathes slowly
 }
 function startPulse() { if (!pRaf && !matchMedia("(prefers-reduced-motion:reduce)").matches) pRaf = requestAnimationFrame(pulseLoop); }
+/* Budget phones: the glass light is redrawn at ~30 fps instead of every frame. Every blur, glow and glass layer stays exactly
+   as it is; they just get repainted half as often, which halves the drawing work that was making the phone drop parts of
+   the page for a moment. The smoothing below is adjusted so the glow still rises and falls at the same speed. */
+const LOW_END = (navigator.deviceMemory || 8) <= 4 || (navigator.hardwareConcurrency || 8) <= 4;
 function pulseLoop() {
   pRaf = 0;
+  if (LOW_END && pulseLoop.t && performance.now() - pulseLoop.t < 30) { pRaf = requestAnimationFrame(pulseLoop); return; }
   const playing = !audio.paused && !document.hidden; let target = 0;
   if (playing) {
     if (env) target = env[Math.min(env.length - 1, Math.max(0, Math.floor(audio.currentTime * 30)))];
     else target = .4 + .15 * Math.sin(performance.now() / 1500);
   }
-  const nv = pulse + (target - pulse) * (target > pulse ? .14 : .04);   // quick-ish rise, slow fall
+  const nv = pulse + (target - pulse) * (target > pulse ? (LOW_END ? .26 : .14) : (LOW_END ? .078 : .04));   // quick-ish rise, slow fall
   if (Math.abs(nv - pulse) > .0015) { pulse = nv; const v = pulse.toFixed(3); pulseEls().forEach(el => el && el.style.setProperty("--pulse", v)); }
   const now = performance.now(), dt = Math.min(.1, (now - (pulseLoop.t || now)) / 1000);
   if (!playing && energy < .02 && now - tiltAt > 600 && pulseLoop.t && now - pulseLoop.t < 45) { pRaf = requestAnimationFrame(pulseLoop); return; }   // idle and nobody tilting: ~20 fps is plenty for a slow drift
