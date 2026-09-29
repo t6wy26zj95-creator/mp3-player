@@ -187,19 +187,15 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 @keyframes jig{0%{transform:rotate(-.9deg)}100%{transform:rotate(.9deg)}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
-/* ===== bubble: original border kept; glass depth comes from bloom, transparency and a moving reflection ===== */
-:root{--inset:10px;--glass-blur:blur(14px) saturate(215%) brightness(1.05)}   /* 2: wallpaper shows through more */
-.bg-container{transform:translate3d(calc(var(--tx,0) * -10px),calc(var(--ty,0) * -10px),0) scale(1.06);will-change:transform}
-.player-wrapper::before{background:
-  linear-gradient(calc(135deg + var(--tx,0) * 18deg),rgba(255,255,255,.25) 0%,rgba(255,255,255,.05) 20%,rgba(255,255,255,0) 40%,rgba(255,255,255,0) 100%),
-  radial-gradient(90% 45% at var(--lx,30%) var(--ly,8%),rgba(255,255,255,.07),rgba(255,255,255,0) 70%)}
-/* 3: wide soft reflection that slides across the whole pane with tilt */
-.player-wrapper::after{content:'';position:absolute;inset:0;border-radius:24px;pointer-events:none;z-index:2;
-  background:linear-gradient(105deg,rgba(255,255,255,0) calc(var(--sx,38%) - 26%),rgba(255,255,255,.05) calc(var(--sx,38%) - 8%),rgba(255,255,255,.13) var(--sx,38%),rgba(255,255,255,.05) calc(var(--sx,38%) + 8%),rgba(255,255,255,0) calc(var(--sx,38%) + 26%))}
-/* 1: colour from the cover bleeds softly into the glass around it */
+/* ===== bubble: clear, darker glass; tilt is barely-there ===== */
+:root{--inset:10px;--glass-blur:blur(7px) saturate(140%) brightness(.9)}
+.player-wrapper{background:linear-gradient(rgba(6,18,26,.16),rgba(6,18,26,.16)),var(--glass-bg)}
+.bg-container{transform:translate3d(calc(var(--tx,0) * -3px),calc(var(--ty,0) * -3px),0) scale(1.03);will-change:transform}
+.player-wrapper::before{background:linear-gradient(calc(135deg + var(--tx,0) * 6deg),rgba(255,255,255,.25) 0%,rgba(255,255,255,.05) 20%,rgba(255,255,255,0) 40%,rgba(255,255,255,0) 100%)}
+.player-wrapper::after{content:none}
 .track-info-container{position:relative}
 .art-bloom{position:absolute;left:calc(var(--inset) + 3px);top:2px;width:66px;height:66px;border-radius:14px;background-size:cover;background-position:center;
-  filter:blur(20px) saturate(1.7);opacity:.5;transform:scale(1.7);pointer-events:none;transition:opacity .4s var(--ease)}
+  filter:blur(20px) saturate(1.5);opacity:.35;transform:scale(1.6);pointer-events:none;transition:opacity .4s var(--ease)}
 .album-art{margin-left:3px;position:relative;z-index:1}
 </style>
 </head>
