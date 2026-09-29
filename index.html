@@ -234,24 +234,54 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .sk-card .sq{width:100%;aspect-ratio:1/1}
 .sk-card .ln{width:60%;height:9px;border-radius:5px}
 .fade-img{opacity:0}.fade-img.in{opacity:1}
-/* rim light: a highlight that travels round the cover's edge; colours come from the artwork, speed from the music */
 
-/* rim light, stronger: thicker ring, wider highlight, faint tinted base ring; replaces the grey cover border */
-.album-art{border-color:transparent}
-
-/* rim light v3: sharp ring + a blurred copy of it as a soft halo (blur sits on a wrapper so the ring mask can't cut it) */
-
-/* rim light: a comet drawn on a small canvas (94px = cover 66px + 14px of room for its glow) */
-
-/* cover light: soft wedge of artwork-picked colour circling behind the cover (GPU rotate only), glass sheen on the cover, energy-driven bloom */
+/* cover light: soft wedge of artwork-picked colour circling behind the cover (GPU rotate only), energy-driven bloom */
 .art-light{position:absolute;left:calc(var(--inset) + var(--art-x) - 22px);top:-20px;width:110px;height:110px;border-radius:50%;pointer-events:none;filter:blur(15px);
   background:conic-gradient(rgba(var(--lc,200,215,225),0) 0deg,rgba(var(--lc,200,215,225),.9) 50deg,rgba(var(--lc,200,215,225),0) 135deg,rgba(var(--lc2,200,215,225),0) 190deg,rgba(var(--lc2,200,215,225),.55) 245deg,rgba(var(--lc2,200,215,225),0) 320deg);
   transform:rotate(var(--ang,0deg));opacity:calc((.24 + var(--en,0) * .26 + var(--pulse,0) * .22 + var(--br,.5) * .05) * var(--lk,1))}
 .art-bloom{opacity:calc(.32 + var(--en,0) * .06 + var(--pulse,0) * .22 + var(--br,.5) * .06);
   transform:translate3d(calc(var(--tx,0) * 12px),calc(var(--ty,0) * 12px),0) scale(calc(1.5 + var(--pulse,0) * .12 + var(--br,.5) * .05))}
-.album-art::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-  background:linear-gradient(115deg,rgba(255,255,255,0) 38%,rgba(255,255,255,.17) 50%,rgba(255,255,255,0) 62%) calc(var(--sh,.5) * 100%) 0/300% 100% no-repeat;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),inset 0 1px 1px rgba(255,255,255,.22)}
+
+/* ===== glass cover =====
+   The artwork and every glass layer sit in ONE clipped box (.art-clip), so they share exactly the same outline:
+   nothing of the artwork can show outside the rim any more. Light is driven by JS on #player-main:
+   --la light direction (same one that turns the halo behind), --gx/--gy surface hotspot, --gi rim brightness,
+   --gt tilt boost (0 without tilt), --sh reflection streak, --rx/--ry edge refraction shift.
+   It moves on its own all the time; tilt (when enabled) only adds to it. */
+.album-art{border:0;background:none;overflow:visible;
+  box-shadow:0 7px 18px rgba(0,0,0,.32),0 2px 5px rgba(0,0,0,.18),0 0 0 .5px rgba(0,0,0,.45)}
+.art-clip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;clip-path:inset(0 round 12px);background:rgba(0,0,0,.22);
+  display:flex;align-items:center;justify-content:center;isolation:isolate}
+.art-clip img{display:block}
+.g{position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+/* edge refraction: a thin band where the artwork looks magnified through the glass edge; shifts a hair with the light */
+.g-refr{background:var(--art,none) calc(50% + var(--rx,0px)) calc(50% + var(--ry,0px))/107% 107% no-repeat;filter:saturate(1.35) brightness(1.14) blur(.4px);
+  opacity:calc(var(--art-on,0) * .42);transition:opacity .3s ease;
+  -webkit-mask-image:linear-gradient(90deg,#000,transparent 4px,transparent calc(100% - 4px),#000),linear-gradient(#000,transparent 4px,transparent calc(100% - 4px),#000);
+          mask-image:linear-gradient(90deg,#000,transparent 4px,transparent calc(100% - 4px),#000),linear-gradient(#000,transparent 4px,transparent calc(100% - 4px),#000)}
+/* thickness: the lower edge sits a little in shadow, the upper edge catches a little light */
+.g-shade{box-shadow:inset 0 -12px 16px -14px rgba(0,0,0,.45),inset 0 11px 14px -14px rgba(255,255,255,.3)}
+/* surface: a soft specular hotspot on the side the light comes from + a faint sky reflection at the top */
+.g-spec{background:
+  radial-gradient(62% 62% at var(--gx,32%) var(--gy,20%),rgba(255,255,255,calc(.19 * var(--gl,1) * (1 + .7 * var(--gt,0)))) 0,rgba(255,255,255,calc(.06 * var(--gl,1))) 34%,rgba(255,255,255,0) 70%),
+  linear-gradient(168deg,rgba(255,255,255,.08) 0,rgba(255,255,255,.02) 38%,rgba(255,255,255,0) 52%)}
+/* a long glass reflection (with a thin second line) that glides across now and then */
+.g-streak{mix-blend-mode:screen;background:linear-gradient(112deg,rgba(255,255,255,0) 40%,rgba(255,255,255,calc(.13 * var(--gl,1) * (1 + var(--gt,0)))) 47%,rgba(255,255,255,.03) 50%,rgba(255,255,255,calc(.07 * var(--gl,1))) 53%,rgba(255,255,255,0) 57%) calc(var(--sh,.5) * 100%) 0/300% 100% no-repeat}
+/* soft inner glow along the edge, brightest where the light hits, tinted with the artwork's colours */
+.g-glow{background:conic-gradient(from var(--la,-40deg),
+    rgba(255,255,255,calc(.16 + .3 * var(--gi,.6))) 0deg,rgba(var(--lc,200,215,225),calc(.1 + .22 * var(--gi,.6))) 40deg,rgba(255,255,255,0) 95deg,rgba(255,255,255,0) 150deg,
+    rgba(var(--lc2,200,215,225),calc(.05 + .15 * var(--gi,.6))) 180deg,rgba(255,255,255,0) 210deg,rgba(255,255,255,0) 265deg,
+    rgba(var(--lc,200,215,225),calc(.1 + .22 * var(--gi,.6))) 320deg,rgba(255,255,255,calc(.16 + .3 * var(--gi,.6))) 360deg);
+  -webkit-mask-image:linear-gradient(90deg,#000,transparent 7px,transparent calc(100% - 7px),#000),linear-gradient(#000,transparent 7px,transparent calc(100% - 7px),#000);
+          mask-image:linear-gradient(90deg,#000,transparent 7px,transparent calc(100% - 7px),#000),linear-gradient(#000,transparent 7px,transparent calc(100% - 7px),#000)}
+/* the crisp glass rim: runs the whole perimeter, catches the light on one side and a weaker bounce on the other */
+.g-rim{box-sizing:border-box;padding:1px;
+  background:conic-gradient(from var(--la,-40deg),
+    rgba(255,255,255,calc(.5 + .45 * var(--gi,.6))) 0deg,rgba(var(--lc,200,215,225),calc(.3 + .3 * var(--gi,.6))) 32deg,rgba(255,255,255,.18) 80deg,rgba(255,255,255,.13) 145deg,
+    rgba(var(--lc2,200,215,225),calc(.18 + .3 * var(--gi,.6))) 180deg,rgba(255,255,255,.13) 215deg,rgba(255,255,255,.18) 280deg,
+    rgba(var(--lc,200,215,225),calc(.3 + .3 * var(--gi,.6))) 328deg,rgba(255,255,255,calc(.5 + .45 * var(--gi,.6))) 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+          mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
 </style>
 </head>
 <body>
@@ -272,10 +302,11 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
   <div class="track-info-container" id="player-main" style="display:none;">
     <div class="art-bloom" id="art-bloom"></div>
     <div class="art-light" id="art-light"></div>
-    <div class="album-art" id="album-art-box">
+    <div class="album-art" id="album-art-box"><div class="art-clip">
       <svg id="fallback-art" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
       <img id="track-art-img" style="display:none;">
-    </div>
+      <i class="g g-refr" aria-hidden="true"></i><i class="g g-shade" aria-hidden="true"></i><i class="g g-spec" aria-hidden="true"></i><i class="g g-streak" aria-hidden="true"></i><i class="g g-glow" aria-hidden="true"></i><i class="g g-rim" aria-hidden="true"></i>
+    </div></div>
     <div class="track-text">
       <div class="track-title" id="track-title">Loading...</div>
       <div class="artist-row"><div class="track-artist" id="track-artist">Unknown Artist</div><svg class="shuf-ind" id="shuf-ind" viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></div>
@@ -747,7 +778,7 @@ function hideAlbum(card, name) {
 function renderHidden() {
   const names = [...hiddenSet], box = $("hidden-list"); $("hidden-count").textContent = names.length || "";
   box.innerHTML = ""; if (!names.length) { box.innerHTML = '<div class="hidden-empty">No hidden albums</div>'; return; }
-  
+
   names.forEach(n => {
     const row = document.createElement("div"); row.className = "hidden-row";
     row.innerHTML = itemHTML(albumCover(n), n, "").replace('<div class="item-text">', '<div class="item-text" style="display:none">') + '<div class="nm"></div>';
@@ -1244,13 +1275,14 @@ $("artist-back").addEventListener("click", () => {
   else { currentArtistName = ""; showOnly(artistsWrapper, -1); renderArtists(); }
 });
 
-/* ---------- LIQUID GLASS: light follows the tilt of the phone ---------- */
+/* ---------- LIQUID GLASS: tilt (optional) adds to the cover light; the light also moves on its own ---------- */
+let tiltAt = 0;                                                      // last time tilt/mouse moved the light (keeps the light loop at full frame rate)
 (function () {
   if (matchMedia("(prefers-reduced-motion:reduce)").matches) return;
   const R = document.documentElement.style, cl = v => Math.max(-1, Math.min(1, v));
   let bB = null, bG = null, tx = 0, ty = 0, cx = 0, cy = 0, on = false, raf = 0;
   function tick() {
-    raf = 0; cx += (tx - cx) * .1; cy += (ty - cy) * .1;
+    raf = 0; cx += (tx - cx) * .1; cy += (ty - cy) * .1; tiltAt = performance.now();
     R.setProperty("--tx", cx.toFixed(3)); R.setProperty("--ty", cy.toFixed(3));
     R.setProperty("--lx", (30 + cx * 45).toFixed(1) + "%"); R.setProperty("--ly", (8 + cy * 40).toFixed(1) + "%");
     R.setProperty("--sx", (38 + cx * 55).toFixed(1) + "%");
@@ -1267,15 +1299,28 @@ $("artist-back").addEventListener("click", () => {
   addEventListener("deviceorientation", e => { if (mb) mb.style.display = "none"; ori(e); });   // flows once permission exists
   if (D && D.requestPermission && mb) {                       // iOS: ask from a dedicated button, never from a tap that also opens the file picker
     mb.style.display = "block";
-    mb.addEventListener("click", () => D.requestPermission().then(r => { if (r === "granted") { mb.style.display = "none"; toast("Tilt effect on"); } }).catch(() => {}));
+    const ask = quiet => D.requestPermission().then(r => { if (r === "granted") { mb.style.display = "none"; store.set("tiltOn", "1"); if (!quiet) toast("Tilt effect on"); } }).catch(() => {});
+    mb.addEventListener("click", () => ask(false));
+    if (store.get("tiltOn")) {                                // turned on before: re-arm on the next ordinary tap, so it doesn't need the Settings trip every launch
+      const once = e => {
+        if (e.target.closest && e.target.closest("#drop-zone,#btn-add,#upload-wall,#motion-btn,input")) return;   // never piggyback on a tap that opens a picker
+        removeEventListener("click", once, true); ask(true);
+      };
+      addEventListener("click", once, true);
+    }
   }
   addEventListener("pointermove", e => { if (e.pointerType === "mouse") { tx = (e.clientX / innerWidth - .5) * 2; ty = (e.clientY / innerHeight - .5) * 2; go(); } });
 })();
 
-/* bloom follows whatever cover is showing */
+/* bloom + glass refraction follow whatever cover is showing */
 (function () {
-  const bloom = $("art-bloom"), img = $("track-art-img");
-  function sync() { const src = img.style.display !== "none" && img.getAttribute("src"); bloom.style.backgroundImage = src ? `url("${src}")` : ""; bloom.style.opacity = src ? "" : "0"; }
+  const bloom = $("art-bloom"), img = $("track-art-img"), box = $("album-art-box");
+  function sync() {
+    const src = img.style.display !== "none" && img.getAttribute("src");
+    bloom.style.backgroundImage = src ? `url("${src}")` : ""; bloom.style.opacity = src ? "" : "0";
+    box.style.setProperty("--art", src ? `url("${String(src).replace(/"/g, "%22")}")` : "none");
+    box.style.setProperty("--art-on", src && img.style.opacity !== "0" ? "1" : "0");       // refraction fades in with the new cover, never ahead of it
+  }
   new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
 })();
 
@@ -1321,16 +1366,26 @@ function pulseLoop() {
   const nv = pulse + (target - pulse) * (target > pulse ? .14 : .04);   // quick-ish rise, slow fall
   if (Math.abs(nv - pulse) > .0015) { pulse = nv; const v = pulse.toFixed(3); pulseEls().forEach(el => el && el.style.setProperty("--pulse", v)); }
   const now = performance.now(), dt = Math.min(.1, (now - (pulseLoop.t || now)) / 1000);
-  if (!playing && energy < .02 && pulseLoop.t && now - pulseLoop.t < 45) { pRaf = requestAnimationFrame(pulseLoop); return; }   // idle: ~20 fps is plenty
+  if (!playing && energy < .02 && now - tiltAt > 600 && pulseLoop.t && now - pulseLoop.t < 45) { pRaf = requestAnimationFrame(pulseLoop); return; }   // idle and nobody tilting: ~20 fps is plenty for a slow drift
   pulseLoop.t = now;
   energy += ((playing ? 1 : 0) - energy) * (1 - Math.exp(-dt / (playing ? .4 : 1.8)));   // one smooth "how alive" level: quick up, slow settle down
-  rimA = (rimA + (5 + energy * (9 + pulse * 30)) * dt) % 360;                              // slow drift when idle, faster and music-driven when playing
-  const tx = parseFloat(document.documentElement.style.getPropertyValue("--tx")) || 0, pm = $("player-main").style;
-  pm.setProperty("--ang", (rimA + tx * 25).toFixed(1) + "deg"); pm.setProperty("--en", energy.toFixed(3));
-  pm.setProperty("--br", (.5 + .5 * Math.sin(now / 2600)).toFixed(3)); pm.setProperty("--sh", (.5 + tx * .3 + .18 * Math.sin(now / 5200)).toFixed(3));
+  rimA = (rimA + (4 + energy * (5 + pulse * 14)) * dt) % 360;                              // the light slowly orbits the cover on its own; a little livelier with the music
+  const R = document.documentElement.style, tx = parseFloat(R.getPropertyValue("--tx")) || 0, ty = parseFloat(R.getPropertyValue("--ty")) || 0;
+  const pm = $("player-main").style, s = now / 1000;
+  tilt += (Math.min(1, Math.hypot(tx, ty)) - tilt) * (1 - Math.exp(-dt / .35));            // 0 without tilt: the glass then runs on its ambient motion alone
+  /* glass light: one direction shared by the halo behind, the rim, the edge glow and the surface hotspot */
+  const la = rimA + 50 + tx * 40 - ty * 12, th = la * Math.PI / 180, rr = 30 + 6 * Math.sin(s / 7.3);
+  pm.setProperty("--ang", (la - 50).toFixed(1) + "deg"); pm.setProperty("--la", la.toFixed(1) + "deg");
+  pm.setProperty("--en", energy.toFixed(3));
+  pm.setProperty("--br", (.5 + .5 * Math.sin(now / 2600)).toFixed(3));
+  pm.setProperty("--gx", (50 + rr * Math.sin(th) - tx * 12).toFixed(1) + "%"); pm.setProperty("--gy", (50 - rr * Math.cos(th) - ty * 12).toFixed(1) + "%");
+  pm.setProperty("--gi", Math.min(1, .5 + energy * .12 + pulse * .14 + tilt * .35 + .06 * Math.sin(s / 3.1)).toFixed(3));
+  pm.setProperty("--gt", tilt.toFixed(3));
+  pm.setProperty("--sh", Math.max(0, Math.min(1, .5 + .45 * Math.sin(s / 9.5) + tx * .4)).toFixed(3));
+  pm.setProperty("--rx", (1.1 * Math.sin(s / 8.7) + tx * 2.6).toFixed(2) + "px"); pm.setProperty("--ry", (1.1 * Math.cos(s / 11.3) + ty * 2.6).toFixed(2) + "px");
   pRaf = requestAnimationFrame(pulseLoop);
 }
-let rimA = 0, energy = 0;
+let rimA = 0, energy = 0, tilt = 0;
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
 /* ---------- glow layer ----------
@@ -1376,26 +1431,28 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) star
   new MutationObserver(() => kick(900)).observe(drawerBox, { attributes: true, attributeFilter: ["class"] });
   document.addEventListener("visibilitychange", () => kick(900));
 })();
-/* cover light colours: cluster the artwork into hue buckets, score them for how good they look as a glow, then correct the winner */
+/* cover light colours: cluster the artwork into hue buckets, score them for how good they look as a glow, then correct the winner.
+   Also measures how bright the artwork is, so the glass reflections read equally well on dark and light covers. */
 (function () {
-  const img = $("track-art-img"), pm = $("player-main"), cache = new Map(), NEUTRAL = { c1: "200,215,225", c2: "200,215,225", k: .55 };
+  const img = $("track-art-img"), pm = $("player-main"), cache = new Map(), NEUTRAL = { c1: "200,215,225", c2: "200,215,225", k: .55, lum: .5 };
   const toHsl = (r, g, b) => { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn; let h = 0, s = 0;
     if (d) { s = d / (1 - Math.abs(2 * l - 1)); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; } return [h, s, l]; };
   const toRgb = (h, s, l) => { const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
     const v = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]; return v.map(t => Math.round((t + m) * 255)).join(","); };
   const hd = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
   function score(d) {
-    const B = Array.from({ length: 12 }, () => ({ n: 0, r: 0, g: 0, b: 0 })); let tot = 0;
-    for (let i = 0; i < d.length; i += 4) { const [h, s, l] = toHsl(d[i], d[i + 1], d[i + 2]); tot++; if (s < .2 || l < .12 || l > .92) continue; const k = Math.floor(h / 30) % 12, o = B[k]; o.n++; o.r += d[i]; o.g += d[i + 1]; o.b += d[i + 2]; }
+    const B = Array.from({ length: 12 }, () => ({ n: 0, r: 0, g: 0, b: 0 })); let tot = 0, lsum = 0;
+    for (let i = 0; i < d.length; i += 4) { const [h, s, l] = toHsl(d[i], d[i + 1], d[i + 2]); tot++; lsum += l; if (s < .2 || l < .12 || l > .92) continue; const k = Math.floor(h / 30) % 12, o = B[k]; o.n++; o.r += d[i]; o.g += d[i + 1]; o.b += d[i + 2]; }
+    const lum = tot ? lsum / tot : .5;
     const cs = B.filter(o => o.n > tot * .03).map(o => { const [h, s, l] = toHsl(o.r / o.n, o.g / o.n, o.b / o.n);
       let sc = Math.pow(o.n / tot, .6) * Math.min(1, s / .55) * Math.max(.2, 1 - Math.abs(l - .55) * 1.5);   // representative x colourful x glow-friendly lightness
       if (h > 25 && h < 75 && s < .45) sc *= .5;                                                            // muddy brown / olive
       if (h > 165 && h < 205) sc *= .7;                                                                     // would vanish against the teal UI
       return { h, s, l, sc }; }).sort((a, b) => b.sc - a.sc);
-    if (!cs.length || cs[0].sc < .06) return NEUTRAL;                                                       // muted cover: gentle neutral light instead of a forced colour
+    if (!cs.length || cs[0].sc < .06) return { ...NEUTRAL, lum };                                           // muted cover: gentle neutral light instead of a forced colour
     const a = cs[0], b = cs.find(x => x !== a && hd(x.h, a.h) >= 40 && x.sc > a.sc * .35) || { h: (a.h + 28) % 360, s: a.s, l: a.l };
     const fix = x => toRgb(x.h, Math.min(.85, Math.max(.55, x.s)), Math.min(.68, Math.max(.55, x.l)));      // keep it a real colour: fix saturation/lightness, don't wash to white
-    return { c1: fix(a), c2: fix(b), k: 1 };
+    return { c1: fix(a), c2: fix(b), k: 1, lum };
   }
   function pal(src) {
     if (cache.has(src)) return Promise.resolve(cache.get(src));
@@ -1407,7 +1464,9 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) star
   }
   function sync() {
     const src = img.style.display !== "none" && img.getAttribute("src"); if (!src) return;
-    pal(src).then(o => { if (img.getAttribute("src") !== src) return; pm.style.setProperty("--lc", o.c1); pm.style.setProperty("--lc2", o.c2); pm.style.setProperty("--lk", o.k); });
+    pal(src).then(o => { if (img.getAttribute("src") !== src) return;
+      pm.style.setProperty("--lc", o.c1); pm.style.setProperty("--lc2", o.c2); pm.style.setProperty("--lk", o.k);
+      pm.style.setProperty("--gl", (1.25 - .6 * (o.lum != null ? o.lum : .5)).toFixed(2)); });   // dark covers get a clearer reflection, bright ones a softer one
   }
   new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
 })();
