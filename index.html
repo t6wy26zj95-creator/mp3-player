@@ -245,6 +245,14 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .art-rim{padding:2.5px;opacity:var(--rim-o,.75);
   background:conic-gradient(from var(--rim-a,0deg),rgba(var(--rim-rgb),0) 0deg,rgba(var(--rim-rgb),1) 55deg,rgba(var(--rim-rgb),0) 140deg,rgba(var(--rim-rgb2),0) 185deg,rgba(var(--rim-rgb2),.75) 235deg,rgba(var(--rim-rgb2),0) 300deg),linear-gradient(rgba(var(--rim-rgb),.22),rgba(var(--rim-rgb),.22))}
 .album-art{border-color:transparent}
+
+/* rim light v3: sharp ring + a blurred copy of it as a soft halo (blur sits on a wrapper so the ring mask can't cut it) */
+.art-rim{padding:0;background:none;-webkit-mask:none;mask:none;
+  --rim-grad:conic-gradient(from var(--rim-a,0deg),rgba(var(--rim-rgb),0) 0deg,rgba(var(--rim-rgb),1) 55deg,rgba(var(--rim-rgb),0) 150deg,rgba(var(--rim-rgb2),0) 185deg,rgba(var(--rim-rgb2),.85) 235deg,rgba(var(--rim-rgb2),0) 305deg),linear-gradient(rgba(var(--rim-rgb),.18),rgba(var(--rim-rgb),.18))}
+.art-rim i{position:absolute;inset:0;border-radius:12px;box-sizing:border-box;padding:3px;background:var(--rim-grad);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.art-rim .rg{position:absolute;inset:-6px;filter:blur(6px);opacity:.95}
+.art-rim .rg i{inset:6px;padding:6px}
 </style>
 </head>
 <body>
@@ -264,7 +272,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
   <div class="track-info-container" id="player-main" style="display:none;">
     <div class="art-bloom" id="art-bloom"></div>
-    <div class="art-rim off" id="art-rim"></div>
+    <div class="art-rim off" id="art-rim"><div class="rg"><i></i></div><i class="rs"></i></div>
     <div class="album-art" id="album-art-box">
       <svg id="fallback-art" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
       <img id="track-art-img" style="display:none;">
@@ -1369,7 +1377,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) star
 /* rim light colours from the current cover */
 (function () {
   const rim = $("art-rim"), img = $("track-art-img"), cache = new Map();
-  const soft = c => c.map(v => Math.round(v + (255 - v) * .4)).join(",");
+  const soft = c => c.map(v => Math.round(v + (255 - v) * .65)).join(",");
   function pal(src) {
     if (cache.has(src)) return Promise.resolve(cache.get(src));
     return new Promise(res => {
