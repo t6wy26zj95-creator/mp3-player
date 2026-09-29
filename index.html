@@ -415,6 +415,10 @@ const $ = id => document.getElementById(id);
    app), so every Telegram-only line below is skipped outside it. tgAt(v) = "this Telegram app supports Bot API v". */
 const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return w && w.platform && w.platform !== "unknown" ? w : null; })();
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
+/* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
+   In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
+const API_BASE = "https://macawp3.duckdns.org";
+let botMode = !!TG && !!TG.initData;                   // switches off if the server can't be reached, so the phone's files still work
 function haptic(kind) {                               // "light" | "medium" | "select". Telegram's haptics also work on iPhone; navigator.vibrate is the fallback (Android browsers)
   if (tgAt("6.1")) { try { kind === "select" ? TG.HapticFeedback.selectionChanged() : TG.HapticFeedback.impactOccurred(kind); } catch (e) {} return; }
   if (kind !== "select" && navigator.vibrate) navigator.vibrate(kind === "medium" ? 15 : 12);
@@ -511,15 +515,13 @@ function setupCustomSlider(id, cb) {
 const progressCtrl = setupCustomSlider("progress-slider", v => { if (isFinite(audio.duration)) audio.currentTime = v * audio.duration; });
 
 /* ---------- LOADING SONGS ---------- */
-$("drop-zone").addEventListener("click", () => $("file-input").click());
-$("btn-add").addEventListener("click", () => $("file-input").click());
+function showPlayerUI() { $("drop-zone").style.display = "none"; $("player-main").style.display = "flex"; $("controls-main").style.display = "flex"; $("footer-main").style.display = "flex"; }
+$("drop-zone").addEventListener("click", () => { if (!botMode) $("file-input").click(); });
+$("btn-add").addEventListener("click", () => { if (botMode) { toast("Send or forward songs in the bot chat"); haptic("light"); } else $("file-input").click(); });
 $("file-input").addEventListener("change", async e => {
   const files = Array.from(e.target.files); e.target.value = "";
   if (!files.length) return;
-  $("drop-zone").style.display = "none";
-  $("player-main").style.display = "flex";
-  $("controls-main").style.display = "flex";
-  $("footer-main").style.display = "flex";
+  showPlayerUI();
   dupCount = 0;
   for (const f of files) await addFile(f);
   renderAlbums(); renderPlaylist();
@@ -981,8 +983,11 @@ function renderQueue() {
 let curUrl = null;
 function loadTrack(id, autoplay) {
   const t = tracks.find(x => x.id === id); if (!t) return;
-  curId = id; analyze(t);
-  if (curUrl) URL.revokeObjectURL(curUrl); curUrl = URL.createObjectURL(t.file); audio.src = curUrl;
+  curId = id;
+  if (curUrl) { URL.revokeObjectURL(curUrl); curUrl = null; }
+  let later = false;                                                 // true: a bot song is being read from the phone cache, it starts itself
+  if (t.file) { curUrl = URL.createObjectURL(t.file); audio.src = curUrl; analyze(t); }
+  else if (t.remote) later = remoteSrc(t, autoplay);
   if (ctxIds().includes(id)) ctxCur = id;
   $("track-title").innerText = t.title; sparkStop();
   $("track-artist").innerText = t.artist;
@@ -998,7 +1003,7 @@ function loadTrack(id, autoplay) {
       artwork: (t.art || albumCover(t.album)) ? [{ src: t.art || albumCover(t.album), sizes: "512x512" }] : [] });
   }
   renderPlaylist();
-  if (autoplay) playTrack();
+  if (autoplay && !later) playTrack();
 }
 function playTrack() { audio.play().then(() => { playBtn.innerHTML = pauseIconSvg; }).catch(() => {}); }
 function pauseTrack() { audio.pause(); playBtn.innerHTML = playIconSvg; }
@@ -1389,6 +1394,129 @@ let tiltAt = 0;                                                      // last tim
   new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
 })();
 
+/* ---------- BOT LIBRARY (Telegram only) ----------
+   The songs you sent the bot, listed by your server. A song streams the first time it plays while a full copy downloads
+   alongside (for the glow analysis); that copy is kept on the phone, so replays cost no traffic. The next song is fetched
+   in the background, so it starts instantly, also while Telegram is minimised. */
+const lib = { token: "", version: -1, byRid: new Map(), mem: [], jobs: new Map() };
+const PHONE_CACHE = "macaw-songs", PHONE_CAP = 600e6;                // songs kept on the phone (least recently played go first)
+let phoneIdx = {}; try { phoneIdx = JSON.parse(store.get("songCache") || "{}"); } catch (e) {}
+const savePhoneIdx = () => store.set("songCache", JSON.stringify(phoneIdx));
+const audioURL = t => `${API_BASE}/api/audio/${t.remote.id}?t=${lib.token}`;
+function libFields(x) {
+  return { title: x.title || "Unknown", artist: x.artist || "Unknown Artist", album: x.album || "Unknown Album", albumArtist: x.albumArtist || "",
+    disc: x.disc || 0, num: x.num || 0, year: x.year || 0, isrc: x.isrc || "", discName: "",
+    art: x.cover ? `${API_BASE}/api/cover/${x.id}?t=${lib.token}&r=${x.rev}` : null };
+}
+async function phoneGet(rid) {
+  try {
+    const r = await (await caches.open(PHONE_CACHE)).match("/song/" + rid); if (!r) return null;
+    const b = await r.blob(); phoneIdx[rid] = { u: Date.now(), s: b.size }; savePhoneIdx(); return b;
+  } catch (e) { return null; }
+}
+async function phonePut(rid, b) {
+  try {
+    const c = await caches.open(PHONE_CACHE);
+    await c.put("/song/" + rid, new Response(b, { headers: { "content-type": b.type || "audio/mpeg" } }));
+    phoneIdx[rid] = { u: Date.now(), s: b.size };
+    let total = Object.values(phoneIdx).reduce((s, x) => s + (x.s || 0), 0);
+    for (const [k] of Object.entries(phoneIdx).sort((a, b) => a[1].u - b[1].u)) {
+      if (total <= PHONE_CAP) break;
+      if (k === rid) continue;
+      total -= phoneIdx[k].s || 0; delete phoneIdx[k]; c.delete("/song/" + k);
+    }
+    savePhoneIdx();
+  } catch (e) {}
+}
+function keepMem(t) {                                                // only a few whole songs stay in memory: current, next, one or two recent
+  lib.mem = lib.mem.filter(x => x !== t); lib.mem.push(t);
+  while (lib.mem.length > 4) { const o = lib.mem.shift(); if (o.id !== curId) o.file = null; }
+}
+function fetchSong(t) {
+  const rid = t.remote.id;
+  if (t.file) return Promise.resolve(t.file);
+  if (lib.jobs.has(rid)) return lib.jobs.get(rid);
+  const p = fetch(audioURL(t)).then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
+    .then(b => { t.file = b; keepMem(t); phonePut(rid, b); if (curId === t.id) { analyze(t); prefetchNext(); } return b; })
+    .catch(() => null).finally(() => lib.jobs.delete(rid));
+  lib.jobs.set(rid, p); return p;
+}
+function prefetchNext() {
+  const n = tracks.find(x => x.id === (queue.length ? queue[0] : stepId(1)));
+  if (!n || !n.remote || n.file) return;
+  if (phoneIdx[n.remote.id]) phoneGet(n.remote.id).then(b => { if (b) { n.file = b; keepMem(n); } else fetchSong(n); });
+  else fetchSong(n);
+}
+function remoteSrc(t, autoplay) {                                    // returns true when the song starts itself a moment later (read from the phone cache)
+  env = null; envId = t.id;
+  const id = t.id, rid = t.remote.id;
+  if (phoneIdx[rid]) {
+    phoneGet(rid).then(b => {
+      if (curId !== id) return;
+      if (b) { t.file = b; keepMem(t); curUrl = URL.createObjectURL(b); audio.src = curUrl; analyze(t); prefetchNext(); }
+      else { delete phoneIdx[rid]; audio.src = audioURL(t); if (autoplay) fetchSong(t); }
+      if (autoplay) playTrack();
+    });
+    return true;
+  }
+  audio.src = audioURL(t);
+  if (autoplay) fetchSong(t);                                        // just opening the app doesn't download anything
+  return false;
+}
+function libUI(state) {
+  if (tracks.length) {
+    showPlayerUI();
+    if (curId === null || !tracks.some(t => t.id === curId)) loadTrack(tracks[0].id, false);
+    renderAlbums();
+    if (playlistWrapper.style.display === "block") renderPlaylist();
+    if (artistsWrapper.style.display === "block") renderArtists();
+    return;
+  }
+  const dz = $("drop-zone"), small = s => `<br><span style="font-size:11px;opacity:.7;">${s}</span>`;
+  dz.style.display = ""; ["player-main", "controls-main", "footer-main"].forEach(i => { $(i).style.display = "none"; });
+  dz.innerHTML = state === "loading" ? "Loading your library…"
+    : state === "empty" ? "Send me some songs" + small("Upload or forward audio files in this chat. They show up here straight away.")
+    : /invite|\/start/.test(state) ? "No access yet" + small("This player is private: " + esc(state) + ". You can still play songs from your phone: tap here.")
+    : "Couldn't reach your library" + small(esc(state) + ". Tap to play songs from your phone instead.");
+}
+async function syncLibrary() {
+  if (!botMode || syncLibrary.busy) return;
+  syncLibrary.busy = true;
+  const first = lib.version < 0;
+  try {
+    const r = await fetch(`${API_BASE}/api/library?since=${lib.version}`, { headers: { "X-Init-Data": TG.initData } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    if (j.same) return;
+    lib.token = j.token; lib.version = j.version;
+    const seen = new Set(), added = [];
+    for (const x of j.tracks) {
+      seen.add(x.id);
+      const t = lib.byRid.get(x.id);
+      if (!t) {
+        const tr = { id: ++uid, file: null, remote: { id: x.id, rev: x.rev }, ...libFields(x) };
+        lib.byRid.set(x.id, tr); tracks.push(tr); added.push(tr); scheduleAlbumWork(tr); delete albumRelease[tr.album];
+      } else if (t.remote.rev !== x.rev) {                           // the server finished reading the file's tags (album, cover...)
+        delete albumRelease[t.album]; Object.assign(t, libFields(x)); t.remote.rev = x.rev; scheduleAlbumWork(t); delete albumRelease[t.album];
+        if (t.id === curId) { refreshNowPlaying(); $("track-title").innerText = t.title; $("track-artist").innerText = t.artist; }
+      }
+    }
+    for (const [rid, t] of lib.byRid) if (!seen.has(rid)) { lib.byRid.delete(rid); tracks = tracks.filter(x => x !== t); queue = queue.filter(i => i !== t.id); }
+    tracks.sort(cmpTracks); scheduleResolve();
+    if (!first && added.length) toast(added.length === 1 ? `Added “${added[0].title}”` : `Added ${added.length} songs`);
+    libUI("empty");
+  } catch (e) {
+    if (first) { botMode = false; libUI(e.message || "no connection"); }   // fall back to the phone's own files for this session
+  } finally { syncLibrary.busy = false; }
+}
+if (botMode) {
+  libUI("loading"); syncLibrary();
+  setInterval(() => { if (!document.hidden) syncLibrary(); }, 15000);     // songs you send while the player is open appear within seconds
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) syncLibrary(); });
+  try { TG.onEvent("activated", syncLibrary); } catch (e) {}
+  audio.addEventListener("play", () => { const t = tracks.find(x => x.id === curId); if (t && t.remote && !t.file) fetchSong(t); });
+}
+
 /* ---------- TELEGRAM MINI APP ----------
    Everything here runs only inside Telegram. The player itself is unchanged; this just fits it into Telegram's frame. */
 if (TG) (function () {
@@ -1495,7 +1623,7 @@ async function analyze(t) {
   env = null; envId = t.id;
   if (envCache.has(t.id)) { env = envCache.get(t.id); return; }
   try {
-    if (t.file.size > 80e6) return;
+    if (!t.file || t.file.size > 80e6) return;
     const buf = await t.file.arrayBuffer(), OC = window.OfflineAudioContext || window.webkitOfflineAudioContext, ctx = new OC(1, 1, 22050);
     const ab = await new Promise((res, rej) => { const r = ctx.decodeAudioData(buf, res, rej); if (r && r.then) r.then(res, rej); });
     const e = envelope(ab); envCache.set(t.id, e); if (envId === t.id) env = e;
