@@ -282,6 +282,17 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
     rgba(var(--lc,200,215,225),calc(.3 + .3 * var(--gi,.6))) 328deg,rgba(255,255,255,calc(.5 + .45 * var(--gi,.6))) 360deg);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
           mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
+
+/* ===== title spark =====
+   No object travels across: the letters themselves glow. A copy of the title sits exactly on top of it, its text
+   transparent, with a soft wide band of light clipped to the glyphs; a halo round that copy makes only the letters under
+   the band glow. JS (Web Animations) slides the band across and fades it in and out; otherwise it's invisible. */
+.track-text{padding:6px 0;margin:-6px 0}                            /* room for the letters' glow; layout unchanged */
+.title-box{position:relative;min-width:0}
+.track-title.title-glint{position:absolute;inset:0;pointer-events:none;opacity:0;color:transparent;-webkit-text-fill-color:transparent;text-shadow:none;
+  background:linear-gradient(90deg,rgba(255,255,255,0) 0,rgba(255,255,255,.35) 25%,rgba(255,255,255,.9) 45%,#fff 50%,rgba(255,255,255,.9) 55%,rgba(255,255,255,.35) 75%,rgba(255,255,255,0) 100%) -120px 0/84px 100% no-repeat;
+  -webkit-background-clip:text;background-clip:text;
+  filter:drop-shadow(0 0 1.5px rgba(255,255,255,.9)) drop-shadow(0 0 6px rgba(var(--lc,200,215,225),.75))}
 </style>
 </head>
 <body>
@@ -308,7 +319,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
       <i class="g g-refr" aria-hidden="true"></i><i class="g g-shade" aria-hidden="true"></i><i class="g g-spec" aria-hidden="true"></i><i class="g g-streak" aria-hidden="true"></i><i class="g g-glow" aria-hidden="true"></i><i class="g g-rim" aria-hidden="true"></i>
     </div></div>
     <div class="track-text">
-      <div class="track-title" id="track-title">Loading...</div>
+      <div class="title-box"><div class="track-title" id="track-title">Loading...</div><div class="track-title title-glint" id="title-glint" aria-hidden="true"></div></div>
       <div class="artist-row"><div class="track-artist" id="track-artist">Unknown Artist</div><svg class="shuf-ind" id="shuf-ind" viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></div>
     </div>
   </div>
@@ -933,7 +944,7 @@ function loadTrack(id, autoplay) {
   curId = id; analyze(t);
   if (curUrl) URL.revokeObjectURL(curUrl); curUrl = URL.createObjectURL(t.file); audio.src = curUrl;
   if (ctxIds().includes(id)) ctxCur = id;
-  $("track-title").innerText = t.title;
+  $("track-title").innerText = t.title; sparkStop();
   $("track-artist").innerText = t.artist;
   const img = $("track-art-img");
   const art = t.art || albumCover(t.album);
@@ -1331,19 +1342,65 @@ const envCache = new Map(); let env = null, envId = null, pulse = 0, pRaf = 0;
 const pulseEls = () => [$("art-bloom"), $("glow-layer"), $("player-main"), $("progress-slider").querySelector(".slider-thumb")];
 function envelope(ab) {
   const chs = []; for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
-  const N = ab.length, hop = Math.round(ab.sampleRate / 30), F = Math.floor(N / hop), nc = chs.length;
-  const full = new Float32Array(F), bass = new Float32Array(F), al = 1 - Math.exp(-2 * Math.PI * 150 / ab.sampleRate); let lp = 0;
+  const sr = ab.sampleRate, N = ab.length, hop = Math.round(sr / 30), F = Math.floor(N / hop), nc = chs.length;
+  const full = new Float32Array(F), bass = new Float32Array(F), al = 1 - Math.exp(-2 * Math.PI * 150 / sr); let lp = 0;
+  /* the same pass also measures three bands in dB (low <150 Hz, mid 150 Hz-4 kHz, high >4 kHz) for the change detector;
+     2nd-order Butterworth biquads written out inline so this stays fast on a phone */
+  const bq = (hp, f0) => { const w = 2 * Math.PI * f0 / sr, c = Math.cos(w), a = Math.sin(w) / Math.SQRT2, a0 = 1 + a, k = hp ? (1 + c) / 2 : (1 - c) / 2;
+    return [k / a0, (hp ? -2 : 2) * k / a0, k / a0, -2 * c / a0, (1 - a) / a0]; };
+  const [p0, p1, p2, p3, p4] = bq(1, 150), [q0, q1, q2, q3, q4] = bq(0, 4000), [r0, r1, r2, r3, r4] = bq(1, 4000);
+  let px1 = 0, px2 = 0, py1 = 0, py2 = 0, qx1 = 0, qx2 = 0, qy1 = 0, qy2 = 0, rx1 = 0, rx2 = 0, ry1 = 0, ry2 = 0;
+  const lo = new Float32Array(F), mi = new Float32Array(F), hi = new Float32Array(F), dB = ms => Math.max(-80, 10 * Math.log10(ms + 1e-12));
   for (let f = 0; f < F; f++) {
-    let sf = 0, sb = 0;
-    for (let i = f * hop, e = i + hop; i < e; i++) { let x = 0; for (let c = 0; c < nc; c++) x += chs[c][i]; x /= nc; lp += al * (x - lp); sf += x * x; sb += lp * lp; }
+    let sf = 0, sb = 0, sm = 0, sh = 0;
+    for (let i = f * hop, e = i + hop; i < e; i++) {
+      let x = 0; for (let c = 0; c < nc; c++) x += chs[c][i]; x /= nc; lp += al * (x - lp); sf += x * x; sb += lp * lp;
+      const y = p0 * x + p1 * px1 + p2 * px2 - p3 * py1 - p4 * py2; px2 = px1; px1 = x; py2 = py1; py1 = y;          // high-pass 150 Hz ...
+      const z = q0 * y + q1 * qx1 + q2 * qx2 - q3 * qy1 - q4 * qy2; qx2 = qx1; qx1 = y; qy2 = qy1; qy1 = z; sm += z * z;   // ... then low-pass 4 kHz = mid
+      const h = r0 * x + r1 * rx1 + r2 * rx2 - r3 * ry1 - r4 * ry2; rx2 = rx1; rx1 = x; ry2 = ry1; ry1 = h; sh += h * h;   // high-pass 4 kHz = high
+    }
     full[f] = Math.sqrt(sf / hop); bass[f] = Math.sqrt(sb / hop);
+    lo[f] = dB(sb / hop); mi[f] = dB(sm / hop); hi[f] = dB(sh / hop);
   }
   const nz = a => { const t = Float32Array.from(a).sort(), lo = t[Math.floor(F * .05)], hi = t[Math.floor(F * .97)], d = hi - lo || 1; return a.map(v => Math.max(0, Math.min(1, (v - lo) / d))); };
   const b = nz(bass), fl = nz(full), m = new Float32Array(F);
   for (let f = 0; f < F; f++) m[f] = .55 * b[f] + .45 * fl[f];
   const out = new Float32Array(F);                                   // ~170 ms moving average: no jitter
   for (let f = 0; f < F; f++) { let s = 0, n = 0; for (let k = -3; k <= 3; k++) { const v = m[f + k]; if (v !== undefined) { s += v; n++; } } out[f] = s / n; }
+  out.events = bandEvents(lo, mi, hi);
   return out;
+}
+/* energy-change moments: where the music suddenly has MORE going on than a few seconds before, even if it isn't loud.
+   Each band is compared in dB (so a quiet song counts as much as a loud one): the next 0.7 s against the last 4 s.
+   Rises are weighted towards the high band, where percussion, cymbals and new texture show up most. A score of 10+
+   (e.g. a cymbal swell over quiet piano: ~15) always gets a glow; 4-10 gets one with a chance that grows with the score. */
+function bandEvents(L, M, H) {
+  const F = L.length, A = 21, BW = 120, bands = [L, M, H], W = [.2, .3, .5];
+  const P = bands.map(v => { const p = new Float64Array(F + 1); for (let i = 0; i < F; i++) p[i + 1] = p[i] + v[i]; return p; });
+  const base = bands.map(() => new Float32Array(F)), sc = new Float32Array(F), tmp = new Float32Array(BW);
+  for (let f = BW; f < F - A; f++) {
+    let s = 0;
+    for (let b = 0; b < 3; b++) {
+      if ((f - BW) % 3 === 0) { tmp.set(bands[b].subarray(f - BW, f)); tmp.sort(); base[b][f] = tmp[Math.floor(BW * .6)]; }   // baseline: 60th percentile of the last 4 s
+      else base[b][f] = base[b][f - 1];
+      const d = (P[b][f + A] - P[b][f]) / A - base[b][f]; if (d > 0) s += W[b] * d;
+    }
+    sc[f] = s;
+  }
+  const ev = [];
+  for (let f = BW; f < F - A; f++) {
+    const s = sc[f]; if (s < 4) continue;
+    let pk = true;
+    for (let k = Math.max(0, f - 60), e = Math.min(F - 1, f + 60); k <= e; k++) if (sc[k] > s || (sc[k] === s && k < f)) { pk = false; break; }
+    if (!pk) continue;
+    let best = f, bz = -1e9;                                         // crest: where the new material peaks; the glow is brightest there
+    for (let g = Math.max(1, f - 6), e = Math.min(F - 2, f + 30); g <= e; g++) {
+      let z = 0; for (let b = 0; b < 3; b++) z += W[b] * ((bands[b][g - 1] + bands[b][g] + bands[b][g + 1]) / 3 - base[b][f]);
+      if (z > bz) { bz = z; best = g; }
+    }
+    ev.push({ t: best / 30, s: +s.toFixed(1), go: s >= 10 || Math.random() < .25 + .6 * (s - 4) / 6 });
+  }
+  return ev;
 }
 async function analyze(t) {
   env = null; envId = t.id;
@@ -1368,6 +1425,7 @@ function pulseLoop() {
   const now = performance.now(), dt = Math.min(.1, (now - (pulseLoop.t || now)) / 1000);
   if (!playing && energy < .02 && now - tiltAt > 600 && pulseLoop.t && now - pulseLoop.t < 45) { pRaf = requestAnimationFrame(pulseLoop); return; }   // idle and nobody tilting: ~20 fps is plenty for a slow drift
   pulseLoop.t = now;
+  sparkTick(playing, dt);
   energy += ((playing ? 1 : 0) - energy) * (1 - Math.exp(-dt / (playing ? .4 : 1.8)));   // one smooth "how alive" level: quick up, slow settle down
   rimA = (rimA + (4 + energy * (5 + pulse * 14)) * dt) % 360;                              // the light slowly orbits the cover on its own; a little livelier with the music
   const R = document.documentElement.style, tx = parseFloat(R.getPropertyValue("--tx")) || 0, ty = parseFloat(R.getPropertyValue("--ty")) || 0;
@@ -1388,6 +1446,97 @@ function pulseLoop() {
 let rimA = 0, energy = 0, tilt = 0;
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
+
+/* ---------- title spark ----------
+   Now and then the song title glows. Two sources, in this order:
+   1. energy-change moments (bandEvents): whenever the music suddenly has more going on than a few seconds before
+      (percussion entering, a cymbal swell, a new layer), the glow always happens, peaking on the crest of the change.
+   2. in between, a loose random timer: when it's due, it looks ahead for the next real accent and starts early so the
+      brightest moment lands on it. It stays out of the way (8 s) of any energy-change glow.
+   Driven from pulseLoop, so it costs nothing extra; the animation is Web Animations on opacity / background-position. */
+const accCache = new WeakMap();
+let spTrack = null, spWait = 0, spTarget = null, spLastCt = 0, spBusy = 0;
+function accentsOf(e) {                                               // accents = local peaks with a sharp rise over the recent past
+  let a = accCache.get(e); if (a) return a;
+  const F = e.length, P = new Float64Array(F + 1); for (let i = 0; i < F; i++) P[i + 1] = P[i] + e[i];
+  const avg = (x, y) => { x = Math.max(0, x); y = Math.min(F, y); return y > x ? (P[y] - P[x]) / (y - x) : 0; };
+  const list = [];
+  for (let f = 12; f < F - 6; f++) {
+    const v = e[f]; let pk = true;
+    for (let k = -6; k <= 6; k++) if (k && e[f + k] > v) { pk = false; break; }
+    if (!pk || (list.length && f / 30 - list[list.length - 1].t < .25)) continue;
+    let lo = v; for (let k = 1; k <= 12; k++) lo = Math.min(lo, e[f - k]);
+    const rise = v - lo, ctx = v - avg(f - 60, f - 3);                // jump over ~0.4 s, and height over the last ~2 s
+    if (rise >= .15 && ctx >= .06) list.push({ t: f / 30, s: rise * .6 + ctx * .8 });
+  }
+  const ord = list.map((x, i) => i).sort((i, j) => list[i].s - list[j].s);
+  ord.forEach((i, k) => { list[i].r = list.length > 1 ? k / (list.length - 1) : 1; });   // strength as a rank within this song, 0..1
+  a = { list, sec: t => { const f = Math.round(t * 30); return avg(f - 90, f + 90); } };   // section loudness: ~6 s average
+  accCache.set(e, a); return a;
+}
+function titleVisW() {                                                // width of the title text actually on screen (stops at the ellipsis)
+  const ti = $("track-title"), r = document.createRange(); r.selectNodeContents(ti);
+  return Math.min(r.getBoundingClientRect().width, ti.clientWidth);
+}
+const spDur = w => Math.max(1300, Math.min(2100, 1150 + w * 3.4));   // ms; short titles get a shorter pass
+function sparkStop() { [$("title-glint")].forEach(el => el && el.getAnimations && el.getAnimations().forEach(a => a.cancel())); spBusy = 0; }
+function sparkGap(ct) {                                               // seconds of playback until the next spark is due
+  const I = env ? accentsOf(env).sec(ct) : .5;
+  return (12 + Math.random() * 16) * (1.25 - .5 * I);
+}
+function sparkPlan(ct) {                                              // due now: pick the exact moment
+  const a = env && accentsOf(env), now = performance.now(), lead = spLeadV;
+  let p;
+  if (a) {
+    let best = null;
+    for (const x of a.list) {
+      if (x.t < ct + lead + .15) continue; if (x.t > ct + 6) break;
+      if (x.r < .35 || nearEvent(x.t)) continue;                      // skip the weakest third of accents, and anything next to an energy-change glow
+      const sh = .5 + .45 * Math.sin((now / 1000 + x.t - ct) / 9.5); // where the cover's own reflection streak will be then
+      if (sh > .38 && sh < .6) continue;                              // it's crossing the cover: don't let the two lights compete
+      if (x.r >= .8) { best = x; break; }                             // a real highlight (a drop, a big hit): take the first one
+      if (!best || x.r > best.r) best = x;                            // otherwise the strongest accent of the next few seconds
+    }
+    p = best ? { at: best.t - lead, b: Math.min(1, .6 + .25 * best.r + .25 * a.sec(best.t)) }
+             : { at: ct + 5 + Math.random() * 1.5, b: .5 };            // no good accent coming up: fire anyway, softer
+  } else p = { at: ct, b: .7 };                                       // no envelope (still decoding, huge file): plain random timing
+  return nearEvent(p.at + lead) ? null : p;                          // an energy-change glow is close: let that one have the moment
+}
+function nearEvent(t) { const ev = env && env.events; return !!ev && ev.some(e => e.go && Math.abs(e.t - t) < 8); }
+let spLeadV = .7, spLeadAt = 0, spLastEv = -1;
+function sparkTick(playing, dt) {
+  if (!playing) return;
+  const ct = audio.currentTime, now = performance.now();
+  if (spTrack !== curId) { spTrack = curId; spWait = 2.5 + Math.random() * 2.5; spTarget = null; spLastEv = -1; spLeadAt = 0; }   // a "hello" a few seconds into each song
+  else if (Math.abs(ct - spLastCt) > 1.2) spTarget = null;            // seek: the planned accent is gone, plan again
+  spLastCt = ct;
+  if (now - spLeadAt > 2000) { spLeadAt = now; spLeadV = spDur(titleVisW()) * .5 / 1000; }   // glow is brightest halfway through its pass
+  /* energy-change moments come first: every one gets its glow, peaking on the crest of the change */
+  const ev = env && env.events;
+  if (ev) for (const e of ev) {
+    if (!e.go || e.t === spLastEv) continue;
+    const at = e.t - spLeadV;
+    if (ct >= at && ct < at + .3) {
+      spLastEv = e.t; sparkStop(); sparkFire(Math.min(1, .6 + .4 * Math.min(1, (e.s - 4) / 8)));
+      spTarget = null; spWait = sparkGap(ct); return;
+    }
+  }
+  if (now < spBusy) return;
+  if (spTarget) { if (ct >= spTarget.at) { sparkFire(spTarget.b); spTarget = null; spWait = sparkGap(ct); } return; }
+  if ((spWait -= dt) <= 0) { spTarget = sparkPlan(ct); if (!spTarget) spWait = 4; }
+}
+function sparkFire(b) {                                               // b: brightness 0..1
+  const pm = $("player-main"), ti = $("track-title"), gl = $("title-glint");
+  if (!gl || !gl.animate || pm.style.display === "none" || document.hidden) return;
+  gl.textContent = ti.textContent;
+  const w = titleVisW(); if (w < 12) return;
+  const D = spDur(w), B = 84, x0 = -B * .8, x1 = w - B * .2, X = o => x0 + (x1 - x0) * o;   // band's left edge: starts just before the text, ends past it
+  const offs = [0, .2, .5, .78, 1], op = [0, .85, 1, .8, 0];
+  gl.animate(offs.map((o, i) => ({ offset: o, opacity: +(op[i] * (.55 + .45 * b)).toFixed(3), backgroundPosition: `${X(o).toFixed(1)}px 0px` })),
+    { duration: D, easing: "cubic-bezier(.45,0,.3,1)" });
+  spBusy = performance.now() + D + 250;
+}
+
 /* ---------- glow layer ----------
    One layer behind the drawer content, not inside any scroller. Each cover's glow is positioned from the
    cover's on-screen rect every frame (only while the drawer is open), so it can spill past the scroller's edge
