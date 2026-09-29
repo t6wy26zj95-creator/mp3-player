@@ -136,6 +136,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .wall-thumb.active{border-color:#fff;box-shadow:0 0 10px rgba(255,255,255,.3)}
 .upload-btn{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff;font:600 13px -apple-system,system-ui,sans-serif;cursor:pointer}
 .upload-btn:active{background:rgba(255,255,255,.22)}
+.upload-btn:disabled{cursor:default}
 .upload-btn.ghost{background:none;border-color:transparent;color:rgba(255,255,255,.6);font-weight:500;padding:6px}
 .track-artist{cursor:pointer}
 #track-artist::after{content:" ›";opacity:.5}
@@ -400,6 +401,7 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
   <button class="upload-btn" id="upload-wall">Upload wallpaper</button>
   <button class="upload-btn ghost" id="reset-wall">Use default wallpaper</button>
   <button class="upload-btn" id="motion-btn" style="display:none">Enable tilt effect</button>
+  <button class="upload-btn" id="home-btn" style="display:none">Add to Home Screen</button>
   <button class="hidden-toggle" id="hidden-toggle" aria-label="Hidden Albums" title="Hidden Albums"><svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2z"/></svg><span id="hidden-count"></span></button>
   <div class="hidden-list" id="hidden-list" style="display:none"></div>
 </div>
@@ -1548,6 +1550,29 @@ if (TG) (function () {
   }
   /* "Settings" in Telegram's ⋯ menu opens the same panel as the gear button */
   if (tgAt("7.0")) { try { TG.SettingsButton.show(); TG.SettingsButton.onClick(() => { settingsPanel.classList.add("active"); haptic("light"); }); } catch (e) {} }
+  /* "Add to Home Screen" in Settings: Telegram puts a MacawP3 icon on the phone's home screen that opens straight into the player.
+     The icon opens the bot's Main Mini App, so @BotFather must have one set to this page (Bot Settings -> Configure Mini App).
+     Status is "added", "missed", "unknown" or "unsupported". iPhone always answers "unknown" (it can't tell), so the button
+     stays visible there; only a clear "unsupported" hides it, and a known "added" (Android) turns it into a quiet label. */
+  if (tgAt("8.0") && /^(ios|android)$/.test(TG.platform) && typeof TG.addToHomeScreen === "function") {
+    const hb = $("home-btn");
+    const show = st => {
+      if (st === "unsupported") { hb.style.display = "none"; return; }
+      const added = st === "added";
+      hb.style.display = "block"; hb.disabled = added; hb.classList.toggle("ghost", added);
+      hb.textContent = added ? "On your Home Screen ✓" : "Add to Home Screen";
+    };
+    show("unknown");
+    hb.addEventListener("click", () => {
+      haptic("light"); settingsPanel.classList.remove("active");
+      try { TG.addToHomeScreen(); } catch (e) { toast("Your Telegram can't add icons yet: update it"); }
+    });
+    try {
+      TG.onEvent("homeScreenAdded", () => { show("added"); toast("Added to your Home Screen"); });
+      TG.onEvent("homeScreenChecked", e => { if (e && e.status) show(e.status); });
+      if (typeof TG.checkHomeScreenStatus === "function") TG.checkHomeScreenStatus(st => { if (st) show(st); });
+    } catch (e) {}
+  }
   /* small taps feel native with Telegram's haptics */
   [playBtn, $("prev-btn"), $("skip-btn")].forEach(b => b.addEventListener("click", () => haptic("light")));
 })();
