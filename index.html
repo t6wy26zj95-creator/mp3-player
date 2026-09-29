@@ -187,20 +187,17 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 @keyframes jig{0%{transform:rotate(-.9deg)}100%{transform:rotate(.9deg)}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
-/* ===== bubble: clear glass, soft moving light, cover as wide as the 3 buttons ===== */
-:root{--inset:10px;--glass-blur:blur(3px) saturate(150%) brightness(.92);--cw:114px}   /* --cw = width of prev+play+next (3x34 + 2x6) */
-.player-wrapper{background:linear-gradient(rgba(6,18,26,.15),rgba(6,18,26,.15)),var(--glass-bg)}
-.bg-container{transform:translate3d(calc(var(--tx,0) * -7px),calc(var(--ty,0) * -7px),0) scale(1.05);will-change:transform}
-.player-wrapper::before{background:
-  radial-gradient(75% 55% at var(--lx,30%) var(--ly,8%),rgba(255,255,255,.11),rgba(255,255,255,0) 70%),
-  linear-gradient(calc(135deg + var(--tx,0) * 12deg),rgba(255,255,255,.25) 0%,rgba(255,255,255,.05) 20%,rgba(255,255,255,0) 40%,rgba(255,255,255,0) 100%)}
+/* ===== one idea: clear glass + the cover's own glow. Tilt only moves that glow (and the wallpaper a hair). ===== */
+:root{--inset:10px;--glass-blur:blur(3px) saturate(150%) brightness(.92)}
+.player-wrapper{background:linear-gradient(rgba(6,18,26,.13),rgba(6,18,26,.13)),var(--glass-bg)}
+.bg-container{transform:translate3d(calc(var(--tx,0) * -6px),calc(var(--ty,0) * -6px),0) scale(1.04);will-change:transform}
+/* corner highlight: fixed size (px), so it no longer grows when the drawer opens; no tilt */
+.player-wrapper::before{background:linear-gradient(135deg,rgba(255,255,255,.17) 0,rgba(255,255,255,.04) 90px,rgba(255,255,255,0) 170px)}
 .player-wrapper::after{content:none}
 .track-info-container{position:relative;align-items:center}
-.album-art{width:var(--cw);height:var(--cw);box-sizing:border-box;border-radius:16px;margin-left:0;position:relative;z-index:1}
-.album-art svg{width:36px;height:36px}
-.art-bloom{position:absolute;left:var(--inset);top:2px;width:var(--cw);height:var(--cw);border-radius:16px;background-size:cover;background-position:center;
-  filter:blur(22px) saturate(1.6);opacity:.45;transform:translate3d(calc(var(--tx,0) * 5px),calc(var(--ty,0) * 5px),0) scale(1.45);pointer-events:none;transition:opacity .4s var(--ease)}
-.track-title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.album-art{width:66px;height:66px;box-sizing:border-box;border-radius:12px;margin-left:0;position:relative;z-index:1}
+.art-bloom{position:absolute;left:var(--inset);top:2px;width:66px;height:66px;border-radius:12px;background-size:cover;background-position:center;
+  filter:blur(20px) saturate(1.6);opacity:.5;transform:translate3d(calc(var(--tx,0) * 12px),calc(var(--ty,0) * 12px),0) scale(1.6);pointer-events:none;transition:opacity .4s var(--ease)}
 </style>
 </head>
 <body>
