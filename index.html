@@ -206,6 +206,12 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .albums-grid.editing .album-card::before{opacity:0!important}
 /* progress dot glows with the music */
 .slider-thumb{box-shadow:0 2px 6px rgba(0,0,0,.4),0 0 calc(8px + var(--pulse,0) * 10px) calc(1px + var(--pulse,0) * 2px) rgba(255,255,255,calc(.5 + var(--pulse,0) * .3))}
+/* glow was cut off by the scroll/drawer boxes: give it room inside them (layout stays put via matching negative margins) */
+@supports (overflow:clip){.drawer-inner,#view-host{overflow-x:visible;overflow-y:clip}}
+.albums-grid-container,.artist-scroll{margin:-14px -20px 0;padding-inline:20px;padding-top:14px}
+.artist-scroll{padding-bottom:28px}
+.albums-grid{padding-bottom:24px}
+.album-card[style*="--art"]::before{filter:blur(12px) saturate(1.5);transform:scale(1.06)}
 </style>
 </head>
 <body>
