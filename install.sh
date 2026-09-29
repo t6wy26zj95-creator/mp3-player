@@ -33,6 +33,27 @@ if [ ! -f .env ]; then
   (umask 077; printf 'DOMAIN=%s\nBOT_TOKEN=%s\nPLAYER_URL=%s\nCACHE_GB=8\n' "$DOMAIN" "$BOT_TOKEN" "$PLAYER_URL" > .env)
 fi
 DOMAIN=$(grep '^DOMAIN=' .env | cut -d= -f2-)
+if ! grep -q '^TG_API_ID=' .env; then
+  say "Big files (optional, asked once)"
+  echo "Songs over 20 MB need Telegram API keys (api_id and api_hash from my.telegram.org)."
+  echo "Press Enter to skip. (To be asked again later: sed -i '/^TG_API_ID=/d' $DIR/.env and run this installer again.)"
+  while :; do
+    read -rp "api_id (a number): " TG_API_ID </dev/tty
+    TG_API_ID=$(printf '%s' "$TG_API_ID" | tr -d ' \r')
+    [ -z "$TG_API_ID" ] && break
+    if ! printf '%s' "$TG_API_ID" | grep -Eq '^[0-9]{3,12}$'; then echo "That doesn't look like an api_id (only digits). Try again or press Enter to skip."; continue; fi
+    read -rp "api_hash (32 letters and digits): " TG_API_HASH </dev/tty
+    TG_API_HASH=$(printf '%s' "$TG_API_HASH" | tr -d ' \r')
+    if printf '%s' "$TG_API_HASH" | grep -Eq '^[0-9a-fA-F]{32}$'; then break; fi
+    echo "That api_hash doesn't look right (it should be 32 characters, 0-9 and a-f). Let's try again."
+  done
+  if [ -n "$TG_API_ID" ]; then
+    (umask 077; printf 'TG_API_ID=%s\nTG_API_HASH=%s\nLOCAL_BOT_API=1\nTG_API_BASE=http://bot-api:8081\nCOMPOSE_PROFILES=bigfiles\n' "$TG_API_ID" "$TG_API_HASH" >> .env)
+    echo "Big files on: the bot switches to your own Telegram Bot API server (songs up to 2000 MB)."
+  else
+    echo "TG_API_ID=" >> .env; echo "Skipped."
+  fi
+fi
 
 say "Writing files"
 cat > docker-compose.yml <<'MACAW_EOF'
@@ -45,6 +66,7 @@ services:
     env_file: .env
     volumes:
       - ./data:/data
+      - botapi:/var/lib/telegram-bot-api
   caddy:
     image: caddy:2
     container_name: macaw-caddy
@@ -60,9 +82,22 @@ services:
       - caddy_config:/config
     depends_on:
       - app
+  # big-file mode only (turned on by COMPOSE_PROFILES=bigfiles in .env): Telegram's own Bot API server, no 20 MB limit
+  bot-api:
+    image: aiogram/telegram-bot-api:latest
+    container_name: macaw-bot-api
+    restart: unless-stopped
+    profiles: ["bigfiles"]
+    environment:
+      - TELEGRAM_API_ID=${TG_API_ID:-}
+      - TELEGRAM_API_HASH=${TG_API_HASH:-}
+      - TELEGRAM_LOCAL=1
+    volumes:
+      - botapi:/var/lib/telegram-bot-api
 volumes:
   caddy_data: {}
   caddy_config: {}
+  botapi: {}
 MACAW_EOF
 
 cat > Caddyfile <<'MACAW_EOF'
@@ -232,7 +267,9 @@ import { readTags as parseTags } from "./tags.js";
 
 const TOKEN = (process.env.BOT_TOKEN || "").trim();
 if (!TOKEN) { console.error("BOT_TOKEN is missing (edit /opt/macaw-player/.env)"); process.exit(1); }
-const TG_BASE = process.env.TG_API_BASE || "https://api.telegram.org";
+const CLOUD = process.env.CLOUD_API_BASE || "https://api.telegram.org";
+const LOCAL = process.env.LOCAL_BOT_API === "1";                        // big-file mode: our own Telegram Bot API server (needs api_id/api_hash)
+const TG_BASE = process.env.TG_API_BASE || CLOUD;
 const API = `${TG_BASE}/bot${TOKEN}`, FILES = `${TG_BASE}/file/bot${TOKEN}`;
 const DATA = process.env.DATA_DIR || "/data";
 const AUDIO = path.join(DATA, "audio"), COVERS = path.join(DATA, "covers"), DB_FILE = path.join(DATA, "library.json");
@@ -240,7 +277,7 @@ const CACHE_GB = parseFloat(process.env.CACHE_GB);
 const CACHE_BYTES = (Number.isFinite(CACHE_GB) && CACHE_GB >= 0 ? CACHE_GB : 8) * 1e9;   // songs kept on the server (0 = keep nothing, just pass songs through)
 const PLAYER_URL = (process.env.PLAYER_URL || "").trim();
 const PORT = +process.env.PORT || 8080;
-const MAX_DOWNLOAD = 20 * 1024 * 1024;                                    // bots can download files up to 20 MB from Telegram
+const MAX_DOWNLOAD = (LOCAL ? 2000 : 20) * 1024 * 1024;                   // Telegram's public servers let bots download up to 20 MB; our own Bot API server has no such limit
 const INVITE_DAYS = 7;
 const AUDIO_EXT = /\.(mp3|m4a|mp4|aac|flac|wav|ogg|oga|opus|aiff?)$/i;
 const MIME = { ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".mp4": "audio/mp4", ".aac": "audio/aac", ".flac": "audio/flac", ".wav": "audio/wav",
@@ -288,6 +325,13 @@ const reply = (m, text, extra = {}) => say(m.chat.id, text, { reply_parameters: 
 const openButton = () => (PLAYER_URL ? { reply_markup: { inline_keyboard: [[{ text: "▶︎  Open player", web_app: { url: PLAYER_URL } }]] } } : {});
 
 async function download(filePath, dest) {
+  if (filePath.startsWith("/")) {                                         // big-file mode: the Bot API server already saved the file on the shared disk
+    if (!fs.existsSync(filePath)) throw new Error("file not on disk yet");
+    const tmp = dest + ".part";
+    fs.copyFileSync(filePath, tmp); fs.renameSync(tmp, dest);
+    try { fs.unlinkSync(filePath); } catch {}                             // don't keep a second copy
+    return;
+  }
   const r = await fetch(`${FILES}/${filePath}`);
   if (!r.ok || !r.body) throw new Error("download failed: HTTP " + r.status);
   const tmp = dest + ".part";
@@ -300,8 +344,10 @@ function ensureAudio(t) {                                                 // the
   if (fs.existsSync(f)) return Promise.resolve(f);
   if (inflight.has(t.uniq)) return inflight.get(t.uniq);
   const p = (async () => {
-    const info = await tg("getFile", { file_id: t.fileId });
-    await download(info.file_path, f);
+    for (let i = 0; ; i++) {
+      try { const info = await tg("getFile", { file_id: t.fileId }); await download(info.file_path, f); break; }
+      catch (e) { if (i >= 2) throw e; await sleep(1500); }                 // one or two retries: a big file can take a moment on the Bot API server
+    }
     trimCache(t.uniq);
     return f;
   })().finally(() => inflight.delete(t.uniq));
@@ -328,6 +374,7 @@ async function readTags(t) {                                              // alb
   const f = await ensureAudio(t);
   const s = v => (v == null ? "" : String(v).replace(/\0/g, "").trim());
   try {
+    if (fs.statSync(f).size > 300e6) throw new Error("too big to read tags, keeping Telegram's");
     const c = parseTags(f);
     if (s(c.title)) t.title = s(c.title);
     if (s(c.artist)) t.artist = s(c.artist);
@@ -373,7 +420,7 @@ async function onMessage(m) {
   if (byId(id)) { await react(m, "👌"); return; }                           // already in this person's library
   if (a.file_size && a.file_size > MAX_DOWNLOAD) {
     await react(m, "🤷");
-    await reply(m, `That file is ${Math.round(a.file_size / 1048576)} MB. Bots can only download files up to 20 MB from Telegram, so send an MP3 or M4A version of it.`);
+    await reply(m, `That file is ${Math.round(a.file_size / 1048576)} MB. ${LOCAL ? "The limit is 2000 MB." : "Bots can only download files up to 20 MB from Telegram, so send an MP3 or M4A version of it."}`);
     return;
   }
   const name = a.file_name || "";
@@ -451,7 +498,20 @@ async function stats(m) {
   }
   await reply(m, text);
 }
+async function switchToLocal() {                                         // once: the bot must log out of Telegram's public servers before our own server can run it
+  if (!LOCAL || db.localReady) return;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const j = await (await fetch(`${CLOUD}/bot${TOKEN}/logOut`, { method: "POST" })).json();
+      console.log("logOut from Telegram's public Bot API:", j.ok ? "done" : j.description);
+      if (j.ok || /logged out|unauthorized/i.test(j.description || "")) { db.localReady = true; save(true); return; }
+    } catch (e) { console.error("logOut attempt failed:", e.message); }
+    await sleep(5000);
+  }
+  console.error("couldn't log the bot out of Telegram's public servers; will try again on the next start");
+}
 async function poll() {
+  await switchToLocal();
   for (;;) {                                                              // keep trying until Telegram answers (bad token, no network...)
     try { const me = await tg("getMe"); BOT_NAME = me.username; console.log("bot @" + me.username + " is running"); break; }
     catch (e) { console.error("can't reach the bot:", e.message); await sleep(10000); }
