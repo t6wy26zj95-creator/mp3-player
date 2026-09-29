@@ -218,6 +218,28 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .glow.in{opacity:.4}
 .glow.in.dim{opacity:.16}
 .glow.in.live{opacity:calc(.5 + var(--pulse,0) * .35);transition:none}
+
+/* long titles: the drawer column may never grow past the panel; titles wrap to 2 lines instead of running off */
+.collapsible-content{grid-template-columns:minmax(0,1fr)}
+.drawer-inner,#view-host{min-width:0}
+.item-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;overflow:hidden;overflow-wrap:anywhere;line-height:1.25}
+
+/* artist page: fixed viewport so the panel never resizes while data arrives; skeletons hold the space */
+.artist-scroll{height:450px}
+.artist-hero-img{opacity:0;transition:opacity .5s var(--ease)}
+.artist-hero-img.ready{opacity:1}
+.sk{background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.12),rgba(255,255,255,.05));background-size:200% 100%;animation:skm 1.4s linear infinite;border-radius:12px}
+@keyframes skm{to{background-position:-200% 0}}
+.bio-sk{height:118px;margin:10px 4px 0}
+.sk-card .sq{width:100%;aspect-ratio:1/1}
+.sk-card .ln{width:60%;height:9px;border-radius:5px}
+.fade-img{opacity:0}.fade-img.in{opacity:1}
+/* rim light: a highlight that travels round the cover's edge; colours come from the artwork, speed from the music */
+.art-rim{position:absolute;left:calc(var(--inset) + var(--art-x));top:2px;width:66px;height:66px;border-radius:12px;box-sizing:border-box;padding:1.5px;pointer-events:none;z-index:2;
+  opacity:var(--rim-o,.2);--rim-rgb:255,255,255;--rim-rgb2:255,255,255;
+  background:conic-gradient(from var(--rim-a,0deg),rgba(var(--rim-rgb),0) 0deg,rgba(var(--rim-rgb),1) 45deg,rgba(var(--rim-rgb),0) 110deg,rgba(var(--rim-rgb2),0) 190deg,rgba(var(--rim-rgb2),.6) 230deg,rgba(var(--rim-rgb2),0) 280deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.art-rim.off{display:none}
 </style>
 </head>
 <body>
@@ -237,6 +259,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
   <div class="track-info-container" id="player-main" style="display:none;">
     <div class="art-bloom" id="art-bloom"></div>
+    <div class="art-rim off" id="art-rim"></div>
     <div class="album-art" id="album-art-box">
       <svg id="fallback-art" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
       <img id="track-art-img" style="display:none;">
@@ -1046,29 +1069,42 @@ async function loadArtist(name, onPartial) {
   if (lf || adb) { d.full = true; artistCache[key] = d; saveArtists(); }
   return d;
 }
-function renderArtist(d, still) {
+function renderArtist(d) {
   lastArtist = d;
   const ui = $("artist-ui");
-  ui.innerHTML = `<div class="artist-hero"><div class="artist-hero-img"></div><div class="artist-hero-fade"></div><div class="artist-name"></div></div>
-    <div class="artist-meta"></div><div class="artist-note" id="artist-note"></div>
-    <div id="artist-bio-box"></div>
-    <div class="artist-sec">Albums</div><div class="albums-grid artist-albums" id="artist-albums"></div>
-    <div id="artist-sim-box"></div>`;
-  ui.querySelector(".artist-name").textContent = d.name;
-  const img = d.banner || d.photo; if (img) ui.querySelector(".artist-hero-img").style.backgroundImage = `url("${img}")`;
-  ui.querySelector(".artist-meta").textContent = [d.tags && d.tags.slice(0, 3).join(" · "), d.listeners ? fmtNum(d.listeners) + " listeners" : ""].filter(Boolean).join("  •  ");
-  if (d.loading) $("artist-note").textContent = "Loading…";
-  if (d.bio) {
-    $("artist-bio-box").innerHTML = `<div class="artist-bio clamp"></div><button class="artist-more">Read more</button>`;
-    const bio = ui.querySelector(".artist-bio"); bio.textContent = d.bio;
-    ui.querySelector(".artist-more").addEventListener("click", e => { const cl = bio.classList.toggle("clamp"); e.target.textContent = cl ? "Read more" : "Show less"; });
+  if (ui.dataset.for !== currentArtistName) {                       // shell is built once per artist; everything after patches it in place
+    ui.dataset.for = currentArtistName; ui.dataset.filled = "";
+    ui.innerHTML = `<div class="artist-hero"><div class="artist-hero-img"></div><div class="artist-hero-fade"></div><div class="artist-name"></div></div>
+      <div class="artist-meta"></div>
+      <div id="artist-bio-box"><div class="sk bio-sk"></div></div>
+      <div class="artist-sec">Albums</div><div class="albums-grid artist-albums" id="artist-albums">${'<div class="album-card sk-card"><div class="sk sq"></div><div class="sk ln"></div></div>'.repeat(6)}</div>
+      <div id="artist-sim-box"></div>`;
   }
-  const grid = $("artist-albums");
-  if (d.albumsLoading) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">Loading albums…</div>';
-  else if (!d.loading && !(d.albums || []).length) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">No albums found.</div>';
+  ui.querySelector(".artist-name").textContent = d.name;
+  const hi = ui.querySelector(".artist-hero-img"), img = d.banner || d.photo;
+  if (img && hi.dataset.src !== img) {                              // photo fades in once it has loaded
+    hi.dataset.src = img; const im = new Image();
+    im.onload = () => { if (hi.dataset.src === img) { hi.style.backgroundImage = `url("${img}")`; hi.classList.add("ready"); } };
+    im.src = img;
+  }
+  ui.querySelector(".artist-meta").textContent = [d.tags && d.tags.slice(0, 3).join(" · "), d.listeners ? fmtNum(d.listeners) + " listeners" : ""].filter(Boolean).join("  •  ");
+  if (d.loading) return;
+  const bb = $("artist-bio-box");
+  if (!bb.dataset.done && (d.bio || !d.albumsLoading)) {
+    bb.dataset.done = "1"; bb.innerHTML = "";
+    if (d.bio) {
+      bb.className = "card-in"; bb.innerHTML = `<div class="artist-bio clamp"></div><button class="artist-more">Read more</button>`;
+      const bio = bb.querySelector(".artist-bio"); bio.textContent = d.bio;
+      bb.querySelector(".artist-more").addEventListener("click", e => { const cl = bio.classList.toggle("clamp"); e.target.textContent = cl ? "Read more" : "Show less"; });
+    }
+  }
+  if (d.albumsLoading || ui.dataset.filled === "1") return;
+  ui.dataset.filled = "1";
+  const grid = $("artist-albums"); grid.innerHTML = "";
+  if (!(d.albums || []).length) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">No albums found.</div>';
   (d.albums || []).forEach((a, i) => {
     const own = ownedAlbumKey(a), c = document.createElement("div");
-    c.className = "album-card" + (still ? "" : " card-in") + (own ? "" : " dim"); c.style.animationDelay = Math.min(i, 12) * 22 + "ms";
+    c.className = "album-card card-in" + (own ? "" : " dim"); c.style.animationDelay = Math.min(i, 12) * 22 + "ms";
     c._a = a; c.dataset.aid = "1"; if (a.cover) c.style.setProperty("--art", `url("${String(a.cover).replace(/"/g, "%22")}")`);
     c.innerHTML = `${own ? '<div class="own-dot"></div>' : ""}<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>${a.year ? '<div class="year"></div>' : ""}`;
     c.querySelector(".album-card-title").textContent = a.title;
@@ -1078,8 +1114,9 @@ function renderArtist(d, still) {
     c.addEventListener("click", () => openCatalogAlbum(a, d.name));
     grid.appendChild(c);
   });
-  if (d.similar && d.similar.length) {
-    $("artist-sim-box").innerHTML = '<div class="artist-sec">Similar artists</div><div class="chips"></div>';
+  const sb = $("artist-sim-box");
+  if (d.similar && d.similar.length && !sb.innerHTML) {
+    sb.innerHTML = '<div class="artist-sec">Similar artists</div><div class="chips"></div>';
     d.similar.forEach(n => { const ch = document.createElement("div"); ch.className = "chip"; ch.textContent = n; ch.addEventListener("click", () => openArtist(n, "push")); ui.querySelector(".chips").appendChild(ch); });
   }
 }
@@ -1097,10 +1134,10 @@ async function openArtist(name, mode, scroll) {
   if (mode === "push") { if (currentArtistName) artistStack.push(currentArtistName); }
   else if (mode !== "back") artistStack = [];
   currentArtistName = name;
-  const wasArtist = artistWrapper.style.display === "block";
+  const ui = $("artist-ui"), ck = artistCache[norm(name)], hit = ck && ck.full && ck.v === 3 && Date.now() - ck.t < 7 * 864e5;
+  if (!(ui.dataset.for === name && ui.dataset.filled === "1")) renderArtist(hit ? ck : { name, loading: true }); else updateArtistOwnership();   // cached artists render in one pass; the shell exists before the transition is measured
   setTab(btnArtists); showOnly(artistWrapper, mode === "back" ? -1 : 1); drawerBox.classList.add("expanded");
-  $("artist-ui").scrollTop = scroll || 0;
-  renderArtist({ name, loading: true });
+  ui.scrollTop = scroll || 0;
   const d = await loadArtist(name, p => { if (currentArtistName === name) renderArtist(p); });
   if (currentArtistName === name) { renderArtist(d); if (scroll) $("artist-ui").scrollTop = scroll; }
 }
@@ -1120,10 +1157,15 @@ async function pumpPhotos() {
     if (!p) p = await wikiImage(n);
     if (p) c.photo = c.banner = p;
     saveArtists();
-    if (artistsWrapper.style.display === "block") renderArtists();
+    if (p) setArtistPhoto(n, p);
     await sleep(450);
   }
   photoBusy = false;
+}
+function setArtistPhoto(n, p) {
+  const card = [...$("artists-shelf").children].find(c => c.dataset.name === n); if (!card) return;
+  const slot = card.querySelector(".ph-wrap"), im = new Image(); im.alt = ""; im.className = "fade-img";
+  im.onload = () => { slot.replaceChildren(im); requestAnimationFrame(() => im.classList.add("in")); }; im.src = p;
 }
 function renderArtists() {
   const shelf = $("artists-shelf"); shelf.innerHTML = "";
@@ -1133,7 +1175,7 @@ function renderArtists() {
   names.forEach(n => {
     const c = artistCache[norm(n)], photo = c && (c.photo || c.banner);
     if (!photo) needPhoto(n);
-    const card = document.createElement("div"); card.className = "album-card artist-card";
+    const card = document.createElement("div"); card.className = "album-card artist-card"; card.dataset.name = n;
     card.innerHTML = `<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>`;
     card.querySelector(".album-card-title").textContent = n;
     const slot = card.querySelector(".ph-wrap"), ph = () => { slot.innerHTML = `<div class="all-tracks-icon" style="font-size:30px;font-weight:700;color:rgba(255,255,255,.45)"></div>`; slot.firstChild.textContent = n.trim().charAt(0).toUpperCase(); };
@@ -1266,8 +1308,14 @@ function pulseLoop() {
   }
   const nv = pulse + (target - pulse) * (target > pulse ? .14 : .04);   // quick-ish rise, slow fall
   if (Math.abs(nv - pulse) > .0015) { pulse = nv; const v = pulse.toFixed(3); pulseEls().forEach(el => el && el.style.setProperty("--pulse", v)); }
-  if (playing || pulse > .01) pRaf = requestAnimationFrame(pulseLoop);
+  const now = performance.now(), dt = Math.min(.1, (now - (pulseLoop.t || now)) / 1000), rim = $("art-rim"), on = playing || pulse > .01;
+  pulseLoop.t = on ? now : 0;
+  if (playing) rimA = (rimA + (14 + pulse * 46) * dt) % 360;            // one lap ~25 s, faster on loud passages; stops when paused
+  const tx = parseFloat(document.documentElement.style.getPropertyValue("--tx")) || 0;
+  rim.style.setProperty("--rim-a", (rimA + tx * 30).toFixed(1) + "deg"); rim.style.setProperty("--rim-o", (.2 + pulse * .6).toFixed(3));
+  if (on) pRaf = requestAnimationFrame(pulseLoop);
 }
+let rimA = 0;
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
 /* ---------- glow layer ----------
@@ -1312,6 +1360,33 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) star
   const kick = ms => { stopAt = Math.max(stopAt, performance.now() + ms); if (!raf) raf = requestAnimationFrame(frame); };
   new MutationObserver(() => kick(900)).observe(drawerBox, { attributes: true, attributeFilter: ["class"] });
   document.addEventListener("visibilitychange", () => kick(900));
+})();
+/* rim light colours from the current cover */
+(function () {
+  const rim = $("art-rim"), img = $("track-art-img"), cache = new Map();
+  const soft = c => c.map(v => Math.round(v + (255 - v) * .4)).join(",");
+  function pal(src) {
+    if (cache.has(src)) return Promise.resolve(cache.get(src));
+    return new Promise(res => {
+      const im = new Image(); im.crossOrigin = "anonymous";
+      im.onload = () => { let out = null;
+        try {
+          const c = document.createElement("canvas"); c.width = c.height = 12; const x = c.getContext("2d"); x.drawImage(im, 0, 0, 12, 12);
+          const d = x.getImageData(0, 0, 12, 12).data, px = [];
+          for (let i = 0; i < d.length; i += 4) { const r = d[i], g = d[i + 1], b = d[i + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b); px.push({ c: [r, g, b], s: (mx - mn) / (mx || 1) * (.4 + mx / 255) }); }
+          px.sort((p, q) => q.s - p.s);
+          const a = px[0], b2 = px.find(p => p.s > .1 && Math.hypot(p.c[0] - a.c[0], p.c[1] - a.c[1], p.c[2] - a.c[2]) > 90) || a;
+          out = [soft(a.c), soft(b2.c)];
+        } catch (e) {}
+        cache.set(src, out); res(out); };
+      im.onerror = () => res(null); im.src = src;
+    });
+  }
+  function sync() {
+    const src = img.style.display !== "none" && img.getAttribute("src"); rim.classList.toggle("off", !src); if (!src) return;
+    pal(src).then(p => { if (img.getAttribute("src") !== src) return; rim.style.setProperty("--rim-rgb", p ? p[0] : "255,255,255"); rim.style.setProperty("--rim-rgb2", p ? p[1] : "255,255,255"); });
+  }
+  new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
 })();
 </script>
 </body>
