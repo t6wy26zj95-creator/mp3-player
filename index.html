@@ -48,7 +48,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .album-card .all-tracks-icon svg{width:40px;height:40px;fill:rgba(255,255,255,.4)}
 .album-card-title{width:100%;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,.8)}
 
-.track-info-container{display:flex;align-items:center;gap:16px;padding:2px 4px}
+.track-info-container{display:flex;align-items:center;gap:16px;padding:2px var(--inset)}
 .album-art{width:64px;height:64px;border-radius:12px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;box-shadow:0 5px 15px rgba(0,0,0,.3)}
 .album-art img{width:100%;height:100%;object-fit:cover}
 .album-art svg{width:24px;height:24px;fill:rgba(255,255,255,.4)}
@@ -57,8 +57,14 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .track-artist{cursor:pointer;font-size:13px;color:rgba(255,255,255,.6);text-shadow:0 1px 3px rgba(0,0,0,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .track-artist::after{content:' ›';opacity:.5}
-.progress-container{display:flex;align-items:center;flex-wrap:nowrap;gap:10px;font-size:11px;color:rgba(255,255,255,.7);width:100%;font-variant-numeric:tabular-nums}
-.controls-cluster{display:flex;align-items:center;gap:8px}
+.progress-container{display:flex;align-items:center;flex-wrap:nowrap;gap:10px;font-size:11px;color:rgba(255,255,255,.7);width:100%;padding:0 var(--inset);box-sizing:border-box;font-variant-numeric:tabular-nums}
+.controls-cluster{display:flex;align-items:center;gap:6px}
+.controls-cluster .player-btn{width:34px;height:34px}
+#play-btn{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.artist-row{display:flex;align-items:center;min-width:0}
+.artist-row .track-artist{min-width:0;flex:0 1 auto}
+.shuf-ind{flex-shrink:0;width:0;height:13px;margin-left:0;opacity:0;fill:#fff;transition:width .3s var(--ease),margin .3s var(--ease),opacity .3s var(--ease)}
+.shuf-ind.on{width:13px;margin-left:6px;opacity:.85}
 .player-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 5px rgba(0,0,0,.2);padding:0}
 .player-btn:active{background:rgba(255,255,255,.25);transform:scale(.94)}
 .player-btn svg{width:14px;height:14px;fill:currentColor}
@@ -69,7 +75,14 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .slider-thumb{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.4);transform:translate(-50%,-50%);left:0%}
 #progress-slider{flex:1;min-width:0}
 
-.player-footer{display:flex;align-items:center;justify-content:space-between;padding:0 4px}
+.player-footer{position:relative;display:flex;align-items:center;justify-content:space-between;padding:0 var(--inset)}
+.tab-buttons{transition:opacity .3s var(--ease),transform .3s var(--ease)}
+.player-footer.edit .tab-buttons{opacity:0;transform:translateY(4px);pointer-events:none}
+.done-btn{position:absolute;right:var(--inset);top:50%;margin-top:-15px;height:30px;padding:0 18px;border-radius:999px;border:1px solid rgba(255,255,255,.22);border-top-color:rgba(255,255,255,.4);
+  background:rgba(255,255,255,.14);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff;font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;cursor:pointer;
+  box-shadow:0 4px 12px rgba(0,0,0,.25),inset 0 0 2px rgba(255,255,255,.25);opacity:0;transform:translateY(-4px) scale(.92);pointer-events:none}
+.done-btn:active{background:rgba(255,255,255,.26)}
+.player-footer.edit .done-btn{opacity:1;transform:none;pointer-events:auto;transition-delay:.06s}
 .tab-buttons{display:flex;gap:16px}
 .tab-btn{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.4);background:none;border:none;cursor:pointer;padding:10px 0}
 .tab-btn.active{color:#fff;text-shadow:0 0 10px rgba(255,255,255,.3)}
@@ -120,9 +133,10 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
 .artist-scroll{max-height:450px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:12px}
 .artist-scroll::-webkit-scrollbar{display:none}
-.artist-hero{position:relative;height:170px;border-radius:18px;background:linear-gradient(160deg,#1d4e5f,#0b1d24);background-size:cover;background-position:center 25%;overflow:hidden;border:1px solid rgba(255,255,255,.12);box-shadow:0 8px 20px rgba(0,0,0,.35)}
-.artist-hero-fade{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.78),rgba(0,0,0,0) 65%)}
-.artist-name{position:absolute;left:16px;right:16px;bottom:12px;font-size:26px;font-weight:700;line-height:1.1;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.artist-hero{position:relative;height:170px;border-radius:18px;background:#0f2a35;overflow:hidden;clip-path:inset(0 round 18px);isolation:isolate}
+.artist-hero-img{position:absolute;inset:0;background-size:cover;background-position:center 25%;z-index:0}
+.artist-hero-fade{position:absolute;inset:0;z-index:1;background:linear-gradient(to top,rgba(0,0,0,.72),rgba(0,0,0,0) 62%)}
+.artist-name{z-index:2;position:absolute;left:16px;right:16px;bottom:12px;font-size:26px;font-weight:700;line-height:1.1;text-shadow:0 2px 8px rgba(0,0,0,.6)}
 .artist-meta{font-size:12px;color:rgba(255,255,255,.6);margin:12px 4px 0}
 .artist-note{font-size:12px;color:rgba(255,255,255,.45);margin:10px 4px}
 .artist-bio{font-size:13px;line-height:1.45;color:rgba(255,255,255,.82);margin:10px 4px 0}
@@ -130,7 +144,8 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .artist-more{background:none;border:0;color:rgba(255,255,255,.6);font:600 12px -apple-system,system-ui,sans-serif;padding:8px 4px;cursor:pointer}
 .artist-sec{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);margin:14px 4px 0}
 .artist-albums{padding:10px 4px}
-.album-card.dim{opacity:.4}
+.album-card{transition:opacity .4s var(--ease)}
+.album-card.dim{opacity:.4;--o:.4}
 .album-card .year{font-size:10px;color:rgba(255,255,255,.5);margin-top:-4px}
 .own-dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:#2ecc71;box-shadow:0 0 8px #2ecc71;z-index:2}
 .chips{display:flex;flex-wrap:wrap;gap:8px;padding:10px 4px}
@@ -143,9 +158,12 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .slider-setting{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.6)}
 .slider-setting input{width:130px}
 
-.del-badge{display:none;position:absolute;top:-6px;left:-6px;z-index:6;width:24px;height:24px;border-radius:50%;background:rgba(40,48,56,.92);border:1px solid rgba(255,255,255,.35);color:#fff;font:700 16px/22px -apple-system,system-ui,sans-serif;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.5)}
-.albums-grid.editing .del-badge{display:block}
-.done-pill{position:sticky;top:0;z-index:30;margin:0 10px 0 auto;display:block;padding:6px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.25);background:rgba(15,23,30,.7);color:#fff;font:600 12px -apple-system,system-ui,sans-serif;cursor:pointer}
+.del-badge{position:absolute;top:-7px;left:-7px;z-index:6;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.2);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);
+  border:1px solid rgba(255,255,255,.4);box-shadow:0 3px 8px rgba(0,0,0,.35),inset 0 0 2px rgba(255,255,255,.3);cursor:pointer;
+  opacity:0;transform:scale(.3);pointer-events:none;transition:opacity .28s var(--ease),transform .38s var(--ease),background .2s var(--ease)}
+.del-badge::before{content:'';position:absolute;left:50%;top:50%;width:10px;height:2px;margin:-1px 0 0 -5px;border-radius:1px;background:#fff}
+.del-badge:active{background:rgba(255,255,255,.38)}
+.albums-grid.editing .del-badge{opacity:1;transform:none;pointer-events:auto;transition-delay:calc(var(--j,0) * 22ms)}
 .hidden-toggle{display:flex;align-items:center;justify-content:center;gap:6px;align-self:flex-start;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:12px;color:#fff;padding:8px 12px;cursor:pointer;font:600 12px -apple-system,system-ui,sans-serif}
 .hidden-toggle svg{width:18px;height:18px;fill:rgba(255,255,255,.85)}
 .hidden-list{max-height:190px;overflow-y:auto;scrollbar-width:none}
@@ -157,17 +175,32 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 :root{--ease:cubic-bezier(.22,1,.36,1);--dur:.4s}
 @keyframes viewIn{from{opacity:0;transform:translate(var(--dx,0),var(--dy,0))}to{opacity:1;transform:none}}
 .v-in{animation:viewIn .34s var(--ease) both}
-@keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:var(--o,1);transform:none}}
 .card-in{animation:cardIn .36s var(--ease) backwards}
-.player-btn,.tab-btn,.chip,.circle-btn,.upload-btn,.back-btn,.hidden-toggle,.done-pill{transition:background .22s var(--ease),color .22s var(--ease),transform .18s var(--ease),border-color .22s var(--ease),opacity .22s var(--ease)}
+.player-btn,.tab-btn,.chip,.circle-btn,.upload-btn,.back-btn,.hidden-toggle,.done-btn{transition:background .22s var(--ease),color .22s var(--ease),transform .18s var(--ease),border-color .22s var(--ease),opacity .22s var(--ease)}
 .playlist-item,.queue-item,.hidden-row{transition:background .22s var(--ease),opacity .3s var(--ease)}
 .album-card img,.album-card .all-tracks-icon{transition:transform .28s var(--ease),opacity .3s ease,box-shadow .28s var(--ease)}
 #track-art-img{transition:opacity .3s ease}
 .floating-customizer{transition:opacity .26s var(--ease),transform .3s var(--ease)!important}
 .toast{transition:opacity .28s var(--ease),transform .32s var(--ease)!important}
-.albums-grid.editing .album-card[data-key]:not(.lifted)>img,.albums-grid.editing .album-card[data-key]:not(.lifted)>.all-tracks-icon{animation:jig .3s ease-in-out infinite alternate;animation-delay:calc(var(--j,0) * -.11s)}
+.albums-grid.editing .album-card[data-key]:not(.lifted)>img,.albums-grid.editing .album-card[data-key]:not(.lifted)>.all-tracks-icon{animation:jig .34s ease-in-out infinite alternate;animation-delay:calc(var(--j,0) * -.13s)}
 @keyframes jig{0%{transform:rotate(-.9deg)}100%{transform:rotate(.9deg)}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* ===== bubble: original border kept; glass depth comes from bloom, transparency and a moving reflection ===== */
+:root{--inset:10px;--glass-blur:blur(14px) saturate(215%) brightness(1.05)}   /* 2: wallpaper shows through more */
+.bg-container{transform:translate3d(calc(var(--tx,0) * -10px),calc(var(--ty,0) * -10px),0) scale(1.06);will-change:transform}
+.player-wrapper::before{background:
+  linear-gradient(calc(135deg + var(--tx,0) * 18deg),rgba(255,255,255,.25) 0%,rgba(255,255,255,.05) 20%,rgba(255,255,255,0) 40%,rgba(255,255,255,0) 100%),
+  radial-gradient(90% 45% at var(--lx,30%) var(--ly,8%),rgba(255,255,255,.07),rgba(255,255,255,0) 70%)}
+/* 3: wide soft reflection that slides across the whole pane with tilt */
+.player-wrapper::after{content:'';position:absolute;inset:0;border-radius:24px;pointer-events:none;z-index:2;
+  background:linear-gradient(105deg,rgba(255,255,255,0) calc(var(--sx,38%) - 26%),rgba(255,255,255,.05) calc(var(--sx,38%) - 8%),rgba(255,255,255,.13) var(--sx,38%),rgba(255,255,255,.05) calc(var(--sx,38%) + 8%),rgba(255,255,255,0) calc(var(--sx,38%) + 26%))}
+/* 1: colour from the cover bleeds softly into the glass around it */
+.track-info-container{position:relative}
+.art-bloom{position:absolute;left:calc(var(--inset) + 3px);top:2px;width:66px;height:66px;border-radius:14px;background-size:cover;background-position:center;
+  filter:blur(20px) saturate(1.7);opacity:.5;transform:scale(1.7);pointer-events:none;transition:opacity .4s var(--ease)}
+.album-art{margin-left:3px;position:relative;z-index:1}
 </style>
 </head>
 <body>
@@ -185,19 +218,21 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
   <input type="file" id="photo-input" accept="image/*" style="display:none;">
 
   <div class="track-info-container" id="player-main" style="display:none;">
+    <div class="art-bloom" id="art-bloom"></div>
     <div class="album-art" id="album-art-box">
       <svg id="fallback-art" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
       <img id="track-art-img" style="display:none;">
     </div>
     <div class="track-text">
       <div class="track-title" id="track-title">Loading...</div>
-      <div class="track-artist" id="track-artist">Unknown Artist</div>
+      <div class="artist-row"><div class="track-artist" id="track-artist">Unknown Artist</div><svg class="shuf-ind" id="shuf-ind" viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></div>
     </div>
   </div>
 
   <div class="progress-container" id="controls-main" style="display:none;">
     <div class="controls-cluster">
-      <button class="player-btn" id="play-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="player-btn" id="prev-btn" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+      <button class="player-btn" id="play-btn" aria-label="Play / hold for shuffle"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
       <button class="player-btn" id="skip-btn"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
     </div>
     <span id="current-time">0:00</span>
@@ -207,6 +242,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
   <div class="player-footer" id="footer-main" style="display:none;">
     <button class="tab-btn add-btn" id="btn-add">+ Songs</button>
+    <button class="done-btn" id="edit-done" aria-label="Done">Done</button>
     <div class="tab-buttons">
       <button class="tab-btn" id="btn-queue">Up Next</button>
       <button class="tab-btn" id="btn-playlist">Library</button>
@@ -216,7 +252,6 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
   <div class="collapsible-content" id="drawer-box"><div class="drawer-inner"><div id="view-host">
     <div class="albums-grid-container" id="albums-grid-wrapper" style="display:none;">
-      <button class="done-pill" id="edit-done" style="display:none">Done</button>
       <div class="albums-grid" id="albums-shelf"></div>
     </div>
     <div class="scroll-container-wrapper" id="playlist-wrapper" style="display:none;">
@@ -562,7 +597,15 @@ function ownedAlbumKey(a) {
 function refreshOwnership() {
   renderAlbums();
   if (playlistWrapper.style.display === "block") renderPlaylist();
-  if (artistWrapper.style.display === "block" && lastArtist) { const ui = $("artist-ui"), y = ui.scrollTop; renderArtist(lastArtist, true); ui.scrollTop = y; }
+  if (artistWrapper.style.display === "block" && lastArtist) updateArtistOwnership();
+}
+function updateArtistOwnership() {                                   // update cards in place so ownership fades in instead of re-rendering
+  document.querySelectorAll("#artist-albums .album-card[data-aid]").forEach(c => {
+    const own = !!ownedAlbumKey(c._a), dot = c.querySelector(".own-dot");
+    c.classList.toggle("dim", !own);
+    if (own && !dot) { const d = document.createElement("div"); d.className = "own-dot"; c.prepend(d); }
+    else if (!own && dot) dot.remove();
+  });
 }
 let lastArtist = null;
 let currentCat = null, albumOrigin = null;             // catalog (Deezer) album view + where we came from
@@ -619,7 +662,7 @@ function renderAlbums() {
   const shelf = $("albums-shelf"); shelf.innerHTML = "";
   const mk = (title, inner, onClick, key) => {
     const c = document.createElement("div"); c.className = "album-card"; c.style.setProperty("--j", Math.floor(Math.random() * 6));
-    c.innerHTML = (key !== undefined ? '<div class="del-badge" aria-label="Delete">−</div>' : "") + inner + `<div class="album-card-title">${esc(title)}</div>`;
+    c.innerHTML = (key !== undefined ? '<div class="del-badge" aria-label="Hide album"></div>' : "") + inner + `<div class="album-card-title">${esc(title)}</div>`;
     c.addEventListener("click", () => { if (suppressClick) { suppressClick = false; return; } if (editing) return; onClick(); });
     if (key !== undefined) { c.dataset.key = key; attachDrag(c); c.querySelector(".del-badge").addEventListener("click", e => { e.stopPropagation(); hideAlbum(c, key); }); }
     shelf.appendChild(c); return c;
@@ -634,7 +677,7 @@ function renderAlbums() {
 
 /* ---- drag to reorder (long-press, then drag) ---- */
 let drag = null, suppressClick = false, editing = false;
-function setEdit(v) { editing = v; $("albums-shelf").classList.toggle("editing", v); $("edit-done").style.display = v ? "block" : "none"; }
+function setEdit(v) { editing = v; $("albums-shelf").classList.toggle("editing", v); $("footer-main").classList.toggle("edit", v); }
 $("edit-done").addEventListener("click", () => setEdit(false));
 $("albums-grid-wrapper").addEventListener("click", e => { if (editing && (e.target.id === "albums-grid-wrapper" || e.target.id === "albums-shelf")) setEdit(false); });
 function hideAlbum(card, name) {
@@ -676,7 +719,7 @@ function flip(els, mutate) {
     e.style.transform = `translate(${first[i].left - l.left}px,${first[i].top - l.top}px)`;
   });
   void document.body.offsetHeight;
-  els.forEach(e => { e.style.transition = "transform .32s var(--ease)"; e.style.transform = ""; });
+  els.forEach(e => { e.style.transition = "transform .42s var(--ease)"; e.style.transform = ""; });
 }
 function attachDrag(card) {
   card.addEventListener("contextmenu", e => e.preventDefault());
@@ -697,6 +740,7 @@ function attachDrag(card) {
       $("albums-grid-wrapper").style.overflowY = "hidden";
       if (navigator.vibrate) navigator.vibrate(12);
       setTimeout(() => { if (drag && drag.card === card) { drag.follow = true; card.style.transition = "none"; } }, 190);
+      drag.sx = card.offsetLeft; drag.sy = card.offsetTop;
       dragUpdate(); drag.raf = requestAnimationFrame(dragLoop);
     }, editing ? 140 : e.pointerType === "mouse" ? 300 : 420);
   });
@@ -705,18 +749,21 @@ function dragUpdate() {
   const d = drag, c = d.card, gr = $("albums-shelf").getBoundingClientRect();
   const px = d.cx - gr.left, py = d.cy - gr.top;
   const others = cardsOf().filter(o => o !== c);
-  const t = others.find(o => px >= o.offsetLeft && px <= o.offsetLeft + o.offsetWidth && py >= o.offsetTop && py <= o.offsetTop + o.offsetHeight);
+  const t = others.find(o => { const ix = o.offsetWidth * .2, iy = o.offsetHeight * .2;         // only the middle of a tile triggers a swap (no flapping)
+    return px >= o.offsetLeft + ix && px <= o.offsetLeft + o.offsetWidth - ix && py >= o.offsetTop + iy && py <= o.offsetTop + o.offsetHeight - iy; });
   if (t) {
     const from = d.keys.indexOf(c.dataset.key), to = d.keys.indexOf(t.dataset.key);
     if (from !== to && from >= 0 && to >= 0) flip(others, () => { d.keys.splice(to, 0, d.keys.splice(from, 1)[0]); applyKeys(d.keys); });
   }
-  c.style.transform = `translate(${px - d.grabX - c.offsetLeft}px,${py - d.grabY - c.offsetTop}px) scale(1.08)`;
+  d.ax = px - d.grabX; d.ay = py - d.grabY;                          // target (absolute, grid coords); dragLoop glides the tile toward it
 }
 function dragLoop() {
   if (!drag || !drag.active) return;
   const box = $("albums-grid-wrapper"), r = box.getBoundingClientRect();
   const dy = drag.cy < r.top + 36 ? -7 : drag.cy > r.bottom - 36 ? 7 : 0;
   if (dy) { box.scrollTop += dy; dragUpdate(); }
+  const c = drag.card; drag.sx += (drag.ax - drag.sx) * .38; drag.sy += (drag.ay - drag.sy) * .38;
+  c.style.transform = `translate(${drag.sx - c.offsetLeft}px,${drag.sy - c.offsetTop}px) scale(1.08)`;
   drag.raf = requestAnimationFrame(dragLoop);
 }
 document.addEventListener("pointermove", e => {
@@ -767,7 +814,7 @@ function renderPlaylist() {
       ui.appendChild(item); return;
     }
     item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : ""));
-    item.addEventListener("click", () => loadTrack(t.id, true));
+    item.addEventListener("click", () => { setPlayCtx(); loadTrack(t.id, true); });
     const plus = document.createElement("button");
     plus.className = "circle-btn"; plus.textContent = "+";
     plus.addEventListener("click", ev => {
@@ -794,10 +841,12 @@ function renderQueue() {
 }
 
 /* ---------- PLAYBACK ---------- */
+let curUrl = null;
 function loadTrack(id, autoplay) {
   const t = tracks.find(x => x.id === id); if (!t) return;
   curId = id;
-  audio.src = URL.createObjectURL(t.file);
+  if (curUrl) URL.revokeObjectURL(curUrl); curUrl = URL.createObjectURL(t.file); audio.src = curUrl;
+  if (ctxIds().includes(id)) ctxCur = id;
   $("track-title").innerText = t.title;
   $("track-artist").innerText = t.artist;
   const img = $("track-art-img");
@@ -809,24 +858,47 @@ function loadTrack(id, autoplay) {
   playBtn.innerHTML = playIconSvg;
   if ("mediaSession" in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.album,
-      artwork: t.art ? [{ src: t.art, sizes: "512x512" }] : [] });
+      artwork: (t.art || albumCover(t.album)) ? [{ src: t.art || albumCover(t.album), sizes: "512x512" }] : [] });
   }
   renderPlaylist();
   if (autoplay) playTrack();
 }
 function playTrack() { audio.play().then(() => { playBtn.innerHTML = pauseIconSvg; }).catch(() => {}); }
 function pauseTrack() { audio.pause(); playBtn.innerHTML = playIconSvg; }
+/* play context = the list the current track was started from; shuffle reorders just that list */
+let playCtx = null, ctxCur = null, shuffle = false, shufOrder = [], shufKey = "";
+const allIds = () => tracks.map(t => t.id);
+function ctxIds() { if (!playCtx) return allIds(); const s = new Set(allIds()), ids = playCtx.filter(id => s.has(id)); return ids.length ? ids : allIds(); }
+function setPlayCtx() { playCtx = currentAlbum === "All Tracks" ? null : contextList().map(t => t.id); shufKey = ""; }
+function buildShuffle(ids, ref) {
+  const a = ids.filter(x => x !== ref);
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return ref == null ? a : [ref, ...a];
+}
+function stepId(dir) {
+  let ids = ctxIds(), ref = ids.includes(ctxCur) ? ctxCur : ids.includes(curId) ? curId : null;
+  if (ref === null) { ids = allIds(); ref = curId; }
+  if (shuffle) {
+    const key = ids.slice().sort((x, y) => x - y).join(",");
+    if (key !== shufKey || !shufOrder.includes(ref)) { shufKey = key; shufOrder = buildShuffle(ids, ref); }
+    ids = shufOrder;
+  }
+  if (!ids.length) return null;
+  return ids[(ids.indexOf(ref) + dir + ids.length) % ids.length];
+}
+function toggleShuffle() {
+  shuffle = !shuffle; shufKey = "";
+  $("shuf-ind").classList.toggle("on", shuffle);
+  toast(shuffle ? "Shuffle on" : "Shuffle off");
+  if (navigator.vibrate) navigator.vibrate(15);
+}
 function playNext() {
   if (queue.length) { const id = queue.shift(); renderQueue(); loadTrack(id, true); return; }
-  let list = contextList(); let i = list.findIndex(t => t.id === curId);
-  if (i === -1) { list = tracks; i = list.findIndex(t => t.id === curId); }
-  if (list.length) loadTrack(list[(i + 1) % list.length].id, true);
+  const id = stepId(1); if (id != null) loadTrack(id, true);
 }
 function playPrev() {
   if (audio.currentTime > 3) { audio.currentTime = 0; return; }
-  let list = contextList(); let i = list.findIndex(t => t.id === curId);
-  if (i === -1) { list = tracks; i = list.findIndex(t => t.id === curId); }
-  if (list.length) loadTrack(list[(i - 1 + list.length) % list.length].id, true);
+  const id = stepId(-1); if (id != null) loadTrack(id, true);
 }
 const fmt = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
 audio.addEventListener("timeupdate", () => {
@@ -834,14 +906,24 @@ audio.addEventListener("timeupdate", () => {
   progressCtrl.setValue(audio.currentTime / audio.duration);
   $("current-time").innerText = fmt(audio.currentTime);
 });
-audio.addEventListener("loadedmetadata", () => { $("total-duration").innerText = fmt(audio.duration); });
+function syncPos() { const m = navigator.mediaSession; if (m && m.setPositionState && isFinite(audio.duration)) { try { m.setPositionState({ duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime, audio.duration) }); } catch (e) {} } }
+audio.addEventListener("loadedmetadata", () => { $("total-duration").innerText = fmt(audio.duration); syncPos(); });
+audio.addEventListener("play", () => { playBtn.innerHTML = pauseIconSvg; if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; syncPos(); });
+audio.addEventListener("pause", () => { if (audio.ended) return; playBtn.innerHTML = playIconSvg; if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; syncPos(); });
+audio.addEventListener("seeked", syncPos);
 audio.addEventListener("ended", playNext);
-playBtn.addEventListener("click", () => audio.paused ? playTrack() : pauseTrack());
+let pressT, longFired = false;
+playBtn.addEventListener("pointerdown", () => { longFired = false; clearTimeout(pressT); pressT = setTimeout(() => { longFired = true; toggleShuffle(); }, 520); });
+["pointerup", "pointerleave", "pointercancel"].forEach(ev => playBtn.addEventListener(ev, () => clearTimeout(pressT)));
+playBtn.addEventListener("contextmenu", e => e.preventDefault());
+playBtn.addEventListener("click", () => { if (longFired) { longFired = false; return; } audio.paused ? playTrack() : pauseTrack(); });
+$("prev-btn").addEventListener("click", playPrev);
 $("skip-btn").addEventListener("click", playNext);
-if ("mediaSession" in navigator) {
-  const m = navigator.mediaSession;
-  m.setActionHandler("play", playTrack); m.setActionHandler("pause", pauseTrack);
-  m.setActionHandler("nexttrack", playNext); m.setActionHandler("previoustrack", playPrev);
+if ("mediaSession" in navigator) {                    // headphone / lock-screen buttons
+  const m = navigator.mediaSession, h = (a, f) => { try { m.setActionHandler(a, f); } catch (e) {} };
+  h("play", playTrack); h("pause", pauseTrack); h("nexttrack", playNext); h("previoustrack", playPrev);
+  h("seekbackward", null); h("seekforward", null);     // unset so iOS shows previous/next instead of ±10s
+  h("seekto", d => { if (d && d.seekTime != null) { audio.currentTime = d.seekTime; syncPos(); } });
 }
 
 /* ---------- JSONP (Deezer) ---------- */
@@ -947,13 +1029,13 @@ async function loadArtist(name, onPartial) {
 function renderArtist(d, still) {
   lastArtist = d;
   const ui = $("artist-ui");
-  ui.innerHTML = `<div class="artist-hero"><div class="artist-hero-fade"></div><div class="artist-name"></div></div>
+  ui.innerHTML = `<div class="artist-hero"><div class="artist-hero-img"></div><div class="artist-hero-fade"></div><div class="artist-name"></div></div>
     <div class="artist-meta"></div><div class="artist-note" id="artist-note"></div>
     <div id="artist-bio-box"></div>
     <div class="artist-sec">Albums</div><div class="albums-grid artist-albums" id="artist-albums"></div>
     <div id="artist-sim-box"></div>`;
   ui.querySelector(".artist-name").textContent = d.name;
-  const img = d.banner || d.photo; if (img) ui.querySelector(".artist-hero").style.backgroundImage = `url("${img}")`;
+  const img = d.banner || d.photo; if (img) ui.querySelector(".artist-hero-img").style.backgroundImage = `url("${img}")`;
   ui.querySelector(".artist-meta").textContent = [d.tags && d.tags.slice(0, 3).join(" · "), d.listeners ? fmtNum(d.listeners) + " listeners" : ""].filter(Boolean).join("  •  ");
   if (d.loading) $("artist-note").textContent = "Loading…";
   if (d.bio) {
@@ -966,7 +1048,8 @@ function renderArtist(d, still) {
   else if (!d.loading && !(d.albums || []).length) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">No albums found.</div>';
   (d.albums || []).forEach((a, i) => {
     const own = ownedAlbumKey(a), c = document.createElement("div");
-    c.className = "album-card" + (still ? "" : " card-in") + (own || resolving() ? "" : " dim"); c.style.animationDelay = Math.min(i, 12) * 22 + "ms";
+    c.className = "album-card" + (still ? "" : " card-in") + (own ? "" : " dim"); c.style.animationDelay = Math.min(i, 12) * 22 + "ms";
+    c._a = a; c.dataset.aid = "1";
     c.innerHTML = `${own ? '<div class="own-dot"></div>' : ""}<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>${a.year ? '<div class="year"></div>' : ""}`;
     c.querySelector(".album-card-title").textContent = a.title;
     if (a.year) c.querySelector(".year").textContent = a.year;
@@ -989,7 +1072,7 @@ async function openCatalogAlbum(a, artistName) {
   if (currentCat === cat) renderPlaylist();
 }
 async function openArtist(name, mode, scroll) {
-  if (resolving()) scheduleResolve();
+  if (resolving()) { clearTimeout(relTimer); runResolve(); }
   name = mainArtist(name || ""); if (!name || name === "Unknown Artist") return;
   if (mode === "push") { if (currentArtistName) artistStack.push(currentArtistName); }
   else if (mode !== "back") artistStack = [];
@@ -1086,6 +1169,39 @@ $("artist-back").addEventListener("click", () => {
   if (artistStack.length) openArtist(artistStack.pop(), "back");
   else { currentArtistName = ""; showOnly(artistsWrapper, -1); renderArtists(); }
 });
+
+/* ---------- LIQUID GLASS: light follows the tilt of the phone ---------- */
+(function () {
+  if (matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+  const R = document.documentElement.style, cl = v => Math.max(-1, Math.min(1, v));
+  let bB = null, bG = null, tx = 0, ty = 0, cx = 0, cy = 0, on = false, raf = 0;
+  function tick() {
+    raf = 0; cx += (tx - cx) * .1; cy += (ty - cy) * .1;
+    R.setProperty("--tx", cx.toFixed(3)); R.setProperty("--ty", cy.toFixed(3));
+    R.setProperty("--lx", (30 + cx * 45).toFixed(1) + "%"); R.setProperty("--ly", (8 + cy * 40).toFixed(1) + "%");
+    R.setProperty("--sx", (38 + cx * 55).toFixed(1) + "%");
+    if (Math.abs(tx - cx) + Math.abs(ty - cy) > .002) go();
+  }
+  const go = () => { if (!raf) raf = requestAnimationFrame(tick); };
+  function ori(e) {
+    if (e.beta == null || e.gamma == null) return;
+    if (bB === null) { bB = e.beta; bG = e.gamma; }
+    bB += (e.beta - bB) * .004; bG += (e.gamma - bG) * .004;      // neutral pose drifts to however you hold the phone
+    tx = cl((e.gamma - bG) / 22); ty = cl((e.beta - bB) / 22); go();
+  }
+  const enable = () => { if (!on) { on = true; addEventListener("deviceorientation", ori); } };
+  const D = window.DeviceOrientationEvent;
+  if (D && !D.requestPermission) enable();
+  addEventListener("click", () => { if (D && D.requestPermission) D.requestPermission().then(r => { if (r === "granted") enable(); }).catch(() => {}); }, { once: true });
+  addEventListener("pointermove", e => { if (e.pointerType === "mouse") { tx = (e.clientX / innerWidth - .5) * 2; ty = (e.clientY / innerHeight - .5) * 2; go(); } });
+})();
+
+/* bloom follows whatever cover is showing */
+(function () {
+  const bloom = $("art-bloom"), img = $("track-art-img");
+  function sync() { const src = img.style.display !== "none" && img.getAttribute("src"); bloom.style.backgroundImage = src ? `url("${src}")` : ""; bloom.style.opacity = src ? "" : "0"; }
+  new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
+})();
 </script>
 </body>
 </html>
