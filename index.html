@@ -314,6 +314,233 @@ html.tg body{--tg-top:max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-
 html.tg .gear-btn{bottom:calc(var(--tg-bot) + 20px)}
 html.tg .floating-customizer{bottom:calc(var(--tg-bot) + 74px)}
 html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
+
+/* ===== Queue =====
+   History (dimmed) above, the song playing now, then the queue (drag the handle to reorder). */
+#queue-wrapper{max-height:none}
+.queue-container{position:relative;max-height:300px;margin:-10px -20px 0;padding:10px 20px 6px}
+.q-sec{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:26px;font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);padding:12px 12px 4px}
+.q-sec:first-child{padding-top:2px}
+.q-sec span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-sec button{flex-shrink:0;background:none;border:0;color:rgba(255,255,255,.65);font:inherit;letter-spacing:inherit;cursor:pointer;padding:4px 0}
+.q-sec button:active{color:#fff}
+.q-fg{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;cursor:pointer;border:1px solid transparent;transition:background .22s var(--ease)}
+.q-fg:active{background:rgba(255,255,255,.08)}
+.q-row.hist .q-fg{opacity:.5}
+.q-row.now .q-fg{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.1);cursor:default}
+.q-handle{width:30px;height:30px;margin-right:-6px;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab;flex-shrink:0}
+.q-handle svg{width:16px;height:16px;fill:rgba(255,255,255,.45)}
+/* the held row: a glass card lit by its own cover (same idea as the album glow). Everything fades in and out, nothing
+   switches: the card's glass is a layer under the row's content whose opacity animates, the cover glow grows in on
+   pick-up and fades on drop. */
+.q-row[data-group] .q-fg{isolation:isolate}
+.q-row[data-group] .q-fg::before{content:'';position:absolute;inset:-1px;border-radius:13px;pointer-events:none;z-index:-1;opacity:0;transition:opacity .24s var(--ease);
+  background:linear-gradient(135deg,rgba(255,255,255,.2),rgba(255,255,255,.07) 55%,rgba(255,255,255,.04)),rgba(19,54,68,.98);
+  border:1px solid rgba(255,255,255,.16);border-top-color:rgba(255,255,255,.4);box-sizing:border-box;
+  box-shadow:0 14px 30px rgba(0,0,0,.32),0 3px 8px rgba(0,0,0,.18),inset 0 0 2px rgba(255,255,255,.25)}
+.q-row.lifted .q-fg::before{opacity:1}
+.q-row .item-art{transition:transform .26s var(--ease),box-shadow .26s var(--ease)}
+.q-row .q-handle svg{transition:fill .2s ease}
+.q-row.lifted,.q-row.landing{z-index:5;overflow:visible}
+.q-row.lifted::after,.q-row.landing::after{content:'';position:absolute;inset:6px 18px;border-radius:14px;background:var(--art,rgba(255,255,255,.2)) center/cover;
+  filter:blur(18px) saturate(1.7);z-index:-1;pointer-events:none}
+.q-row.lifted::after{animation:qglow .3s var(--ease) both}
+.q-row.landing::after{animation:qglowOut .28s var(--ease) both}
+@keyframes qglow{from{opacity:0;transform:scale(.8)}to{opacity:.5;transform:none}}
+@keyframes qglowOut{from{opacity:.5}to{opacity:0;transform:scale(.9)}}
+.q-row.lifted .item-art{transform:scale(1.08);box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.q-row.lifted .q-handle svg{fill:#fff}
+.queue-container .q-row{transition:opacity .22s ease}
+.queue-container.dragging .q-row:not(.lifted){opacity:.5}
+.queue-container.dragging{-webkit-overflow-scrolling:auto}
+.q-row.collapse{overflow:hidden;transition:height .22s var(--ease),opacity .22s var(--ease)}
+.q-more{font-size:11px;color:rgba(255,255,255,.4);text-align:center;padding:10px 0 4px}
+.q-link{display:block;width:100%;background:none;border:0;cursor:pointer;color:rgba(255,255,255,.6);font-weight:600}
+.q-empty{font-size:12px;color:rgba(255,255,255,.4);text-align:center;padding:14px 12px}
+/* swipe rows (Library and Queue): the row slides left over an action strip */
+.sw{position:relative;border-radius:12px;overflow:hidden;touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.sw-fg{position:relative;will-change:transform}
+.sw-bg{position:absolute;top:1px;bottom:1px;right:0;width:0;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:flex-end;
+  background:rgba(var(--tone,255,255,255),.07);transition:background .18s ease}
+.sw:not([data-stage="0"])[data-stage] .sw-bg{background:rgba(var(--tone),.34)}
+.sw-lab{display:flex;flex-direction:row-reverse;align-items:center;gap:6px;padding:0 14px;white-space:nowrap;color:#fff;font:600 12px -apple-system,system-ui,sans-serif;transition:opacity .15s ease}
+.sw-lab svg{width:18px;height:18px;fill:#fff;flex-shrink:0}
+.sw-lab span{opacity:0;transition:opacity .14s ease}
+.sw-lab.fit span{opacity:1}
+.sw-lab.pop{animation:swpop .24s var(--ease)}
+@keyframes swpop{0%{transform:scale(.82)}60%{transform:scale(1.07)}100%{transform:none}}
+
+/* ===== touch + motion =====
+   Presses are Web Animations on the separate `scale` property, so they never fight a transform (breathing, layout).
+   Player buttons also light up where the finger lands (--px/--py, --hl fades out after release). */
+@property --hl{syntax:'<number>';inherits:false;initial-value:0}
+.player-btn:active,.circle-btn:active,.chip:active{transform:none}
+.player-btn{position:relative;--hl:0;
+  background:radial-gradient(circle at var(--px,50%) var(--py,50%),rgba(255,255,255,calc(var(--hl) * .4)),rgba(255,255,255,0) 72%),rgba(255,255,255,.1);
+  transition:--hl .6s var(--ease),color .22s var(--ease),border-color .22s var(--ease),opacity .22s var(--ease)}
+.player-btn:active{background:radial-gradient(circle at var(--px,50%) var(--py,50%),rgba(255,255,255,calc(var(--hl) * .4)),rgba(255,255,255,0) 72%),rgba(255,255,255,.16)}
+.player-btn.pressed{--hl:1;transition-duration:.06s}
+.player-btn svg{position:relative;z-index:1}
+/* the three controls breathe with the music (--bp, set per button by the glow loop: Play leads, the sides follow a beat
+   later); when paused, Play keeps a slow breath of its own. The glow is tinted with the cover's colour. */
+.controls-cluster .player-btn,.controls-cluster .player-btn:active{
+  transform:scale(calc(1 + var(--bp,0) * var(--bs,.035)));
+  border-color:rgba(255,255,255,calc(.15 + var(--bp,0) * .22));
+  box-shadow:0 2px 5px rgba(0,0,0,.2),0 0 calc(2px + var(--bp,0) * 13px) rgba(var(--lc,200,215,225),calc(var(--bp,0) * .42)),inset 0 0 calc(1px + var(--bp,0) * 5px) rgba(255,255,255,calc(.04 + var(--bp,0) * .2))}
+#play-btn{--bs:.06}
+/* Play: a comet of light travels round the rim (the whole element rotates; the conic tail + a soft face highlight) */
+.pb-shine{position:absolute;inset:-2px;border-radius:50%;pointer-events:none;opacity:0;
+  filter:drop-shadow(0 0 2px rgba(255,255,255,.9)) drop-shadow(0 0 6px rgba(var(--lc,200,215,225),.9))}
+.pb-comet{position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(rgba(255,255,255,0) 0deg,rgba(255,255,255,0) 205deg,rgba(var(--lc,200,215,225),.5) 285deg,rgba(255,255,255,.95) 348deg,#fff 355deg,rgba(255,255,255,0) 360deg);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2.2px),#000 calc(100% - 1.5px));mask:radial-gradient(farthest-side,transparent calc(100% - 2.2px),#000 calc(100% - 1.5px))}
+.pb-face{position:absolute;inset:3px;border-radius:50%;background:radial-gradient(60% 50% at 46% 0,rgba(255,255,255,.26),rgba(255,255,255,0) 72%)}
+/* Play: hold for shuffle fills a thin ring just outside the button */
+.pb-hold{position:absolute;inset:-5px;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .16s ease;
+  background:conic-gradient(#fff calc(var(--hp,0) * 360deg),rgba(255,255,255,.16) 0);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2.6px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 2.6px),#000 calc(100% - 2px))}
+.pb-hold.on{opacity:1}
+/* song change: the old title/artist leave as a copy while the new ones slide in */
+.tt-ghost{position:absolute;margin:0!important;pointer-events:none;z-index:2}
+/* ...and the cover light flares for a moment (--fl, decays in the glow loop) */
+.art-light{opacity:calc((.24 + var(--en,0) * .26 + var(--pulse,0) * .22 + var(--br,.5) * .05 + var(--fl,0) * .45) * var(--lk,1));
+  transform:rotate(var(--ang,0deg)) scale(calc(1 + var(--fl,0) * .18))}
+.art-bloom{opacity:calc(.32 + var(--en,0) * .06 + var(--pulse,0) * .22 + var(--br,.5) * .06 + var(--fl,0) * .22);
+  transform:translate3d(calc(var(--tx,0) * 12px),calc(var(--ty,0) * 12px),0) scale(calc(1.5 + var(--pulse,0) * .12 + var(--br,.5) * .05 + var(--fl,0) * .22))}
+/* Liquid Glass tab slider: position via `translate`, stretch via width, squash via transform, pop in/out via `scale` */
+.tab-buttons{position:relative;gap:24px}
+@media (max-width:370px){.tab-buttons{gap:18px}}
+@media (max-width:340px){.tab-buttons{gap:12px}}
+.tab-buttons .tab-btn{position:relative;z-index:1}
+.tab-pill{position:absolute;left:0;top:50%;height:28px;margin-top:-14px;width:0;border-radius:999px;pointer-events:none;z-index:0;box-sizing:border-box;
+  background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,.06)),rgba(255,255,255,calc(.05 + var(--pv,0) * .07));
+  border:1px solid rgba(255,255,255,.2);border-top-color:rgba(255,255,255,.46);
+  backdrop-filter:blur(10px) saturate(170%);-webkit-backdrop-filter:blur(10px) saturate(170%);
+  box-shadow:0 4px 14px rgba(0,0,0,.22),inset 0 0 2px rgba(255,255,255,.3),0 0 calc(var(--pv,0) * 16px) rgba(var(--lc,200,215,225),calc(var(--pv,0) * .5));
+  opacity:0;scale:.55;transition:opacity .22s var(--ease),scale .5s cubic-bezier(.34,1.56,.64,1)}
+.tab-pill.on{opacity:1;scale:1}
+/* ===== Liquid Bubble theme (html.bubble) =====
+   The panel's own glass, border and corner highlight step aside. Three layers behind the content, all exactly the panel's
+   rounded rectangle (the whole panel moves as one; its edge never bends):
+   .bubble-skin  the glass itself: the real backdrop blur + tint, so it matches any wallpaper exactly
+   .bubble-gl    Liquid Glass edge (WebGL): the wallpaper bent inside a thin bevel ring + the bevel's highlights; fades in
+   .bubble-svg   a simple rim and inner light, used until (or instead of, without WebGL) the edge is ready */
+.bubble-skin,.bubble-svg,.bubble-gl{position:absolute;left:-1px;top:-1px;width:calc(100% + 2px);height:calc(100% + 2px);pointer-events:none;z-index:-1;display:none;border-radius:36px}   /* explicit size: a canvas would otherwise take its pixel size */
+html.bubble .bubble-skin,html.bubble .bubble-svg,html.bubble .bubble-gl{display:block}
+.bubble-gl{opacity:0;transition:opacity .7s var(--ease)}
+.bubble-svg{transition:opacity .7s var(--ease)}
+html.bubble.gl-glass .bubble-gl{opacity:1}
+html.bubble.gl-glass .bubble-svg{opacity:0}
+.bubble-skin{background:linear-gradient(rgba(6,18,26,.1),rgba(6,18,26,.1));   /* clear glass: a light blur and a faint tint, no milky sheen */
+  backdrop-filter:blur(2px) saturate(135%) brightness(.94);-webkit-backdrop-filter:blur(2px) saturate(135%) brightness(.94)}
+.bubble-svg{overflow:visible;border-radius:0}
+html.bubble .player-wrapper{background:transparent;border-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border-radius:36px;
+  box-shadow:0 22px 50px rgba(0,0,0,.26),0 5px 16px rgba(0,0,0,.13);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+html.bubble .player-wrapper::before{display:none}
+html.bubble body{touch-action:none}                                /* a pull that starts just outside the panel must not scroll the page */
+html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-grid-container,.artist-scroll){touch-action:pan-y}
+/* Settings: switch row */
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:rgba(255,255,255,.75)}
+.set-row small{display:block;font-size:10px;color:rgba(255,255,255,.4);margin-top:2px}
+/* Settings: "More" tucks away rarely used options */
+.more-toggle{display:flex;align-items:center;justify-content:center;gap:2px;align-self:center;background:none;border:0;color:rgba(255,255,255,.4);font:500 11px -apple-system,system-ui,sans-serif;padding:2px 8px;cursor:pointer}
+.more-toggle svg{width:14px;height:14px;fill:currentColor;transition:transform .3s var(--ease)}
+.more-toggle[aria-expanded="true"] svg{transform:rotate(180deg)}
+.more-box{padding-top:2px;border-top:1px solid rgba(255,255,255,.08);padding-top:10px}
+.more-box[hidden]{display:none}
+.switch{position:relative;width:46px;height:28px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);padding:0;cursor:pointer;flex-shrink:0;
+  transition:background .3s var(--ease),border-color .3s var(--ease)}
+.switch i{position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:999px;background:linear-gradient(#fff,#e3ecf0);box-shadow:0 2px 6px rgba(0,0,0,.35);
+  transition:translate .45s cubic-bezier(.34,1.56,.64,1),width .22s var(--ease)}
+.switch:active i{width:27px}
+.switch[aria-checked="true"]{background:rgba(88,196,178,.55);border-color:rgba(160,240,225,.5)}
+.switch[aria-checked="true"] i{translate:18px 0}
+.switch[aria-checked="true"]:active i{translate:13px 0}
+.tab-pill::after{content:'';position:absolute;left:7px;right:7px;top:1px;height:42%;border-radius:999px;background:linear-gradient(rgba(255,255,255,.3),rgba(255,255,255,0))}
+
+/* ===== Expanded player (.xp) =====
+   One layer over the panel's own content. The compact rows stay where they are (hidden once expanded), so switching
+   back is exact. While the finger moves, JS drives everything from one number p (0 = compact, 1 = expanded): the panel's
+   height, the big cover (scaled down onto the small cover at p = 0), the title and the fades. The top part is anchored
+   to the panel's top and the bottom part (Up next + the bar) to its bottom, so nothing reflows while it grows. */
+.album-art,.xp-art,.xp-handle{touch-action:none}
+.album-art{cursor:pointer}
+.xp{position:absolute;inset:0;z-index:3;display:none;border-radius:inherit;overflow:hidden;pointer-events:none}
+.xp.show{display:block}
+.player-wrapper.xp-on .xp{pointer-events:auto}
+.player-wrapper.xp-on>#player-main,.player-wrapper.xp-on>#controls-main,.player-wrapper.xp-on>#footer-main{visibility:hidden}
+.player-wrapper.xp-anim>#player-main,.player-wrapper.xp-anim>#controls-main,.player-wrapper.xp-anim>#footer-main{pointer-events:none}
+.xp-top{position:absolute;left:0;right:0;top:0;padding:4px 20px 0;display:flex;flex-direction:column}
+.xp-handle{align-self:center;width:72px;height:22px;background:none;border:0;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.xp-handle i{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.38)}
+.xp-slot{position:relative;width:var(--xs,280px);height:var(--xs,280px);margin:8px auto 0;flex-shrink:0}
+.xp-art{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0;border-radius:22px;will-change:transform;cursor:grab}
+.xp-bloom{position:absolute;left:6%;right:6%;top:10%;bottom:-4%;border-radius:30px;background-size:cover;background-position:center;filter:blur(34px) saturate(1.6);opacity:0;pointer-events:none}
+.xp-clip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;
+  box-shadow:0 18px 40px rgba(0,0,0,.34),0 4px 12px rgba(0,0,0,.2)}
+.xp-clip img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
+.xp-clip svg{width:26%;height:26%;fill:rgba(255,255,255,.4)}
+.xp-clip::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),inset 0 1px 0 rgba(255,255,255,.3);background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,0) 42%)}
+.xp-meta{margin-top:18px;transform-origin:0 0;min-width:0}
+.xp-title{font-size:21px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 6px rgba(0,0,0,.45)}
+.xp-sub{margin-top:3px;font-size:14px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.xp-artist{color:rgba(255,255,255,.85);cursor:pointer}
+.xp-scrub{margin-top:18px}
+.xp-scrub .custom-range-slider{height:5px;border-radius:3px}
+.xp-times{display:flex;justify-content:space-between;margin-top:9px;font-size:11px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
+.xp-ctrls{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.xp-ctrls .player-btn{width:52px;height:52px}
+.xp-ctrls .player-btn svg{width:22px;height:22px}
+.xp-ctrls #xp-play{width:68px;height:68px;box-shadow:0 6px 18px rgba(0,0,0,.25),0 0 calc(4px + var(--pulse,0) * 16px) rgba(var(--lc,200,215,225),calc(.12 + var(--pulse,0) * .3))}
+.xp-ctrls #xp-play svg{width:30px;height:30px}
+.xp-ctrls .xp-tog{width:42px;height:42px;background-color:transparent;border-color:transparent;box-shadow:none;color:rgba(255,255,255,.55)}
+.xp-ctrls .xp-tog:active{background-color:rgba(255,255,255,.1)}
+.xp-ctrls .xp-tog svg{width:20px;height:20px}
+.xp-tog.on{color:rgb(120,222,202)}
+.xp-tog::after{content:'';position:absolute;bottom:3px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;opacity:0;transition:opacity .25s var(--ease)}
+.xp-tog.on::after{opacity:1}
+.xp-bottom{position:absolute;left:0;right:0;bottom:0;padding:0 0 10px}
+.xp-next-h{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;height:24px;padding:0 20px;font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);pointer-events:none}
+.xp-next-h span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xp-next-h button{pointer-events:auto;flex-shrink:0;background:none;border:0;color:rgba(255,255,255,.7);font:inherit;letter-spacing:inherit;padding:6px 0 6px 12px;cursor:pointer}
+/* the strip reaches up under its heading (transparent), so a card pulled up to remove isn't cut off straight away */
+.xp-strip{position:relative;z-index:1;display:flex;align-items:center;gap:8px;overflow-x:auto;overflow-y:hidden;margin-top:-26px;padding:34px 20px 10px;min-height:52px;
+  scrollbar-width:none;touch-action:pan-x;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent)}
+.xp-strip::-webkit-scrollbar{display:none}
+.xp-strip.dragging{overflow-x:hidden}
+.xp-card{position:relative;flex:0 0 138px;height:52px;display:flex;align-items:center;gap:8px;padding:0 10px 0 6px;box-sizing:border-box;border-radius:14px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  transition:background .22s var(--ease),border-color .22s var(--ease),opacity .22s ease}
+.xp-card:active{background:rgba(255,255,255,.14)}
+.xp-card.q::before{content:'';position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:rgb(88,196,178);box-shadow:0 0 6px rgba(88,196,178,.8)}
+.xp-card-art{width:38px;height:38px;border-radius:9px;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center}
+.xp-card-art img{width:100%;height:100%;object-fit:cover;pointer-events:none;-webkit-user-drag:none}
+.xp-card-art svg{width:14px;height:14px;fill:rgba(255,255,255,.35)}
+.xp-card-t{min-width:0;flex:1}
+.xp-card-title{font-size:12px;font-weight:600;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.xp-card-artist{font-size:10.5px;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.xp-card.lifted{z-index:5;background:linear-gradient(135deg,rgba(255,255,255,.2),rgba(255,255,255,.06)),rgba(19,54,68,.96);border-color:rgba(255,255,255,.3);box-shadow:0 12px 26px rgba(0,0,0,.35)}
+.xp-strip.dragging .xp-card:not(.lifted){opacity:.55}
+.xp-card.rm{background:rgba(255,99,99,.42);border-color:rgba(255,150,150,.55)}
+.xp-div{flex:0 0 1px;align-self:stretch;margin:6px 2px;background:rgba(255,255,255,.14)}
+.xp-empty{font-size:12px;color:rgba(255,255,255,.42);padding:0 2px;white-space:nowrap}
+.xp-bar{display:flex;align-items:center;justify-content:space-around;padding:2px 8px 0}
+.xp-bar button{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;color:rgba(255,255,255,.62);font:600 10px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.5px;padding:6px 10px;cursor:pointer;transition:color .2s var(--ease)}
+.xp-bar button:active{color:#fff}
+.xp-bar svg{width:20px;height:20px;fill:currentColor}
+.gear-btn{transition:opacity .25s var(--ease)}
+/* Library / Artists / Queue opened from the expanded player: the lists grow to fill the tall panel (a sheet under the
+   now-playing row); closing the section brings the big player back */
+.player-wrapper.sheet :is(.playlist-container){max-height:var(--sheet-h,240px)}
+.player-wrapper.sheet :is(.albums-grid-container,.queue-container){max-height:calc(var(--sheet-h,240px) + 44px)}
+.player-wrapper.sheet #artists-wrapper{max-height:calc(var(--sheet-h,240px) + 44px)!important}
+.player-wrapper.sheet .artist-scroll{height:var(--sheet-h,450px);max-height:var(--sheet-h,450px)}
+.player-wrapper.sheet .scroll-container-wrapper{max-height:none}
+.safe-probe{position:fixed;left:0;bottom:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom,0px)}
+html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px))}
 </style>
 </head>
 <body>
@@ -348,7 +575,7 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
   <div class="progress-container" id="controls-main" style="display:none;">
     <div class="controls-cluster">
       <button class="player-btn" id="prev-btn" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
-      <button class="player-btn" id="play-btn" aria-label="Play / hold for shuffle"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="player-btn" id="play-btn" aria-label="Play / hold for shuffle"><svg class="pb-icon" id="pb-icon" viewBox="0 0 24 24"><path id="pb-path" d="M8 5L13.5 8.5L13.5 15.5L8 19ZM13.5 8.5L19 12L19 12L13.5 15.5Z"/></svg><i class="pb-shine" id="pb-shine" aria-hidden="true"><i class="pb-comet"></i><i class="pb-face"></i></i><i class="pb-hold" id="pb-hold" aria-hidden="true"></i></button>
       <button class="player-btn" id="skip-btn"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
     </div>
     <span id="current-time">0:00</span>
@@ -360,7 +587,7 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
     <button class="tab-btn add-btn" id="btn-add">+ Songs</button>
     <button class="done-btn" id="edit-done" aria-label="Done">Done</button>
     <div class="tab-buttons">
-      <button class="tab-btn" id="btn-queue">Up Next</button>
+      <button class="tab-btn" id="btn-queue">Queue</button>
       <button class="tab-btn" id="btn-playlist">Library</button>
       <button class="tab-btn" id="btn-artists">Artists</button>
     </div>
@@ -391,7 +618,42 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
       <div class="artist-scroll" id="artist-ui"></div>
     </div>
   </div></div></div>
+
+  <div class="xp" id="xp" aria-hidden="true">
+    <div class="xp-top" id="xp-top">
+      <button class="xp-handle" id="xp-handle" aria-label="Close the big player"><i></i></button>
+      <div class="xp-slot" id="xp-slot">
+        <div class="xp-art" id="xp-art"><div class="xp-bloom" id="xp-bloom"></div><div class="xp-clip" id="xp-clip">
+          <svg id="xp-fallback" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          <img id="xp-art-img" alt="" style="display:none">
+        </div></div>
+      </div>
+      <div class="xp-meta" id="xp-meta"><div class="xp-title" id="xp-title"></div><div class="xp-sub"><span class="xp-artist" id="xp-artist"></span><span id="xp-album"></span></div></div>
+      <div class="xp-scrub" id="xp-scrub">
+        <div class="custom-range-slider" id="xp-progress"><div class="slider-fill"></div><div class="slider-thumb"></div></div>
+        <div class="xp-times"><span id="xp-cur">0:00</span><span id="xp-left">-0:00</span></div>
+      </div>
+      <div class="xp-ctrls" id="xp-ctrls">
+        <button class="player-btn xp-tog" id="xp-shuffle" aria-label="Shuffle"><svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
+        <button class="player-btn" id="xp-prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+        <button class="player-btn" id="xp-play" aria-label="Play"><svg id="xp-pb-icon" viewBox="0 0 24 24"><path id="xp-pb-path" d="M8 5L13.5 8.5L13.5 15.5L8 19ZM13.5 8.5L19 12L19 12L13.5 15.5Z"/></svg></button>
+        <button class="player-btn" id="xp-next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+        <button class="player-btn xp-tog" id="xp-repeat" aria-label="Repeat"><svg viewBox="0 0 24 24"><path id="xp-repeat-path" d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg></button>
+      </div>
+    </div>
+    <div class="xp-bottom" id="xp-bottom">
+      <div class="xp-next-h"><span id="xp-next-label">Up next</span><button id="xp-see-all">See all</button></div>
+      <div class="xp-strip" id="xp-strip"></div>
+      <div class="xp-bar">
+        <button id="xp-queue-btn"><svg viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>Queue</button>
+        <button id="xp-lib-btn"><svg viewBox="0 0 24 24"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 5h-3v5.5c0 1.38-1.12 2.5-2.5 2.5S10 13.88 10 12.5s1.12-2.5 2.5-2.5c.57 0 1.08.19 1.5.51V5h4v2zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6z"/></svg>Library</button>
+        <button id="xp-artists-btn"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>Artists</button>
+        <button id="xp-gear"></button>
+      </div>
+    </div>
+  </div>
 </div>
+<div class="safe-probe" id="safe-probe"></div>
 
 <div class="gear-btn" id="gear-trigger">
   <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12c0,0.32,0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.5c-1.93,0-3.5-1.57-3.5-3.5 c0-1.93,1.57-3.5,3.5-3.5s3.5,1.57,3.5,3.5C15.5,13.93,13.93,15.5,12,15.5z"/></svg>
@@ -404,6 +666,10 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
   <button class="upload-btn" id="home-btn" style="display:none">Add to Home Screen</button>
   <button class="hidden-toggle" id="hidden-toggle" aria-label="Hidden Albums" title="Hidden Albums"><svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2z"/></svg><span id="hidden-count"></span></button>
   <div class="hidden-list" id="hidden-list" style="display:none"></div>
+  <button class="more-toggle" id="more-toggle" aria-expanded="false">More<svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
+  <div class="more-box" id="more-box" hidden>
+    <div class="set-row"><span>Old panel<small>The previous flat glass panel</small></span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Old panel"><i></i></button></div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -411,6 +677,7 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 
 <script>
 const $ = id => document.getElementById(id);
+var XP = null;                                        // the expanded player (set further down); earlier code only calls it through `XP && ...`
 
 /* ---------- TELEGRAM ----------
    TG is Telegram's Mini App object when the player runs inside Telegram, and null everywhere else (Safari, the home-screen
@@ -428,7 +695,7 @@ function haptic(kind) {                               // "light" | "medium" | "s
 /* Telegram may clear the web view's storage (low space, cache cleanup). Settings and caches are mirrored into Telegram's
    DeviceStorage (on the phone, 5 MB per bot); if the local copy is gone at launch it is pulled back once and the page reloads. */
 const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
-const MIRROR = ["photoData", "wallpaperBlur", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache"], mirrorT = {};
+const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState"], mirrorT = {};
 const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}
   if (tgStore && MIRROR.includes(k)) { clearTimeout(mirrorT[k]); mirrorT[k] = setTimeout(() => { try { tgStore.setItem(k, String(v)); } catch (e) {} }, 800); }}};
 if (tgStore && !store.get("tgMark")) (function () {
@@ -477,6 +744,7 @@ function applyBg() {
   root.backgroundImage = `${vig}, url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;
   root.backgroundSize = "100% 100%, cover, cover";
   root.backgroundPosition = `center, ${pos}, center`;
+  if (window.__bgChanged) window.__bgChanged();                     // the Liquid Glass panel draws the wallpaper itself
 }
 $("upload-wall").addEventListener("click", () => $("photo-input").click());
 $("reset-wall").addEventListener("click", () => { store.set("photoData", ""); applyBg(); });
@@ -531,7 +799,9 @@ $("file-input").addEventListener("change", async e => {
   showPlayerUI();
   dupCount = 0;
   for (const f of files) await addFile(f);
+  if (!curPlayed) restoreState(); else restored = true;
   renderAlbums(); renderPlaylist();
+  if (queueShown()) renderQueue();
   if (dupCount) toast(`Skipped ${dupCount} duplicate${dupCount > 1 ? "s" : ""}`);
 });
 function readTags(f) {
@@ -609,11 +879,11 @@ function refreshNowPlaying() {
 let artReq = 0;
 function setCover(art) {
   const img = $("track-art-img"), req = ++artReq;
-  if (!art) { img.style.display = "none"; $("fallback-art").style.display = "block"; return; }
-  if (img.getAttribute("src") === art && img.style.display !== "none") return;
+  if (!art) { img.style.display = "none"; $("fallback-art").style.display = "block"; coverArrived(false); return; }
+  if (img.getAttribute("src") === art && img.style.display !== "none") { coverArrived(true); return; }
   const pre = new Image(); pre.src = art;
-  const show = () => { if (req !== artReq) return; img.style.opacity = ""; img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; };
-  const fail = () => { if (req !== artReq) return; img.style.display = "none"; $("fallback-art").style.display = "block"; };   // broken cover: show the note icon, not an empty box
+  const show = () => { if (req !== artReq) return; img.style.opacity = ""; img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; coverArrived(false); };
+  const fail = () => { if (req !== artReq) return; img.style.display = "none"; $("fallback-art").style.display = "block"; coverArrived(false); };   // broken cover: show the note icon, not an empty box
   if (pre.decode) pre.decode().then(show, fail); else { pre.onload = show; pre.onerror = fail; }
 }
 /* --- deleted albums (Trash), persisted ---- */
@@ -953,6 +1223,7 @@ function itemHTML(art, title, sub) {
     <div class="item-text"><div class="item-title">${esc(title)}</div><div class="item-artist">${esc(sub)}</div></div>`;
 }
 function renderPlaylist() {
+  if (swActive) { swLater.add(renderPlaylist); return; }             // a finger is on a row: rebuild once it lets go
   const ui = $("playlist-ui"); ui.innerHTML = "";
   const all = currentAlbum === "All Tracks";
   const entries = all ? tracks.map(t => ({ track: t, title: t.title, num: t.num })) : albumEntries(currentAlbum);
@@ -970,61 +1241,425 @@ function renderPlaylist() {
       ui.appendChild(item); return;
     }
     item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : ""));
-    item.addEventListener("click", () => { setPlayCtx(); loadTrack(t.id, true); });
-    const plus = document.createElement("button");
-    plus.className = "circle-btn"; plus.textContent = "+";
-    plus.addEventListener("click", ev => {
-      ev.stopPropagation(); queue.push(t.id); renderQueue();
-      plus.classList.add("success"); plus.textContent = "✓";
-      setTimeout(() => { plus.classList.remove("success"); plus.textContent = "+"; }, 800);
-    });
-    item.appendChild(plus); ui.appendChild(item);
+    item.addEventListener("click", () => { if (item._swiped) { item._swiped = false; return; } startContext(t.id); });
+    const row = swShell(item); row.classList.add("can"); libSwipe(row, t.id);   // swipe left: Play Next, further: Play Last
+    ui.appendChild(row);
   });
+  if (playlistWrapper.style.display === "block") swipeHint();
 }
-function renderQueue() {
-  const ui = $("queue-ui");
-  if (!queue.length) { ui.innerHTML = '<div style="font-size:12px;color:rgba(255,255,255,.4);text-align:center;padding:20px;">Queue is empty.</div>'; return; }
+/* ---------- PLAYBACK MODEL ----------
+   Three separate things decide what plays:
+   - queue:   only the songs you added (swipe in Library: Play next = top, Play last = bottom). Always plays first.
+   - context: what you started playing (an album, the whole library...). It is a cursor, not a copy: the album's own
+              list, an optional custom order (shuffle, or your edits in the Queue tab), and `at` = the last context song
+              that played. When the queue is empty, Next moves the cursor on. Playing a queued song doesn't move it,
+              so the album carries on exactly where it paused. At the end the album starts again (as before).
+   - history: what you actually heard; Previous walks back through it.
+   Where the current song came from: nowFrom = "context" | "queue" | "other" (a replay from History, a restored song...).
+   Repeat (the button in the big player): "all" = the album starts again at its end (the old behaviour, still the default),
+   "one" = the song loops, "off" = at the end of the album playback stops on its first song. */
+const ICON_NEXT = `<svg viewBox="0 0 24 24"><path d="M2 6h12v2H2zm0 4h12v2H2zm0 4h8v2H2zm14-4v8l6-4z"/></svg>`;
+const ICON_LAST = `<svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg>`;
+const ICON_REMOVE = `<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
+const ICON_CHECK = `<svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>`;
+const ICON_HANDLE = `<svg viewBox="0 0 24 24"><path d="M20 9H4v2h16V9zM4 15h16v-2H4v2z"/></svg>`;
+let history = [], nowFrom = "other", curPlayed = false, shuffle = false;
+let repeatMode = ["all", "one", "off"].includes(store.get("repeatMode")) ? store.get("repeatMode") : "all";
+let ctx = null;                                                      // { name, ids: [..] | null (= whole library, live), order: [..] | null (= the list's own order), at: id }
+const HIST_MAX = 100, CTX_ROWS = 20;
+const trackById = id => tracks.find(x => x.id === id);
+const allIds = () => tracks.map(t => t.id);
+const queueShown = () => queueWrapper.style.display === "block" && drawerBox.classList.contains("expanded");
+function shuffled(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function ctxList() { if (!ctx) return []; if (!ctx.ids) return allIds(); const s = new Set(allIds()); return ctx.ids.filter(id => s.has(id)); }
+function ctxOrder() {                                                // the context in play order; a custom order drops songs that left the library
+  if (!ctx) return []; if (!ctx.order) return ctxList();
+  const s = new Set(allIds()); return ctx.order.filter(id => s.has(id));
+}
+function ctxOwnOrder() { ctx.order = ctxOrder(); return ctx.order; } // make the order editable (shuffle, drag, remove)
+function ctxUpcoming() { const o = ctxOrder(), i = o.indexOf(ctx && ctx.at); return o.slice(i + 1); }   // what the album still has to play
+function ctxRestart() {                                              // the album is over: start it again from the top (reshuffled if shuffle is on)
+  const l = ctxList(); ctx.order = shuffle ? shuffled(l) : null; ctx.at = null;
+}
+function ctxNext(commit) {                                           // the next context song; commit = actually wrap round at the end
+  if (!ctx) return null;
+  const up = ctxUpcoming(); if (up.length) return up[0];
+  if (!ctxList().length) return null;
+  if (!commit) return shuffle ? null : ctxList()[0];
+  ctxRestart(); return ctxOrder()[0];
+}
+function startContext(id) {                                          // a song tapped in Library: that album (or the whole library) becomes the context; your queue stays
+  const lib = currentAlbum === "All Tracks";
+  ctx = { name: lib ? "Library" : currentCat ? currentCat.title : currentAlbum, ids: lib ? null : contextList().map(t => t.id), order: null, at: id };
+  if (shuffle) ctx.order = [id, ...shuffled(ctxList().filter(x => x !== id))];
+  renderQueue.all = false;                                           // a new album: show its first songs again, not all of them
+  playId(id, "context");
+}
+function ensureContext() {                                           // first song of a session: the library is the context
+  if (curId == null && tracks.length) loadTrack(tracks[0].id, false, { noHist: true, from: "context" });
+  if (!ctx && curId != null) { ctx = { name: "Library", ids: null, order: null, at: curId }; nowFrom = "context"; }
+}
+function playId(id, from, o = {}) {                                  // play a song and record where it came from
+  if (from === "context") ctx.at = id;
+  loadTrack(id, o.autoplay !== false, { ...o, from });
+  queueChanged();
+}
+function peekNext() { return queue.length ? queue[0].id : ctxNext(false); }   // what Next would play (for prefetching)
+function queueChanged() {                                            // after any change to queue / history / context
+  if (queueShown()) renderQueue();
+  saveState();
+  if (XP) XP.sync();                                                 // the big player's Up next strip, shuffle / repeat buttons
+  const c = trackById(curId); if (c && c.file) prefetchNext();       // the next song may be a different one now
+}
+function enqueue(id, last) {                                         // Play next = top of your queue, Play last = bottom. Both play before the album continues.
+  const t = trackById(id); if (!t) return;
+  if (last) queue.push({ id }); else queue.unshift({ id });
+  toast(last ? `“${t.title}” added to the queue` : `“${t.title}” plays next`);
+  queueChanged();
+}
+function pushHistory(id, from) {
+  const last = history[history.length - 1];
+  if (!last || last.id !== id) history.push({ id, from });
+  if (history.length > HIST_MAX) history.splice(0, history.length - HIST_MAX);
+}
+function applyShuffle() {                                            // shuffle only ever touches the album, never your queue
+  if (!ctx) return;
+  if (shuffle) { const l = ctxList(), at = ctx.at; ctx.order = l.includes(at) ? [at, ...shuffled(l.filter(x => x !== at))] : shuffled(l); }
+  else ctx.order = null;                                             // back to album order, continuing after the song the album was at
+}
+
+/* ---------- SWIPE ----------
+   One gesture engine for every list. Drag a row to the left: it slides with the finger and uncovers an action strip.
+   Each list passes its stages, ordered by distance (Library: Play Next, then Play Last; Queue: Remove).
+   - The row only moves once the finger clearly goes left (12 px, and mostly sideways); anything else is a scroll.
+   - Before the first stage the strip is grey and its label faint: a preview, releasing there does nothing.
+   - Passing a stage: the strip takes that action's colour, the label pops, the phone ticks. Going back below a stage
+     (12 px of slack, so it doesn't flicker on the line) undoes it the same way; back near the start = nothing happens.
+   - Past the last stage the row gets heavy (rubber band), so there's no stage 3 to hunt for. */
+const SW_TONE = { next: "88,196,178", last: "126,146,255", remove: "255,99,99" };
+const LIB_STAGES = [{ min: 64, f: .2, label: "Play next", icon: ICON_NEXT, tone: SW_TONE.next }, { min: 170, f: .52, label: "Play last", icon: ICON_LAST, tone: SW_TONE.last }];   // on a phone: ~66 px and ~172 px
+const Q_STAGES = [{ min: 90, f: .35, label: "Remove", icon: ICON_REMOVE, tone: SW_TONE.remove }];
+let swActive = null; const swLater = new Set();                     // swActive: the row being swiped or dragged; lists wait for it before rebuilding
+function swRelease() { swActive = null; setTimeout(() => { if (swActive) return; const l = [...swLater]; swLater.clear(); l.forEach(f => f()); }, 420); }
+function swShell(fg) {                                               // wraps a row: <div.sw> <div.sw-bg><div.sw-lab/></div> fg </div>
+  const w = document.createElement("div"); w.className = "sw";
+  w.innerHTML = '<div class="sw-bg"><div class="sw-lab"></div></div>';
+  fg.classList.add("sw-fg"); w.appendChild(fg); return w;
+}
+function swPaint(row, stages, k, d) {
+  const bg = row.querySelector(".sw-bg"), lab = row.querySelector(".sw-lab"), st = stages[Math.max(0, k - 1)];
+  if (lab._k !== k) {
+    lab._k = k; lab.innerHTML = st.icon + `<span>${st.label}</span>`; row.dataset.stage = k;
+    bg.style.setProperty("--tone", k ? st.tone : "255,255,255");
+    lab.classList.remove("pop"); if (k) { void lab.offsetWidth; lab.classList.add("pop"); }
+  }
+  lab.style.opacity = k ? "1" : Math.min(.5, d / 90).toFixed(2);
+  if (lab._k !== lab._mk) { lab._mk = lab._k; lab._w = lab.scrollWidth; }   // the word shows only once all of it fits; until then the icon and colour speak
+  lab.classList.toggle("fit", d >= lab._w - 2);
+}
+function swBack(row, keepTone) {                                     // spring back into place
+  const fg = row.querySelector(".sw-fg"), bg = row.querySelector(".sw-bg");
+  fg.style.transition = "transform .34s var(--ease)"; fg.style.transform = "";
+  bg.style.transition = "width .34s var(--ease),background .3s ease"; bg.style.width = "0px";
+  if (!keepTone) row.dataset.stage = "0";
+  setTimeout(() => { if (!row._sw) { row.dataset.stage = "0"; fg.style.transition = bg.style.transition = ""; } }, 360);
+}
+function attachSwipe(row, stages, onCommit) {
+  const fg = row.querySelector(".sw-fg"), bg = row.querySelector(".sw-bg"); let s = null;
+  const at = st => Math.max(st.min, st.f * fg.offsetWidth);
+  const stageOf = (d, prev) => { let k = 0; stages.forEach((st, i) => { if (d >= at(st) - (prev > i ? 12 : 0)) k = i + 1; }); return k; };
+  fg.addEventListener("pointerdown", e => {
+    if ((e.pointerType === "mouse" && e.button) || e.target.closest(".q-handle") || swActive) return;
+    s = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false, k: 0, d: 0 };
+  });
+  fg.addEventListener("pointermove", e => {
+    if (!s || e.pointerId !== s.id) return;
+    if (row._dragging) { s = null; return; }
+    const dx = e.clientX - s.x, dy = e.clientY - s.y;
+    if (!s.on) {
+      if (dx < -12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        s.on = true; s.x0 = e.clientX; swActive = row; row._sw = true;
+        try { fg.setPointerCapture(e.pointerId); } catch (er) {}
+        fg.style.transition = bg.style.transition = "none"; swPaint(row, stages, 0, 0);
+      } else { if (Math.abs(dy) > 10 || dx > 10) s = null; return; }
+    }
+    let d = Math.max(0, s.x0 - e.clientX);
+    const lim = at(stages[stages.length - 1]) + 70; if (d > lim) d = lim + (d - lim) * .3;
+    const k = stageOf(d, s.k);
+    if (k !== s.k) haptic("select");
+    s.k = k; s.d = d;
+    fg.style.transform = `translateX(${-d}px)`; bg.style.width = d + "px"; swPaint(row, stages, k, d);
+  });
+  const end = () => {
+    if (!s) return; const w = s; s = null; if (!w.on) return;
+    swRelease(); row._sw = false;
+    fg._swiped = true; setTimeout(() => { fg._swiped = false; }, 400);
+    if (!w.k) { swBack(row); return; }
+    haptic("light");
+    onCommit(w.k, row);
+  };
+  fg.addEventListener("pointerup", end); fg.addEventListener("pointercancel", end);
+}
+function swDone(row, text) {                                         // Library: confirm inside the strip, then the row springs back
+  const lab = row.querySelector(".sw-lab"); lab.innerHTML = ICON_CHECK + `<span>${text}</span>`; lab.classList.toggle("fit", row.querySelector(".sw-bg").offsetWidth >= lab.scrollWidth - 2); lab.classList.remove("pop"); void lab.offsetWidth; lab.classList.add("pop");
+  setTimeout(() => swBack(row, true), 140);
+}
+function swOut(row, cb) {                                            // Queue: the row leaves and the gap closes
+  const fg = row.querySelector(".sw-fg"), bg = row.querySelector(".sw-bg");
+  fg.style.transition = "transform .2s var(--ease)"; fg.style.transform = "translateX(-100%)";
+  bg.style.transition = "width .2s var(--ease)"; bg.style.width = "100%";
+  row.style.height = row.offsetHeight + "px"; row.classList.add("collapse");
+  setTimeout(() => { row.style.height = "0px"; row.style.opacity = "0"; }, 150);
+  setTimeout(cb, 380);
+}
+function libSwipe(row, id) {
+  attachSwipe(row, LIB_STAGES, k => { enqueue(id, k === 2); swDone(row, k === 2 ? "Added" : "Plays next"); });
+}
+function swipeHint() {                                               // once ever: the first song peeks left to show there's something behind it
+  if (store.get("hintSwipe")) return;
+  const row = $("playlist-ui").querySelector(".sw.can"); if (!row) return;
+  store.set("hintSwipe", "1");
+  setTimeout(() => {
+    if (!row.isConnected) return;
+    const fg = row.querySelector(".sw-fg"), bg = row.querySelector(".sw-bg");
+    fg.style.transition = bg.style.transition = "transform .5s var(--ease),width .5s var(--ease)";
+    fg.style.transform = "translateX(-76px)"; bg.style.width = "76px"; swPaint(row, LIB_STAGES, 1, 76);
+    setTimeout(() => swBack(row), 1100);
+    toast("Swipe a song left to queue it");
+  }, 650);
+}
+
+/* the view: History · Now Playing · Queue (yours) · Continuing from <album> */
+function renderQueue(scrollToNow) {
+  if (swActive) { swLater.add(renderQueue); return; }
+  const ui = $("queue-ui"), keep = ui.scrollTop, cur = trackById(curId);
+  if (!cur) { ui.innerHTML = '<div class="q-empty">Nothing playing yet.</div>'; return; }
   ui.innerHTML = "";
-  queue.forEach((id, i) => {
-    const t = tracks.find(x => x.id === id); if (!t) return;
-    const item = document.createElement("div"); item.className = "queue-item";
-    item.innerHTML = itemHTML(t.art || albumCover(t.album), t.title, t.artist);
-    item.addEventListener("click", () => { queue.splice(i, 1); loadTrack(t.id, true); renderQueue(); });
-    const rm = document.createElement("button"); rm.className = "circle-btn"; rm.textContent = "×";
-    rm.addEventListener("click", e => { e.stopPropagation(); queue.splice(i, 1); renderQueue(); });
-    item.appendChild(rm); ui.appendChild(item);
+  const sec = (title, btn, fn) => {
+    const s = document.createElement("div"); s.className = "q-sec"; s.innerHTML = `<span></span>`; s.firstChild.textContent = title;
+    if (btn) { const b = document.createElement("button"); b.textContent = btn; b.addEventListener("click", fn); s.appendChild(b); }
+    ui.appendChild(s); return s;
+  };
+  const note = (t, cls, fn) => { const m = document.createElement(fn ? "button" : "div"); m.className = cls; m.textContent = t; if (fn) m.addEventListener("click", fn); ui.appendChild(m); };
+  const row = (t, kind, i, group) => {
+    const fg = document.createElement("div"); fg.className = "q-fg";
+    fg.innerHTML = itemHTML(t.art || albumCover(t.album), t.title, t.artist) + (group ? `<div class="q-handle" aria-label="Move">${ICON_HANDLE}</div>` : "");
+    const r = swShell(fg); r.classList.add("q-row", kind);
+    if (kind !== "now") {
+      fg.addEventListener("click", () => { if (fg._swiped) { fg._swiped = false; return; } playFromQueue(kind, i); });
+      attachSwipe(r, Q_STAGES, () => swOut(r, () => removeRow(kind, i)));
+    }
+    if (group) { r._qi = i; r.dataset.group = group; attachReorder(r, i, group); }
+    const art = t.art || albumCover(t.album); if (art) r.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
+    ui.appendChild(r); return r;
+  };
+  const hist = history.slice(-30), h0 = history.length - hist.length;
+  if (hist.length) { sec("History", "Clear", () => { history = []; queueChanged(); }); hist.forEach((h, k) => { const t = trackById(h.id); if (t) row(t, "hist", h0 + k); }); }
+  const nowSec = sec(nowFrom === "context" && ctx ? `Playing from ${ctx.name}` : "Now Playing"); row(cur, "now");
+  if (queue.length) {
+    sec(`Queue · ${queue.length}`, "Clear", () => { queue = []; toast("Queue cleared"); haptic("light"); queueChanged(); });
+    queue.forEach((e, i) => { const t = trackById(e.id); if (t) row(t, "queue", i, "queue"); });
+  }
+  if (ctx) {
+    const up = ctxUpcoming(), n = renderQueue.all ? up.length : Math.min(up.length, CTX_ROWS);
+    sec(`${queue.length ? "Then" : "Next"} from ${ctx.name}${shuffle ? " · Shuffled" : ""}`);
+    up.slice(0, n).forEach((id, i) => { const t = trackById(id); if (t) row(t, "ctx", i, "ctx"); });
+    if (up.length > n) note(`Show all ${up.length}`, "q-more q-link", () => { renderQueue.all = true; renderQueue(); });
+    else if (ctxList().length) note(repeatMode === "off" ? (up.length ? `Then ${ctx.name} stops` : `${ctx.name} stops after this song`) : up.length ? `Then ${ctx.name} starts again` : `${ctx.name} starts again from the top`, "q-more");
+  } else if (!queue.length) note("Nothing after this song. Swipe a song left in Library to queue it.", "q-empty");
+  ui.scrollTop = scrollToNow ? nowSec.offsetTop : keep;
+}
+function removeRow(kind, i) {
+  if (kind === "hist") history.splice(i, 1);
+  else if (kind === "queue") queue.splice(i, 1);
+  else { const o = ctxOwnOrder(), base = o.indexOf(ctx.at) + 1; o.splice(base + i, 1); }   // this time round only; it's back when the album starts again
+  queueChanged();
+}
+function playFromQueue(kind, i) {
+  if (kind === "hist") playId(history.splice(i, 1)[0].id, "other");          // a replay: the album stays where it was
+  else if (kind === "queue") playId(queue.splice(i, 1)[0].id, "queue");      // the rest of your queue stays queued
+  else playId(ctxUpcoming()[i], "context");                                  // the album jumps there; your queue still plays first
+  haptic("light");
+}
+/* Reorder: hold a song anywhere (a long press) or grab its handle (at once), then drag.
+   - The card follows the finger through a light spring (every frame, no CSS transitions to fight), so pick-up and
+     movement are smooth; it lifts to 1.03 and its glass and cover glow fade in.
+   - The rest of the list dims and makes room. A row moves out of the way once the edge of the card you're moving
+     towards passes that row's middle, so a tall (two-line) song can always pass a short one, and vice versa.
+   - On release the card glides into its gap, then the list is rebuilt. */
+const LONG_PRESS = 380;
+let qDrag = null;
+document.addEventListener("touchmove", e => { if (qDrag) e.preventDefault(); }, { passive: false });   // while holding a song the list mustn't scroll under the finger
+function attachReorder(r, from, group) {
+  const handle = r.querySelector(".q-handle"), fg = r.querySelector(".q-fg");
+  handle.addEventListener("click", e => e.stopPropagation());
+  handle.addEventListener("pointerdown", e => {
+    if ((e.pointerType === "mouse" && e.button) || swActive) return;
+    e.preventDefault(); e.stopPropagation();
+    beginDrag(r, from, group, e, handle);
+  });
+  fg.addEventListener("pointerdown", e => {                           // long press anywhere on the row
+    if ((e.pointerType === "mouse" && e.button) || swActive || e.target.closest(".q-handle")) return;
+    const x0 = e.clientX, y0 = e.clientY, id = e.pointerId;
+    let t = setTimeout(() => { t = 0; cleanup(); if (!swActive) { fg._swiped = true; beginDrag(r, from, group, { clientY: y0, pointerId: id }, fg); } }, LONG_PRESS);
+    const mv = ev => { if (ev.pointerId === id && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) { clearTimeout(t); cleanup(); } };
+    const stop = () => { clearTimeout(t); cleanup(); };
+    const cleanup = () => { fg.removeEventListener("pointermove", mv); fg.removeEventListener("pointerup", stop); fg.removeEventListener("pointercancel", stop); };
+    fg.addEventListener("pointermove", mv); fg.addEventListener("pointerup", stop); fg.addEventListener("pointercancel", stop);
   });
 }
+function beginDrag(r, from, group, e, el) {
+  const ui = $("queue-ui");
+  try { el.setPointerCapture(e.pointerId); } catch (er) {}
+  const rows = [...ui.querySelectorAll(`.q-row[data-group="${group}"]`)], me = rows.indexOf(r), idx = rows.map(x => x._qi);
+  const tops = rows.map(x => x.offsetTop), hts = rows.map(x => x.offsetHeight), H = hts[me], mid = j => tops[j] + hts[j] / 2;
+  const last = rows.length - 1, dyMin = tops[0] - tops[me] - 10, dyMax = tops[last] + hts[last] - tops[me] - H + 10;
+  const y0 = e.clientY, st0 = ui.scrollTop;
+  let y = e.clientY, to = me, cy = 0, sc = 1, raf = 0, done = false;
+  swActive = r; qDrag = r; r._dragging = true; haptic("medium");
+  ui.classList.add("dragging"); r.classList.remove("landing"); r.classList.add("lifted");
+  r.style.transition = "none";
+  rows.forEach(x => { if (x !== r) x.style.transition = "transform .24s var(--ease),opacity .22s ease"; });
+  const frame = () => {
+    const b = ui.getBoundingClientRect(), v = y < b.top + 34 ? -6 : y > b.bottom - 34 ? 6 : 0;   // keep scrolling while held near the edge
+    if (v) ui.scrollTop += v;
+    const ty = Math.max(dyMin, Math.min(dyMax, y - y0 + ui.scrollTop - st0));
+    cy += (ty - cy) * .42; sc += (1.03 - sc) * .22;                   // light spring: smooth, but stays under the finger
+    if (Math.abs(ty - cy) < .3) cy = ty;
+    r.style.transform = `translateY(${cy.toFixed(2)}px) scale(${sc.toFixed(4)})`;
+    const top = tops[me] + cy, bot = top + H; let nt = me;
+    rows.forEach((x, j) => {
+      if (x === r) return;
+      const down = j < me && top < mid(j), upw = j > me && bot > mid(j);
+      if (down) nt--; if (upw) nt++;
+      const want = down ? `translateY(${H}px)` : upw ? `translateY(${-H}px)` : "";
+      if (x.style.transform !== want) x.style.transform = want;
+    });
+    if (nt !== to) { to = nt; haptic("select"); }
+    raf = requestAnimationFrame(frame);
+  };
+  const move = ev => { y = ev.clientY; };
+  const up = () => {
+    if (done) return; done = true;
+    cancelAnimationFrame(raf); el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up);
+    qDrag = null; r._dragging = false;
+    let land = 0;                                                     // glide into the gap that opened for it
+    if (to > me) for (let j = me + 1; j <= to; j++) land += hts[j];
+    else for (let j = to; j < me; j++) land -= hts[j];
+    r.style.transition = "transform .28s var(--ease)"; r.style.transform = `translateY(${land}px)`;
+    r.classList.remove("lifted"); r.classList.add("landing"); ui.classList.remove("dragging");
+    haptic("light");
+    setTimeout(() => {
+      swActive = null; swLater.delete(renderQueue);
+      if (to !== me) {                                               // lands where row "to" was
+        if (group === "queue") { const [e2] = queue.splice(from, 1); queue.splice(idx[to], 0, e2); }
+        else { const o = ctxOwnOrder(), base = o.indexOf(ctx.at) + 1, [x] = o.splice(base + from, 1); o.splice(base + idx[to], 0, x); }
+      }
+      queueChanged(); if (!queueShown()) renderQueue();
+    }, 290);
+  };
+  el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  raf = requestAnimationFrame(frame);
+}
+
+/* ---------- REMEMBER WHERE YOU WERE ----------
+   Current song, position, your queue, history and the context (which album, its custom order if any, where it was)
+   are saved on this device (and inside Telegram also in its DeviceStorage), and come back the next time the player
+   opens. Songs are matched by a stable key: the server's id for bot songs, the tags for songs picked from the phone.
+   The whole-library context is saved as "library", not as a list. */
+const tkey = t => t.remote ? "r:" + t.remote.id : "l:" + [t.artist, t.album, t.disc, t.num, t.title].join("|").toLowerCase();
+let pendingSeek = null, restored = false, lastSave = 0;
+function saveState() { clearTimeout(saveState.t); saveState.t = setTimeout(saveStateNow, 400); }
+function saveStateNow() {
+  clearTimeout(saveState.t); lastSave = Date.now();
+  const cur = trackById(curId); if (!cur || !restored) return;         // never overwrite a saved state before it has been restored
+  const K = ids => ids.map(trackById).filter(Boolean).map(tkey), k1 = id => { const t = trackById(id); return t ? tkey(t) : null; };
+  const pos = pendingSeek != null ? pendingSeek : audio.currentTime || 0, dur = isFinite(audio.duration) ? audio.duration : (saveStateNow.dur || 0);
+  store.set("playState", JSON.stringify({ v: 3, cur: tkey(cur), from: nowFrom, pos: +pos.toFixed(1), dur: +dur.toFixed(1),
+    queue: K(queue.map(e => e.id)), hist: history.slice(-50).filter(h => trackById(h.id)).map(h => [k1(h.id), h.from]),
+    ctx: ctx && { name: ctx.name, ids: ctx.ids ? K(ctx.ids) : null, order: ctx.order ? K(ctx.order) : null, at: k1(ctx.at) } }));
+}
+function restoreState() {                                             // once, when the library first appears (bot) or the first songs are picked (web)
+  if (restored) return; restored = true;
+  let s = null; try { s = JSON.parse(store.get("playState") || "null"); } catch (e) {}
+  const map = new Map(tracks.map(t => [tkey(t), t.id])), cur = s && map.get(s.cur);
+  if (!s || cur == null || ![1, 2, 3].includes(s.v)) { ensureContext(); return; }
+  const I = a => (a || []).map(k => map.get(k)).filter(x => x != null);
+  if (s.v === 3) {
+    queue = I(s.queue).map(id => ({ id }));
+    history = (s.hist || []).map(h => ({ id: map.get(h[0]), from: h[1] })).filter(h => h.id != null);
+    ctx = s.ctx ? { name: s.ctx.name, ids: s.ctx.ids ? I(s.ctx.ids) : null, order: s.ctx.order ? I(s.ctx.order) : null, at: map.get(s.ctx.at) ?? null } : null;
+    if (ctx && ctx.ids && !ctx.ids.length) ctx = null;
+  } else {                                                            // saved by an earlier version: its own songs become the queue, the album becomes the context
+    const E = a => (a || []).map(x => Array.isArray(x) ? [map.get(x[0]), !!x[1]] : [map.get(x), true]).filter(x => x[0] != null);
+    queue = E(s.queue).filter(x => x[1]).map(x => ({ id: x[0] }));
+    history = E(s.hist).map(x => ({ id: x[0], from: x[1] ? "queue" : "context" }));
+    const ids = s.ctx ? I(s.ctx) : null;
+    ctx = s.ctx && !ids.length ? null : { name: s.ctxName || "Library", ids, order: null, at: cur };
+  }
+  const from = s.v === 3 ? s.from : (s.cm || s.fq) ? "queue" : "context";
+  loadTrack(cur, false, { noHist: true, from: from === "context" && !ctx ? "other" : from });
+  if (!ctx) ensureContext();
+  if (s.pos > 2 && (!s.dur || s.pos < s.dur - 2)) {                    // jump back to where you were once the song is ready
+    pendingSeek = s.pos; saveStateNow.dur = s.dur || 0;
+    $("current-time").innerText = fmt(s.pos);
+    if (s.dur) { $("total-duration").innerText = fmt(s.dur); progressCtrl.setValue(s.pos / s.dur); }
+    if (audio.readyState >= 1) applyPendingSeek();
+  }
+  saveState();
+  if (XP) XP.sync();
+}
+function applyPendingSeek() {
+  if (pendingSeek == null || !isFinite(audio.duration)) return;
+  const p = Math.min(pendingSeek, audio.duration - 1); pendingSeek = null;
+  try { audio.currentTime = p; } catch (e) {}
+  progressCtrl.setValue(p / audio.duration); $("current-time").innerText = fmt(p);
+}
+audio.addEventListener("loadedmetadata", applyPendingSeek);
+audio.addEventListener("pause", () => saveStateNow());
+addEventListener("pagehide", () => saveStateNow());
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveStateNow(); });
 
 /* ---------- PLAYBACK ---------- */
 let curUrl = null;
-function loadTrack(id, autoplay) {
+/* o.from: where the song came from ("context" | "queue" | "other")
+   o.back: going back through History (the song you leave isn't added to History again)
+   o.noHist: restoring the last session */
+function loadTrack(id, autoplay, o = {}) {
   const t = tracks.find(x => x.id === id); if (!t) return;
+  const dir = songDir; songDir = 0;
+  const anim = !!autoplay && curId !== null && curId !== id && songOut(dir);   // the old title leaves before the new one is written
+  if (curId !== null && curId !== id && curPlayed && !o.back && !o.noHist) pushHistory(curId, nowFrom);
+  nowFrom = o.from || "other"; curPlayed = false; pendingSeek = null;
   curId = id;
   if (curUrl) { URL.revokeObjectURL(curUrl); curUrl = null; }
   let later = false;                                                 // true: a bot song is being read from the phone cache, it starts itself
   if (t.file) { curUrl = URL.createObjectURL(t.file); audio.src = curUrl; analyze(t); }
   else if (t.remote) later = remoteSrc(t, autoplay);
-  if (ctxIds().includes(id)) ctxCur = id;
   $("track-title").innerText = t.title; sparkStop();
   $("track-artist").innerText = t.artist;
+  if (anim) songIn(dir);
   setCover(t.art || albumCover(t.album));
   progressCtrl.setValue(0);
   $("current-time").innerText = "0:00"; $("total-duration").innerText = "0:00";
-  playBtn.innerHTML = playIconSvg;
+  if (XP) XP.onSong(dir, !!autoplay);                                // the big player's title, album and times
+  if (!autoplay) setPlayIcon(false);                                 // autoplay: Play stays as it is, no flicker between songs
   if ("mediaSession" in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.album,
       artwork: (t.art || albumCover(t.album)) ? [{ src: t.art || albumCover(t.album), sizes: "512x512" }] : [] });
   }
   if (playlistWrapper.style.display === "block") renderPlaylist();     // only rebuild the list if it's on screen; it's rebuilt when opened anyway
+  if (queueShown()) renderQueue();
+  saveState();
   if (autoplay && !later) playTrack();
 }
-function playTrack() { audio.play().then(() => { playBtn.innerHTML = pauseIconSvg; }).catch(() => {}); }
-function pauseTrack() { audio.pause(); playBtn.innerHTML = playIconSvg; }
+function playTrack() { audio.play().then(() => setPlayIcon(true)).catch(() => { if (audio.paused) setPlayIcon(false); }); }
+function pauseTrack() { audio.pause(); setPlayIcon(false); }
 /* Seek. A bot song that is still playing from the stream but has meanwhile fully downloaded switches to that local copy
    right here: the seek interrupts the sound anyway, so the switch can't be heard, and every later seek is instant
    instead of a new request to the server. */
 function seekTo(time) {
+  pendingSeek = null;
   const t = tracks.find(x => x.id === curId);
   if (t && t.remote && t.file && !curUrl) {
     const wasPlaying = !audio.paused;
@@ -1034,60 +1669,204 @@ function seekTo(time) {
   }
   audio.currentTime = time;
 }
-/* play context = the list the current track was started from; shuffle reorders just that list */
-let playCtx = null, ctxCur = null, shuffle = false, shufOrder = [], shufKey = "";
-const allIds = () => tracks.map(t => t.id);
-function ctxIds() { if (!playCtx) return allIds(); const s = new Set(allIds()), ids = playCtx.filter(id => s.has(id)); return ids.length ? ids : allIds(); }
-function setPlayCtx() { playCtx = currentAlbum === "All Tracks" ? null : contextList().map(t => t.id); shufKey = ""; }
-function buildShuffle(ids, ref) {
-  const a = ids.filter(x => x !== ref);
-  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-  return ref == null ? a : [ref, ...a];
-}
-function stepId(dir) {
-  let ids = ctxIds(), ref = ids.includes(ctxCur) ? ctxCur : ids.includes(curId) ? curId : null;
-  if (ref === null) { ids = allIds(); ref = curId; }
-  if (shuffle) {
-    const key = ids.slice().sort((x, y) => x - y).join(",");
-    if (key !== shufKey || !shufOrder.includes(ref)) { shufKey = key; shufOrder = buildShuffle(ids, ref); }
-    ids = shufOrder;
-  }
-  if (!ids.length) return null;
-  return ids[(ids.indexOf(ref) + dir + ids.length) % ids.length];
-}
 function toggleShuffle() {
-  shuffle = !shuffle; shufKey = "";
+  shuffle = !shuffle;
   $("shuf-ind").classList.toggle("on", shuffle);
   toast(shuffle ? "Shuffle on" : "Shuffle off");
   haptic("medium");
+  applyShuffle(); queueChanged();
 }
+function cycleRepeat() {                                             // all -> one -> off -> all
+  repeatMode = repeatMode === "all" ? "one" : repeatMode === "one" ? "off" : "all";
+  store.set("repeatMode", repeatMode);
+  toast(repeatMode === "one" ? "Repeat this song" : repeatMode === "off" ? "Repeat off" : "Repeat all");
+  haptic("medium"); queueChanged();
+}
+/* Next: your queue first; when it's empty the album moves on (and starts again at its end). */
 function playNext() {
-  if (queue.length) { const id = queue.shift(); renderQueue(); loadTrack(id, true); return; }
-  const id = stepId(1); if (id != null) loadTrack(id, true);
+  songDir = 1;
+  if (queue.length) { playId(queue.shift().id, "queue"); return; }
+  const id = ctxNext(true); if (id != null) playId(id, "context");
 }
+/* A song ended on its own: Repeat one plays it again; Repeat off stops at the end of the album (on its first song,
+   paused), otherwise it's the same as Next. */
+function onEnded() {
+  if (repeatMode === "one") { try { audio.currentTime = 0; } catch (e) {} playTrack(); return; }
+  if (repeatMode === "off" && !queue.length && ctx && !ctxUpcoming().length && ctxList().length) {
+    ctxRestart(); const id = ctxOrder()[0];
+    if (id != null) { songDir = 1; playId(id, "context", { autoplay: false }); }
+    return;
+  }
+  playNext();
+}
+/* Previous: restart the song if you're past 3 s; otherwise go back to the song you actually heard before (History).
+   The song you leave comes back next: a queued song returns to the top of the queue; for an album song the album's
+   cursor steps back, so Next plays it again. */
 function playPrev() {
   if (audio.currentTime > 3) { seekTo(0); return; }
-  const id = stepId(-1); if (id != null) loadTrack(id, true);
+  while (history.length && !trackById(history[history.length - 1].id)) history.pop();
+  if (!history.length) { seekTo(0); return; }
+  songDir = -1;
+  const h = history.pop();
+  if (nowFrom === "queue" && curId != null) queue.unshift({ id: curId });
+  const back = h.from === "context" && ctx && ctxOrder().includes(h.id);
+  if (!back && nowFrom === "context" && ctx) { const o = ctxOrder(), i = o.indexOf(ctx.at); ctx.at = i > 0 ? o[i - 1] : null; }   // leaving an album song for a queued one: step the album back so it comes again
+  playId(h.id, back ? "context" : h.from === "queue" ? "queue" : "other", { back: true });
 }
 const fmt = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
 audio.addEventListener("timeupdate", () => {
   if (!isFinite(audio.duration)) return;
+  if (!audio.paused && Date.now() - lastSave > 5000) saveState();         // position survives the app being closed
   progressCtrl.setValue(audio.currentTime / audio.duration);
   if (!progressCtrl.dragging) $("current-time").innerText = fmt(audio.currentTime);
 });
 function syncPos() { const m = navigator.mediaSession; if (m && m.setPositionState && isFinite(audio.duration)) { try { m.setPositionState({ duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime, audio.duration) }); } catch (e) {} } }
 audio.addEventListener("loadedmetadata", () => { $("total-duration").innerText = fmt(audio.duration); syncPos(); });
-audio.addEventListener("play", () => { startPulse(); playBtn.innerHTML = pauseIconSvg; if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; syncPos(); });
-audio.addEventListener("pause", () => { if (audio.ended) return; playBtn.innerHTML = playIconSvg; if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; syncPos(); });
+audio.addEventListener("play", () => { curPlayed = true; startPulse(); setPlayIcon(true); if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; syncPos(); });
+audio.addEventListener("pause", () => { if (audio.ended) return; setTimeout(() => { if (audio.paused) setPlayIcon(false); }, 150); if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; syncPos(); });
 audio.addEventListener("seeked", syncPos);
-audio.addEventListener("ended", playNext);
-let pressT, longFired = false;
-playBtn.addEventListener("pointerdown", () => { longFired = false; clearTimeout(pressT); pressT = setTimeout(() => { longFired = true; toggleShuffle(); }, 520); });
-["pointerup", "pointerleave", "pointercancel"].forEach(ev => playBtn.addEventListener(ev, () => clearTimeout(pressT)));
+audio.addEventListener("ended", onEnded);
+/* ---------- TOUCH + MOTION ----------
+   - Springy presses: every button sinks under the finger and springs back past its size before settling.
+   - Play morphs between its two shapes, a comet of light runs round its rim now and then (with the title spark),
+     and holding it fills a ring before shuffle toggles.
+   - A new song: the old title slides out, the new one slides in from the side you skipped to, the cover dips and
+     springs back in once the new artwork is ready, and the cover light flares.
+   Web Animations and small rAF loops only; nothing moves with reduced motion turned on. */
+const RM = matchMedia("(prefers-reduced-motion:reduce)").matches;
+const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.upload-btn,.done-btn,.gear-btn,.hidden-toggle,.q-sec button,.artist-more,.switch,.more-toggle,.xp-bar button,.xp-next-h button";
+const curScale = el => { const v = parseFloat(getComputedStyle(el).scale); return isFinite(v) ? v : 1; };
+function pressDown(el) {
+  if (RM || !el.animate) return;
+  const s = curScale(el), deep = el.classList.contains("player-btn") ? .86 : el.classList.contains("tab-btn") ? .88 : .94;
+  if (el._pa) el._pa.cancel();
+  el._pa = el.animate([{ scale: String(s) }, { scale: String(deep) }], { duration: 110, easing: "cubic-bezier(.3,0,.4,1)", fill: "forwards" });
+}
+function pressUp(el) {
+  if (RM || !el.animate) return;
+  const s = curScale(el), big = el.classList.contains("player-btn") ? 1.08 : 1.045, e = "cubic-bezier(.25,.7,.4,1)";
+  if (el._pa) el._pa.cancel();
+  el._pa = el.animate([{ scale: String(s), easing: e }, { scale: String(big), offset: .36, easing: e }, { scale: ".982", offset: .66, easing: e }, { scale: "1.005", offset: .86, easing: e }, { scale: "1" }], { duration: 580 });
+}
+let pressedEl = null;
+document.addEventListener("pointerdown", e => {
+  if (e.pointerType === "mouse" && e.button) return;
+  const el = e.target.closest && e.target.closest(PRESSABLE); if (!el || el.disabled) return;
+  pressedEl = el; pressDown(el);
+  if (el.classList.contains("player-btn")) {                         // the glass lights up where the finger landed
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--px", ((e.clientX - r.left) / r.width * 100).toFixed(0) + "%"); el.style.setProperty("--py", ((e.clientY - r.top) / r.height * 100).toFixed(0) + "%");
+    el.classList.add("pressed");
+  }
+}, true);
+const pressRelease = () => { const el = pressedEl; if (!el) return; pressedEl = null; pressUp(el); el.classList.remove("pressed"); };
+document.addEventListener("pointerup", pressRelease, true);
+document.addEventListener("pointercancel", pressRelease, true);
+
+/* Play / pause: one path, two pieces; each point glides from the triangle's halves to the two bars (with a tiny overshoot).
+   The big player's Play button carries the same path and morphs with it. */
+const PB_PLAY = [[8, 5, 13.5, 8.5, 13.5, 15.5, 8, 19], [13.5, 8.5, 19, 12, 19, 12, 13.5, 15.5]];
+const PB_PAUSE = [[6, 5, 10, 5, 10, 19, 6, 19], [14, 5, 18, 5, 18, 19, 14, 19]];
+let pbState = false, pbT = 0, pbRaf = 0;
+const pbPath = t => [0, 1].map(k => { const a = PB_PLAY[k], b = PB_PAUSE[k], p = a.map((v, i) => (v + (b[i] - v) * t).toFixed(2)); return `M${p[0]} ${p[1]}L${p[2]} ${p[3]}L${p[4]} ${p[5]}L${p[6]} ${p[7]}Z`; }).join("");
+function setPlayIcon(playing) {
+  if (pbState === playing) return; pbState = playing;
+  const paths = [$("pb-path"), $("xp-pb-path")].filter(Boolean), setD = d => paths.forEach(p => p.setAttribute("d", d)), to = playing ? 1 : 0; cancelAnimationFrame(pbRaf);
+  const xpPlay = $("xp-play"); if (xpPlay) xpPlay.setAttribute("aria-label", playing ? "Pause" : "Play");
+  if (RM) { pbT = to; setD(pbPath(to)); return; }
+  const from = pbT, t0 = performance.now(), D = 420, back = x => 1 + 2.2 * Math.pow(x - 1, 3) + 1.2 * Math.pow(x - 1, 2);
+  const step = now => { const x = Math.min(1, (now - t0) / D); pbT = from + (to - from) * back(x); setD(pbPath(pbT)); if (x < 1) pbRaf = requestAnimationFrame(step); else pbT = to; };
+  pbRaf = requestAnimationFrame(step);
+  [$("pb-icon"), $("xp-pb-icon")].forEach(ic => ic && ic.animate && ic.animate([{ transform: `rotate(${playing ? -14 : 14}deg) scale(.72)` }, { transform: "none" }], { duration: 480, easing: "cubic-bezier(.22,1.35,.36,1)" }));
+}
+/* the comet round Play's rim; b = brightness 0..1 */
+function ringFire(b, dur) {
+  const s = $("pb-shine"); if (!s || !s.animate || RM || document.hidden || $("controls-main").style.display === "none") return;
+  const o = .5 + .5 * b; s.getAnimations().forEach(a => a.cancel());
+  s.animate([{ transform: "rotate(-70deg)", opacity: 0 }, { opacity: o, offset: .2 }, { opacity: o * .9, offset: .72 }, { transform: "rotate(395deg)", opacity: 0 }],
+    { duration: dur || 1500, easing: "cubic-bezier(.45,0,.3,1)" });
+}
+/* hold Play for shuffle: after a short moment a ring appears (with a tick) and fills; full = shuffle toggles and the
+   ring bursts outwards. Let go early and it runs back. */
+const HOLD_SHOW = 140, HOLD_FIRE = 560;
+let longFired = false, hold = null;
+const holdPaint = p => $("pb-hold").style.setProperty("--hp", p.toFixed(3));
+playBtn.addEventListener("pointerdown", e => {
+  if (e.pointerType === "mouse" && e.button) return;
+  longFired = false; holdStop(true);
+  const t0 = performance.now(), ring = $("pb-hold"), h = hold = { raf: 0, p: 0, shown: false };
+  const step = now => {
+    if (hold !== h) return;
+    const el = now - t0; h.p = Math.max(0, Math.min(1, (el - HOLD_SHOW) / (HOLD_FIRE - HOLD_SHOW)));
+    if (!h.shown && el >= HOLD_SHOW) { h.shown = true; ring.getAnimations().forEach(a => a.cancel()); ring.classList.add("on"); haptic("select"); }
+    holdPaint(h.p);
+    if (h.p >= 1) { hold = null; longFired = true; toggleShuffle(); holdBurst(); return; }
+    h.raf = requestAnimationFrame(step);
+  };
+  h.raf = requestAnimationFrame(step);
+});
+function holdStop(quiet) {
+  const h = hold; if (!h) return; hold = null; cancelAnimationFrame(h.raf);
+  const ring = $("pb-hold"); ring.classList.remove("on");
+  if (quiet || !h.p || RM) { holdPaint(0); return; }
+  const p0 = h.p, t0 = performance.now();
+  const step = now => { if (hold) return; const x = Math.min(1, (now - t0) / 200); holdPaint(p0 * (1 - x) * (1 - x)); if (x < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function holdBurst() {
+  const ring = $("pb-hold");
+  if (RM || !ring.animate) { ring.classList.remove("on"); holdPaint(0); return; }
+  ring.animate([{ scale: "1", opacity: 1 }, { scale: "1.45", opacity: 0 }], { duration: 480, easing: "cubic-bezier(.22,1,.36,1)" }).onfinish = () => { if (!hold) holdPaint(0); };
+  ring.classList.remove("on");
+  ringFire(1, 1000);
+}
+["pointerup", "pointerleave", "pointercancel"].forEach(ev => playBtn.addEventListener(ev, () => holdStop(false)));
 playBtn.addEventListener("contextmenu", e => e.preventDefault());
 playBtn.addEventListener("click", () => { if (longFired) { longFired = false; return; } audio.paused ? playTrack() : pauseTrack(); });
-$("prev-btn").addEventListener("click", playPrev);
-$("skip-btn").addEventListener("click", playNext);
+/* prev / next: the icon nudges the way it points */
+function nudge(btn, d) { const i = btn.querySelector("svg"); if (RM || !i.animate) return; i.animate([{ translate: "0 0" }, { translate: `${d * 4}px 0`, offset: .3 }, { translate: `${-d}px 0`, offset: .65 }, { translate: "0 0" }], { duration: 440, easing: "ease-out" }); }
+$("prev-btn").addEventListener("click", () => { nudge($("prev-btn"), -1); playPrev(); });
+$("skip-btn").addEventListener("click", () => { nudge($("skip-btn"), 1); playNext(); });
+
+/* song change. songDir: 1 = Next (and songs that follow on their own), -1 = Previous, 0 = picked from a list */
+let songDir = 0, coverWait = null, flare = 0;
+function songOut(dir) {                                              // before the new title is written: the old one leaves, the cover dips
+  const pm = $("player-main"); if (RM || pm.style.display === "none" || !pm.animate || (XP && XP.expanded)) return false;
+  const tt = pm.querySelector(".track-text"), g = tt.cloneNode(true), dx = dir * 22, dy = dir ? 0 : -10;
+  g.querySelectorAll("[id]").forEach(x => x.removeAttribute("id")); g.classList.add("tt-ghost"); g.setAttribute("aria-hidden", "true");
+  Object.assign(g.style, { left: tt.offsetLeft + "px", top: tt.offsetTop + "px", width: tt.offsetWidth + "px", height: tt.offsetHeight + "px" });
+  pm.appendChild(g);
+  g.animate([{ opacity: 1, transform: "none", filter: "blur(0px)" }, { opacity: 0, transform: `translate(${-dx}px,${dy}px)`, filter: "blur(4px)" }],
+    { duration: 240, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" }).onfinish = () => g.remove();
+  const box = $("album-art-box"); box.getAnimations().forEach(a => a.cancel());
+  box.animate([{ transform: "none", filter: "brightness(1)" }, { transform: `translateX(${-dx * .5}px) scale(.88)`, filter: "brightness(.72)" }],
+    { duration: 210, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
+  if (coverWait) clearTimeout(coverWait.timer);
+  const w = coverWait = { dir, t: performance.now(), same: false };
+  w.timer = setTimeout(() => coverIn(w, true), 1400);                // artwork slow to arrive: bring the cover back anyway
+  return true;
+}
+function songIn(dir) {                                               // after: the new title, then the artist, slide in from the other side
+  const dx = dir * 22, dy = dir ? 0 : 10;
+  [$("track-title").parentNode, document.querySelector(".artist-row")].forEach((el, i) => {
+    el.getAnimations().forEach(a => a.cancel());
+    el.animate([{ opacity: 0, transform: `translate(${dx}px,${dy}px)`, filter: "blur(4px)" }, { opacity: 1, transform: "none", filter: "blur(0px)" }],
+      { duration: 560, delay: 110 + i * 70, easing: "cubic-bezier(.22,1,.36,1)", fill: "backwards" });
+  });
+}
+function coverArrived(same) {                                        // called by setCover once the new artwork is on screen (or unchanged)
+  const w = coverWait; if (!w) return;
+  w.same = w.same || same;
+  setTimeout(() => coverIn(w, false), Math.max(0, 170 - (performance.now() - w.t)));   // let the dip finish first
+}
+function coverIn(w, late) {
+  if (coverWait !== w) return; coverWait = null; clearTimeout(w.timer);
+  const box = $("album-art-box"), dx = w.dir * 22; box.getAnimations().forEach(a => a.cancel());
+  const from = w.same || late ? `translateX(${-dx * .5}px) scale(.88)` : `translateX(${dx * .5}px) scale(.86)`;   // same artwork: it just springs back; new artwork arrives from the other side
+  box.animate([{ transform: from, filter: "brightness(1.35)" }, { transform: "scale(1.035)", filter: "brightness(1.08)", offset: .5 }, { transform: "none", filter: "brightness(1)" }],
+    { duration: 640, easing: "cubic-bezier(.22,1,.36,1)" });
+  flare = 1; startPulse();
+}
 if ("mediaSession" in navigator) {                    // headphone / lock-screen buttons
   const m = navigator.mediaSession, h = (a, f) => { try { m.setActionHandler(a, f); } catch (e) {} };
   h("play", playTrack); h("pause", pauseTrack); h("nexttrack", playNext); h("previoustrack", playPrev);
@@ -1335,7 +2114,7 @@ function showOnly(el, dir) {
   viewHost.style.height = h0 + "px"; void viewHost.offsetHeight; viewHost.style.transition = ""; viewHost.style.height = h1 + "px";
   clearTimeout(viewHost._t); viewHost._t = setTimeout(() => { viewHost.style.height = ""; }, 450);
 }
-function setTab(btn) { [btnQueue, btnPlaylist, btnArtists].forEach(b => b.classList.toggle("active", b === btn)); }
+function setTab(btn) { [btnQueue, btnPlaylist, btnArtists].forEach(b => b.classList.toggle("active", b === btn)); tabPill.to(btn); }
 function toggleTab(btn) {
   albumOrigin = null; currentCat = null; setEdit(false); $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
   if (btn.classList.contains("active")) {
@@ -1346,7 +2125,7 @@ function toggleTab(btn) {
   const wasOpen = drawerBox.classList.contains("expanded");
   setTab(btn);
   if (btn === btnPlaylist) { renderAlbums(); showOnly(albumsGridWrapper); }      // fill the view first, so the height morph measures the real content
-  else if (btn === btnQueue) { renderQueue(); showOnly(queueWrapper); }
+  else if (btn === btnQueue) { renderQueue(); showOnly(queueWrapper); renderQueue(true); }
   else { renderArtists(); showOnly(artistsWrapper); }
   drawerBox.classList.add("expanded");
 }
@@ -1357,6 +2136,696 @@ $("artist-back").addEventListener("click", () => {
   if (artistStack.length) openArtist(artistStack.pop(), "back");
   else { currentArtistName = ""; showOnly(artistsWrapper, -1); renderArtists(); }
 });
+
+/* ---------- LIQUID GLASS TAB SLIDER ----------
+   A glass pill sits under the open tab. Moving to another tab, its two edges are separate springs: the leading edge is
+   quick and a little bouncy, the trailing edge slower, so the pill stretches towards the new tab like a drop, squashes a
+   touch while stretched, then pulls itself together (and ticks as it lands). Closing the drawer lets it shrink away. */
+const tabPill = (() => {
+  const box = document.querySelector(".tab-buttons"), el = document.createElement("div");
+  el.className = "tab-pill"; el.setAttribute("aria-hidden", "true"); box.prepend(el);
+  const KF = 640, KS = 230;                                          // fast / slow spring stiffness
+  let L = 0, R = 0, vL = 0, vR = 0, tL = 0, tR = 0, dir = 0, cur = null, raf = 0, last = 0, landed = true;
+  const edges = b => { const pad = Math.min(11, Math.max(5, (parseFloat(getComputedStyle(box).columnGap) || 24) * .45)); return [b.offsetLeft - pad, b.offsetLeft + b.offsetWidth + pad]; };   // padding round the label, never into the neighbour
+  function paint() {
+    const w = Math.max(0, R - L), st = Math.max(0, w - (tR - tL)), sp = Math.min(1, (Math.abs(vL) + Math.abs(vR)) / 1800);
+    el.style.width = w.toFixed(2) + "px"; el.style.translate = L.toFixed(2) + "px 0";
+    el.style.transform = `scaleY(${(1 - Math.min(.22, st / 150)).toFixed(3)})`;
+    el.style.setProperty("--pv", sp.toFixed(3));
+  }
+  function step(now) {
+    raf = 0; const dt = Math.min(.034, last ? (now - last) / 1000 : .016); last = now;
+    const kl = dir < 0 ? KF : KS, kr = dir > 0 ? KF : KS, zl = dir < 0 ? .6 : .92, zr = dir > 0 ? .6 : .92;
+    for (let t = 0; t < dt - 1e-6; t += .004) {                      // small fixed steps keep the stiff spring stable
+      const h = Math.min(.004, dt - t);
+      vL += (kl * (tL - L) - 2 * Math.sqrt(kl) * zl * vL) * h; L += vL * h;
+      vR += (kr * (tR - R) - 2 * Math.sqrt(kr) * zr * vR) * h; R += vR * h;
+    }
+    if (!landed && (dir > 0 ? R >= tR : L <= tL)) { landed = true; haptic("select"); }
+    paint();
+    if (Math.abs(vL) + Math.abs(vR) > 2 || Math.abs(tL - L) + Math.abs(tR - R) > .4) raf = requestAnimationFrame(step);
+    else { L = tL; R = tR; vL = vR = 0; paint(); last = 0; }
+  }
+  function to(b) {
+    if (!b) { cur = null; el.classList.remove("on"); return; }
+    cur = b; if (!box.offsetWidth) return;
+    const [a, z] = edges(b);
+    if (!el.classList.contains("on") || RM) { cancelAnimationFrame(raf); raf = 0; L = tL = a; R = tR = z; vL = vR = 0; last = 0; paint(); el.classList.add("on"); return; }
+    if (a === tL && z === tR) return;
+    dir = Math.sign(a + z - tL - tR); tL = a; tR = z; landed = false;
+    if (!raf) { last = 0; raf = requestAnimationFrame(step); }
+  }
+  addEventListener("resize", () => { if (!cur || !box.offsetWidth) return; const [a, z] = edges(cur); L = tL = a; R = tR = z; vL = vR = 0; paint(); });
+  return { to, el };
+})();
+
+/* ---------- LIQUID BUBBLE (theme, Settings) ----------
+   Modelled on how soft glass controls behave on iOS (the Claude app's message box is a good example): the panel stays a
+   perfect rounded rectangle and moves as one piece. Nothing bends, ripples or pulses on its own.
+   - Pull: press on the panel (anywhere that isn't a control, list or slider, or just outside its edge) and drag. The panel
+     leans a few px after your finger with strong resistance (never more than ~7 px), stretches very slightly along the
+     drag (up to 1.8 %) and gives a hair across it (0.9 %). Contents move with it.
+   - Press: it sinks in by about 1 % while your finger is down.
+   - Let go: it glides back on a smooth, well-damped spring; no wobble, no bounce.
+   - Switching the theme on: the panel settles into place once.
+   - A pull that keeps going down (or up, in the big player) past a short distance hands over to the expanded player:
+     the lean lets go and the panel starts to open (or close) under the finger.
+   Reduced motion: the same, just fully damped. */
+let xpPullHook = null;                                               // set by the expanded player: (drag, event) => true when it takes the pull over
+const bubble = (() => {
+  const wrap = document.querySelector(".player-wrapper"), NS = "http://www.w3.org/2000/svg";
+  const GLASS_BLUR = 2;                                              // px; keep in step with --bubble-blur below
+  const RAD = 36, GRAB = 26, MAXT = 9, LEAN = .8, STRETCH = .018, GIVE = .009, PRESS = .011;
+  const NO_PULL = "button,input,a,label,.custom-range-slider,.sw,.album-card,.playlist-container,.queue-container,.albums-grid-container,.artist-scroll,.track-artist,.chip,.gear-btn,.floating-customizer,.toast,.drop-zone,.album-art,.xp-art,.xp-strip,.xp-artist";
+  let on = false, skin = null, svg = null, W = 0, H = 0, raf = 0, last = 0, drag = null;
+  let x = 0, y = 0, vx = 0, vy = 0, e = 0, ve = 0, q = 0, vq = 0, ux = 0, uy = 1;   // lean (px), stretch 0..1, press 0..1, stretch direction
+  const M = { a: 1, b: 0, c: 0, d: 1 };                             // the current stretch/press matrix (about the panel's centre)
+
+  /* ---- Liquid Glass edge (WebGL) ----
+     iPhone browsers can't bend what is behind an element, but here we know what is behind the panel: the wallpaper. A
+     WebGL canvas draws only a thin bevel ring along the inside of the edge: the wallpaper as the page shows it (same
+     cover sizing, position, tilt parallax, blur, vignette and the glass's own blur/tint), bent towards the centre the
+     closer it is to the rim (a rounded glass edge, with a slight colour split), plus thin highlights where the bevel faces
+     the light. The ring fades into the CSS glass inside it, so the middle is always the real backdrop. It follows the
+     panel's lean and stretch. It appears with a fade once the wallpaper is ready; without WebGL or a usable image the
+     simple SVG rim stays. */
+  const glass = (() => {
+    const G = { cv: null, ready: false, dirty: true, init, draw: () => draw() };
+    let gl = null, prog = null, U = {}, tex = null, texSrc = "", texW = 1, texH = 1, lastTx = null, lastTy = null, looping = false;
+    const VS = `#version 300 es
+      in vec2 a; void main(){ gl_Position = vec4(a, 0., 1.); }`;
+    const FS = `#version 300 es
+      precision highp float;
+      uniform sampler2D uTex;
+      uniform vec2 uCanvasPx, uPanel, uOrigin, uUvA, uUvB, uVigC, uLight;
+      uniform vec4 uM;
+      uniform float uDpr, uR, uVigR, uLod, uBevel, uRefr;
+      out vec4 o;
+      float rr(vec2 p, out vec2 n) {                                    // rounded rectangle: signed distance + outward normal
+        vec2 c = uPanel * .5, d = p - c, hs = c - uR, q = abs(d) - hs, sg = vec2(d.x >= 0. ? 1. : -1., d.y >= 0. ? 1. : -1.);
+        if (q.x > 0. && q.y > 0.) { vec2 v = p - (c + sg * hs); float l = length(v); n = l > 1e-4 ? v / l : normalize(sg); return l - uR; }
+        n = q.x > q.y ? vec2(sg.x, 0.) : vec2(0., sg.y); return max(q.x, q.y) - uR;
+      }
+      vec2 toPage(vec2 cp) { return uOrigin + mat2(uM.x, uM.y, uM.z, uM.w) * cp; }   // canvas point -> page point (follows the panel's transform)
+      uniform float uBlur;                                             // the glass's blur radius in css px (the same as backdrop-filter)
+      vec3 tap(vec2 pc) { return textureLod(uTex, clamp(pc * uUvA + uUvB, .0005, .9995), uLod).rgb; }
+      vec3 wall(vec2 pc) {                                             // the wallpaper as the page shows it at pc, blurred like the glass: a smooth gaussian, not blocky mip levels
+        vec3 c = tap(pc) * .2;
+        for (int i = 0; i < 12; i++) {
+          float a = float(i) * 2.39996, r = uBlur * (i < 6 ? .55 : 1.1);   // two rings of taps, golden-angle spread
+          c += tap(pc + vec2(cos(a), sin(a)) * r) * (i < 6 ? .0867 : .0467);
+        }
+        return c * (1. - clamp((length(pc - uVigC) / uVigR - .3) / .7, 0., 1.) * .6);
+      }
+      vec3 glassy(vec3 c, vec2 cp) {                                   // exactly the CSS glass's layers, so the ring blends into it invisibly
+        float l = dot(c, vec3(.2126, .7152, .0722)); c = clamp(mix(vec3(l), c, 1.35), 0., 1.) * .94;   // backdrop-filter: saturate(135%) brightness(.94)
+        return mix(c, vec3(6., 18., 26.) / 255., .1);                   // the tint: linear-gradient(rgba(6,18,26,.1)) on top
+      }
+      void main() {
+        vec2 cp = vec2(gl_FragCoord.x, uCanvasPx.y - gl_FragCoord.y) / uDpr, n;
+        float sd = rr(cp, n), aa = clamp(.5 - sd * uDpr, 0., 1.), din = max(0., -sd), t = clamp(1. - din / uBevel, 0., 1.);
+        if (aa <= 0. || t <= 0.) { o = vec4(0.); return; }
+        float bend = uRefr * (1. - sqrt(max(0., 1. - t * t)));        // rounded edge: the closer to the rim, the more it bends
+        vec3 col = glassy(vec3(wall(toPage(cp - n * bend)).r, wall(toPage(cp - n * bend * 1.05)).g, wall(toPage(cp - n * bend * 1.1)).b), cp);
+        float ring = smoothstep(0., 1., t);                             // fades into the CSS glass inside it
+        float sp = pow(max(0., dot(n, uLight)), 2.) + .5 * pow(max(0., dot(n, -uLight)), 2.5);
+        float hl = min(1., exp(-din / .8) * (.1 + .45 * sp) + pow(t, 6.) * .12 * sp);   // a thin rim line + a narrow specular on the lit side only
+        vec3 rgb = col * ring * (1. - hl) + vec3(hl);
+        o = vec4(rgb, ring + (1. - ring) * hl) * aa;
+      }`;
+    function init() {
+      if (G.cv || !window.WebGL2RenderingContext) return;
+      try {
+        const cv = document.createElement("canvas"); cv.className = "bubble-gl"; cv.setAttribute("aria-hidden", "true");
+        gl = cv.getContext("webgl2", { premultipliedAlpha: true, antialias: false, alpha: true });
+        if (!gl) return;
+        const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)); return x; };
+        prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+        gl.useProgram(prog);
+        const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+        const loc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+        ["uTex", "uBlur", "uCanvasPx", "uPanel", "uOrigin", "uUvA", "uUvB", "uVigC", "uLight", "uM", "uDpr", "uR", "uVigR", "uLod", "uBevel", "uRefr"].forEach(k => U[k] = gl.getUniformLocation(prog, k));
+        cv.addEventListener("webglcontextlost", ev => { ev.preventDefault(); G.ready = false; document.documentElement.classList.remove("gl-glass"); });
+        skin.after(cv); G.cv = cv;                                     // above the CSS glass (otherwise the glass blurs and tints the edge a second time), below the content
+        window.__bgChanged = () => { loadTex(); G.dirty = true; };
+        loadTex();
+      } catch (err) { console.warn("glass", err.message); gl = null; }
+    }
+    function loadTex() {
+      if (!gl) return;
+      const src = store.get("photoData") || DEFAULT_WALL; if (src === texSrc) return; texSrc = src;
+      const im = new Image(); im.crossOrigin = "anonymous"; im.decoding = "async";
+      im.onload = () => {
+        if (texSrc !== src) return;
+        try {
+          const sc = Math.min(1, 2048 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement("canvas");
+          c.width = Math.round(im.naturalWidth * sc); c.height = Math.round(im.naturalHeight * sc);
+          c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+          if (!tex) tex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);   // throws if the image came without permission (CORS)
+          gl.generateMipmap(gl.TEXTURE_2D);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          texW = im.naturalWidth; texH = im.naturalHeight; G.texPx = c.width;
+          G.ready = true; G.dirty = true; draw();
+          requestAnimationFrame(() => { if (G.ready) document.documentElement.classList.add("gl-glass"); });   // fade in only once the first frame is drawn
+          loop();
+        } catch (err) { console.warn("glass texture", err.message); G.ready = false; document.documentElement.classList.remove("gl-glass"); }
+      };
+      im.onerror = () => { if (texSrc === src) { G.ready = false; document.documentElement.classList.remove("gl-glass"); } };
+      im.src = src;
+    }
+    function draw() {
+      if (!G.ready || !on || !G.cv.isConnected || !W) return;
+      const cv = G.cv, dpr = Math.min(2, devicePixelRatio || 1), bw = Math.round(W * dpr), bh = Math.round(H * dpr);
+      if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+      /* where the wallpaper sits: .bg-container is fixed, background-size cover at applyBg's position, moved by the tilt
+         parallax and scaled 1.04 about its centre. uv = ((pc - c - t) / 1.04 + c - off) / size */
+      const bg = mainBg, cw0 = bg.offsetWidth, ch0 = bg.offsetHeight, R = document.documentElement.style;
+      const tx = parseFloat(R.getPropertyValue("--tx")) || 0, ty = parseFloat(R.getPropertyValue("--ty")) || 0;
+      const custom = !!store.get("photoData"), posX = custom ? .5 : .7, posY = custom ? .5 : .24;
+      const scl = Math.max(cw0 / texW, ch0 / texH), dw = texW * scl, dh = texH * scl, offX = (cw0 - dw) * posX, offY = (ch0 - dh) * posY;
+      const cx = cw0 / 2, cy = ch0 / 2, S = 1.04, ttx = tx * -6, tty = ty * -6;
+      gl.viewport(0, 0, bw, bh); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform2f(U.uUvA, 1 / (S * dw), 1 / (S * dh)); gl.uniform2f(U.uUvB, ((-cx - ttx) / S + cx - offX) / dw, ((-cy - tty) / S + cy - offY) / dh);
+      const vig = document.querySelector(".bg-vignette"), vw = vig.offsetWidth, vh = vig.offsetHeight;
+      gl.uniform2f(U.uVigC, vw / 2, vh / 2); gl.uniform1f(U.uVigR, Math.hypot(vw / 2, vh / 2));
+      /* the panel's own transform: page point of canvas point p = base + C + M (p - C) + lean */
+      const bx = wrap.offsetLeft - scrollX, by = wrap.offsetTop - scrollY, Cx = W / 2, Cy = H / 2;
+      gl.uniform4f(U.uM, M.a, M.b, M.c, M.d);
+      gl.uniform2f(U.uOrigin, bx + Cx - (M.a * Cx + M.c * Cy) + x, by + Cy - (M.b * Cx + M.d * Cy) + y);
+      /* the page's own blur is baked into a slightly softer mip level; the glass's own blur is done with the gaussian taps */
+      const userBlur = +(store.get("wallpaperBlur") || 0), texPerCss = G.texPx / dw;
+      gl.uniform1f(U.uLod, Math.max(0, Math.log2(Math.max(1, (userBlur * 1.4 + .6) * texPerCss))));
+      gl.uniform1f(U.uBlur, GLASS_BLUR * 1.1);
+      gl.uniform2f(U.uCanvasPx, bw, bh); gl.uniform1f(U.uDpr, bw / W); gl.uniform2f(U.uPanel, W, H); gl.uniform1f(U.uR, Math.min(RAD, W / 2, H / 2));
+      const lx = -.55 + tx * .35, ly = -.83 + ty * .35, ll = Math.hypot(lx, ly); gl.uniform2f(U.uLight, lx / ll, ly / ll);   // light from the top left; tilting moves it
+      gl.uniform1f(U.uBevel, 16); gl.uniform1f(U.uRefr, 12);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(U.uTex, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      G.dirty = false;
+    }
+    function loop() {                                                  // redraw only when something moved: tilt parallax, the panel, its size
+      if (looping) return; looping = true;
+      const f = () => {
+        if (!on || !G.ready) { looping = false; return; }
+        const R = document.documentElement.style, tx = R.getPropertyValue("--tx"), ty = R.getPropertyValue("--ty");
+        if (tx !== lastTx || ty !== lastTy) { lastTx = tx; lastTy = ty; G.dirty = true; }
+        if (G.dirty && !document.hidden) draw();
+        requestAnimationFrame(f);
+      };
+      requestAnimationFrame(f);
+    }
+    G.loop = loop;
+    return G;
+  })();
+
+  function build() {
+    if (skin) return;
+    skin = document.createElement("div"); skin.className = "bubble-skin";
+    svg = document.createElementNS(NS, "svg"); svg.setAttribute("class", "bubble-svg"); svg.setAttribute("aria-hidden", "true");
+    svg.innerHTML = `<defs><path id="bb-path"/><clipPath id="bb-clip"><use href="#bb-path"/></clipPath>
+      <linearGradient id="bb-rim" x1="0" y1="0" x2=".2" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".3" stop-color="#fff" stop-opacity=".12"/><stop offset=".8" stop-color="#fff" stop-opacity=".07"/><stop offset="1" stop-color="#fff" stop-opacity=".26"/></linearGradient>
+      <linearGradient id="bb-wh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity=".8"/></linearGradient></defs>
+      <g clip-path="url(#bb-clip)">${[16, 11, 7, 3.5].map(w => `<use href="#bb-path" fill="none" stroke="url(#bb-wh)" stroke-width="${w}" stroke-opacity=".013"/>`).join("")}</g>
+      <use href="#bb-path" fill="none" stroke="url(#bb-rim)" stroke-width=".9"/>`;
+    wrap.prepend(svg); wrap.prepend(skin);
+    glass.init();
+  }
+  function measure() {                                              // the panel's size; the SVG rim path is the plain rounded rectangle
+    const w = wrap.offsetWidth, h = wrap.offsetHeight; if (w === W && h === H) return; W = w; H = h;
+    const r = Math.min(RAD, w / 2, h / 2), f = n => +n.toFixed(2);
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.querySelector("#bb-path").setAttribute("d", `M${r} 0H${f(w - r)}A${r} ${r} 0 0 1 ${w} ${r}V${f(h - r)}A${r} ${r} 0 0 1 ${f(w - r)} ${h}H${r}A${r} ${r} 0 0 1 0 ${f(h - r)}V${r}A${r} ${r} 0 0 1 ${r} 0Z`);
+    glass.dirty = true;
+  }
+  function apply() {                                                 // lean + stretch along the drag + press, as one matrix about the centre
+    /* axis-aligned only: a diagonal pull stretches a little both ways instead of shearing the panel into a parallelogram */
+    M.a = 1 + e * (STRETCH * ux * ux - GIVE * uy * uy) - PRESS * q; M.d = 1 + e * (STRETCH * uy * uy - GIVE * ux * ux) - PRESS * q; M.b = M.c = 0;
+    const rest = Math.abs(x) + Math.abs(y) < .02 && Math.abs(M.a - 1) + Math.abs(M.d - 1) < 1e-4;
+    wrap.style.transform = rest ? "" : `matrix(${M.a.toFixed(5)},${M.b.toFixed(5)},${M.c.toFixed(5)},${M.d.toFixed(5)},${x.toFixed(2)},${y.toFixed(2)})`;
+    if (rest) { M.a = M.d = 1; M.b = M.c = 0; }
+    glass.dirty = true;
+  }
+  function frame(now) {
+    raf = 0; if (!on) return;
+    const dt = Math.min(.12, last ? (now - last) / 1000 : .016); last = now;   // real elapsed time: slow frames don't slow the motion down
+    let tx = 0, ty = 0, te = 0, tq = drag ? 1 : 0;
+    if (drag) {
+      const dx = drag.cx - drag.sx, dy = drag.cy - drag.sy, dist = Math.hypot(dx, dy);
+      if (dist > .5) {
+        const m = 1 - Math.exp(-dist / 95);                           // strong resistance: the further you pull, the less it follows
+        tx = dx / dist * MAXT * LEAN * m; ty = dy / dist * MAXT * LEAN * m; te = m;
+        const k = 1 - Math.exp(-dt / .06), nx = ux + (dx / dist - ux) * k, ny = uy + (dy / dist - uy) * k, nl = Math.hypot(nx, ny) || 1;
+        ux = nx / nl; uy = ny / nl;                                    // the stretch turns smoothly with the drag
+      }
+    }
+    const K = drag ? 300 : 150, Z = drag || RM ? 1 : .86, C = 2 * Math.sqrt(K) * Z;   // follows closely while held; glides back smoothly, no bounce
+    for (let st = 0, n = Math.max(2, Math.ceil(dt / .006)), h = dt / n; st < n; st++) {
+      vx += (K * (tx - x) - C * vx) * h; x += vx * h; vy += (K * (ty - y) - C * vy) * h; y += vy * h;
+      ve += (K * (te - e) - C * ve) * h; e += ve * h; vq += (K * (tq - q) - C * vq) * h; q += vq * h;
+    }
+    apply();
+    const busy = !!drag || Math.abs(x) + Math.abs(y) + Math.abs(e) + Math.abs(q) > .003 || Math.abs(vx) + Math.abs(vy) + Math.abs(ve) + Math.abs(vq) > .01;
+    if (busy) raf = requestAnimationFrame(frame);
+    else { x = y = vx = vy = e = ve = q = vq = 0; apply(); last = 0; }
+  }
+  const go = () => { if (on && !raf) raf = requestAnimationFrame(frame); };
+  document.addEventListener("pointerdown", ev => {
+    if (!on || drag || (ev.pointerType === "mouse" && ev.button)) return;
+    if (ev.target.closest && ev.target.closest(NO_PULL)) return;
+    const r = wrap.getBoundingClientRect();
+    if (ev.clientX < r.left - GRAB || ev.clientX > r.right + GRAB || ev.clientY < r.top - GRAB || ev.clientY > r.bottom + GRAB) return;
+    drag = { id: ev.pointerId, sx: ev.clientX, sy: ev.clientY, cx: ev.clientX, cy: ev.clientY, moved: false };
+    const sel = getSelection && getSelection(); if (sel && sel.removeAllRanges) sel.removeAllRanges();
+    go();
+  });
+  document.addEventListener("pointermove", ev => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    drag.cx = ev.clientX; drag.cy = ev.clientY;
+    if (!drag.moved && Math.hypot(drag.cx - drag.sx, drag.cy - drag.sy) > 6) drag.moved = true;
+    if (xpPullHook && xpPullHook(drag, ev)) { drag = null; go(); }    // the big player took the pull over: the lean glides back
+  });
+  const up = ev => { if (!drag || ev.pointerId !== drag.id) return; drag = null; go(); };
+  document.addEventListener("pointerup", up); document.addEventListener("pointercancel", up);
+  document.addEventListener("touchmove", ev => { if (drag && drag.moved) ev.preventDefault(); }, { passive: false });
+  document.addEventListener("selectstart", ev => { if (on && wrap.contains(ev.target)) ev.preventDefault(); });
+  document.addEventListener("contextmenu", ev => { if (on && drag) ev.preventDefault(); });
+  addEventListener("resize", () => { if (on) { W = 0; measure(); } });
+  new ResizeObserver(() => { if (on) measure(); }).observe(wrap);   // the drawer opening or closing, the big player growing: the glass just follows
+  function set(v, anim) {
+    on = v; document.documentElement.classList.toggle("bubble", v);
+    $("old-panel-switch").setAttribute("aria-checked", String(!v));
+    if (v) {
+      build(); W = H = 0; measure();
+      if (glass.ready) { glass.dirty = true; glass.loop(); }
+      if (anim && !RM) { q = 2.5; go(); }                           // switched on: it settles into place once
+    } else {
+      cancelAnimationFrame(raf); raf = 0; drag = null; last = 0;
+      x = y = vx = vy = e = ve = q = vq = 0; M.a = M.d = 1; M.b = M.c = 0; wrap.style.transform = "";
+    }
+  }
+  return { set, get on() { return on; }, _state: () => ({ x, y, e, q, M: { ...M }, W, H }) };
+})();
+/* Liquid Bubble is the panel; "Old panel" (Settings > More) brings back the previous flat glass panel */
+$("old-panel-switch").addEventListener("click", () => { const old = bubble.on; store.set("oldPanel", old ? "1" : "0"); bubble.set(!old, true); haptic("light"); });
+$("more-toggle").addEventListener("click", () => { const b = $("more-box"), open = b.hidden; b.hidden = !open; $("more-toggle").setAttribute("aria-expanded", String(open)); haptic("light"); });
+bubble.set(store.get("oldPanel") !== "1", false);
+
+/* ---------- EXPANDED PLAYER ----------
+   The same panel, unfolded. Open it by tapping the cover, dragging the cover down, or pulling the glass down (a short
+   pull still leans like before, a longer one hands over to this). Close it by dragging the big cover or the handle back
+   up, tapping the handle, or pulling the glass up.
+   - One number p drives everything (0 = compact, 1 = expanded) and follows the finger: the panel's bottom edge moves
+     with it 1:1. The big cover starts scaled down exactly onto the small one and grows to its place; the title glides
+     under it; the compact controls sink away while the big ones fade in; Up next and the bar come last. On release it
+     springs to whichever end is nearer (or the way you flicked).
+   - Up next is a horizontal strip: your queue first (a dot marks queued songs), then what the album plays next. Swipe to
+     browse, tap to play, hold and drag sideways to reorder, pull a card up to remove it.
+   - Queue / Library / Artists (and the artist name) open as a sheet: the player folds back to its compact row at the top
+     while the section fills the tall panel below it. Closing the section brings the big player back. */
+XP = (() => {
+  const wrap = document.querySelector(".player-wrapper"), xp = $("xp"), top = $("xp-top"), bot = $("xp-bottom");
+  const slot = $("xp-slot"), art = $("xp-art"), bloom = $("xp-bloom"), clip = $("xp-clip"), meta = $("xp-meta");
+  const scrub = $("xp-scrub"), ctrls = $("xp-ctrls"), handle = $("xp-handle"), strip = $("xp-strip"), gear = $("gear-trigger");
+  const pm = $("player-main"), cm = $("controls-main"), fm = $("footer-main"), artBox = $("album-art-box"), tText = pm.querySelector(".track-text");
+  const REPEAT = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z", REPEAT_ONE = REPEAT + "m-4-2V9h-1l-2 1v1h1.5v4H13z";
+  const st = { p: 0, v: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
+  const clamp01 = v => Math.max(0, Math.min(1, v)), lerp = (a, b, t) => a + (b - a) * t, fade = (p, a, b) => clamp01((p - a) / (b - a));
+  const canExpand = () => pm.style.display !== "none" && curId != null;
+  const drawerOpen = () => drawerBox.classList.contains("expanded");
+  const shown = () => xp.classList.contains("show");
+  function rel(el) { let x = 0, y = 0; while (el && el !== wrap) { x += el.offsetLeft; y += el.offsetTop; el = el.offsetParent; } return { x, y }; }
+  function naturalH() {                                              // the compact panel's own height (drawer closed)
+    if (!drawerOpen()) { const s = wrap.style.height; wrap.style.height = ""; const h = wrap.offsetHeight; wrap.style.height = s; return h; }
+    return pm.offsetHeight + cm.offsetHeight + fm.offsetHeight + 48 + 42;
+  }
+  /* sizes: the cover is as big as the panel's width allows, unless the screen is too short; the panel then ends just
+     above the bottom edge (safe area included) */
+  function layout() {
+    const vv = window.visualViewport, vh = vv ? vv.height : innerHeight;
+    const topY = wrap.getBoundingClientRect().top, safeB = $("safe-probe").offsetHeight || 0;
+    const avail = vh - topY - safeB - 14, W = wrap.clientWidth - 40;
+    xp.style.setProperty("--xs", "0px");
+    const topFixed = top.offsetHeight, botH = bot.offsetHeight;
+    const S = Math.round(Math.max(120, Math.min(W, 420, avail - topFixed - botH - 24)));
+    xp.style.setProperty("--xs", S + "px");
+    st.S = S; st.h1 = Math.round(topFixed + S + botH + 24);
+  }
+  function measureRects() {
+    const a = rel(artBox), s = rel(slot), ct = rel($("track-title")), xt = rel($("xp-title"));
+    st.m = { ax: a.x, ay: a.y, aw: artBox.offsetWidth || 66, sx: s.x, sy: s.y, ctx: ct.x, cty: ct.y, xtx: xt.x, xty: xt.y };
+  }
+  function prep(h0) {                                                // before any move: show the layer, size it, measure both layouts
+    clearTimeout(st.shT); wrap.style.transition = "";
+    xp.classList.add("show"); xp.setAttribute("aria-hidden", "false");
+    wrap.classList.add("xp-anim");
+    sync(true);
+    layout();
+    if (!drawerOpen()) st.compactH = naturalH();
+    st.h0 = h0 != null ? h0 : st.compactH;
+    measureRects();
+  }
+  function render(p) {
+    const m = st.m; if (!m) return;
+    const P = Math.max(0, p), c = Math.min(1, P), sc = 21 / 17;
+    wrap.style.height = lerp(st.h0, st.h1, p).toFixed(1) + "px";   // may overshoot a hair while it springs open
+    const cf = (1 - fade(P, 0, .3)).toFixed(3);
+    pm.style.opacity = cm.style.opacity = fm.style.opacity = cf;
+    cm.style.transform = fm.style.transform = c ? `translateY(${(c * 28).toFixed(1)}px)` : "";
+    artBox.style.visibility = P > .0005 ? "hidden" : "";
+    /* the big cover, scaled down onto the small one at p = 0 */
+    const size = lerp(m.aw, st.S, P), s = size / st.S, curX = lerp(m.ax, m.sx, P), curY = lerp(m.ay, m.sy, P);
+    art.style.transform = `translate(${(curX - m.sx).toFixed(2)}px,${(curY - m.sy).toFixed(2)}px) scale(${s.toFixed(4)})`;
+    art.style.borderRadius = (lerp(12, 22, c) / s).toFixed(2) + "px";
+    bloom.style.opacity = (fade(P, .1, 1) * .55).toFixed(3);
+    /* the title glides from beside the cover to under it; once the growing cover reaches it, the cover pushes it down
+       instead of sliding over it. Both titles (the leaving small one and the arriving big one) travel together. */
+    const lx = lerp(m.ctx, m.xtx, c), ly0 = lerp(m.cty, m.xty, c), ov = clamp01((curX + size + 10 - lx) / 40);
+    const ly = lerp(ly0, Math.max(ly0, curY + size + 14), ov);
+    tText.style.transformOrigin = "0 0";
+    tText.style.transform = c ? `translate(${(lx - m.ctx).toFixed(1)}px,${(ly - m.cty).toFixed(1)}px) scale(${lerp(1, sc, c).toFixed(3)})` : "";
+    meta.style.opacity = fade(P, .12, .45).toFixed(3);
+    meta.style.transform = `translate(${(lx - m.xtx).toFixed(1)}px,${(ly - m.xty).toFixed(1)}px) scale(${lerp(1 / sc, 1, c).toFixed(3)})`;
+    const co = fade(P, .4, .85); scrub.style.opacity = ctrls.style.opacity = co.toFixed(3);
+    scrub.style.transform = ctrls.style.transform = `translateY(${((1 - co) * 16).toFixed(1)}px)`;
+    const bo = fade(P, .62, .98); bot.style.opacity = bo.toFixed(3); bot.style.transform = `translateY(${((1 - bo) * 18).toFixed(1)}px)`;
+    handle.style.opacity = fade(P, .5, .9).toFixed(3);
+    gear.style.opacity = ((1 - fade(P, 0, .25)) * .75).toFixed(3); gear.style.pointerEvents = P > .1 ? "none" : "";
+  }
+  function settle(t) {
+    st.raf = 0; st.p = t; st.v = 0;
+    if (t === 1) {
+      render(1); st.expanded = true;
+      wrap.classList.remove("xp-anim"); wrap.classList.add("xp-on");
+      if (stripDirty) renderStrip();
+      return;
+    }
+    st.expanded = false; st.m = null;
+    xp.classList.remove("show"); xp.setAttribute("aria-hidden", "true");
+    wrap.classList.remove("xp-on", "xp-anim");
+    [pm, cm, fm].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
+    tText.style.transform = ""; artBox.style.visibility = ""; gear.style.opacity = ""; gear.style.pointerEvents = "";
+    if (st.sheet) { st.shT = setTimeout(settleHeight, Math.max(0, 440 - (performance.now() - st.sheetAt))); }   // let the drawer finish opening first
+    else wrap.style.height = "";
+  }
+  function settleHeight() {                                          // sheet: from the tall panel to the section's own height, smoothly
+    const from = wrap.offsetHeight; wrap.style.height = ""; const to = wrap.offsetHeight;
+    if (RM || Math.abs(to - from) < 2) return;
+    wrap.style.height = from + "px"; void wrap.offsetHeight;
+    wrap.style.transition = "height .34s var(--ease)"; wrap.style.height = to + "px";
+    st.shT = setTimeout(() => { wrap.style.transition = ""; wrap.style.height = ""; }, 360);
+  }
+  function animateTo(target, v0) {
+    cancelAnimationFrame(st.raf); st.target = target; st.v = v0 || 0;
+    if (RM) { render(target); settle(target); return; }
+    const K = target ? 210 : 240, Z = target ? .8 : .95, C = 2 * Math.sqrt(K) * Z;   // opening overshoots a touch ("springs open"); closing lands softly
+    let last = 0;
+    const step = now => {
+      const dt = Math.min(.034, last ? (now - last) / 1000 : .016); last = now;
+      for (let i = 0, n = 4, h = dt / n; i < n; i++) { st.v += (K * (target - st.p) - C * st.v) * h; st.p += st.v * h; }
+      if (!target && st.p < 0) { st.p = 0; st.v = 0; }
+      render(st.p);
+      if (Math.abs(target - st.p) < .0015 && Math.abs(st.v) < .03) { settle(target); return; }
+      st.raf = requestAnimationFrame(step);
+    };
+    st.raf = requestAnimationFrame(step);
+  }
+  function open() {
+    if (!canExpand() || (st.expanded && !st.raf)) return;
+    if (drawerOpen()) {                                              // a section is open: close it, then the player unfolds (see the observer below)
+      st.pendingOpen = true;
+      const a = [btnQueue, btnPlaylist, btnArtists].find(b => b.classList.contains("active"));
+      if (a) toggleTab(a); else drawerBox.classList.remove("expanded");
+      return;
+    }
+    if (!st.raf) prep();
+    haptic("light"); animateTo(1, st.v);
+  }
+  function close() {
+    if (!st.expanded && !st.raf) return;
+    if (!st.raf) prep();
+    animateTo(0, 0);
+  }
+  function reset() { cancelAnimationFrame(st.raf); st.sheet = st.pendingOpen = false; wrap.classList.remove("sheet"); if (shown()) settle(0); wrap.style.height = ""; }
+  /* Library / Artists / Queue while expanded: fold back to the compact row and let the section fill the tall panel */
+  function toSheet() {
+    st.sheet = true; st.sheetAt = performance.now();
+    cancelAnimationFrame(st.raf);
+    const cur = wrap.offsetHeight;
+    prep(cur); st.h1 = cur;                                          // the panel keeps its height through the fold
+    wrap.style.setProperty("--sheet-h", Math.max(200, Math.round(cur - (st.compactH || naturalH()) - 66)) + "px");
+    wrap.classList.add("sheet");
+    animateTo(0, 0);
+  }
+  new MutationObserver(() => {
+    const o = drawerOpen();
+    if (o && (st.expanded || (st.raf && st.target === 1)) && !st.sheet) toSheet();
+    else if (!o && (st.sheet || st.pendingOpen)) {                   // the section closed: unfold again from wherever the panel is
+      st.sheet = st.pendingOpen = false;
+      setTimeout(() => { if (!st.sheet) wrap.classList.remove("sheet"); }, 450);
+      if (!canExpand()) { reset(); return; }
+      cancelAnimationFrame(st.raf); st.p = 0;
+      prep(wrap.offsetHeight); haptic("light"); animateTo(1, 0);
+    }
+  }).observe(drawerBox, { attributes: true, attributeFilter: ["class"] });
+
+  /* ---- gestures: the cover, the handle, and pulls handed over by the bubble ---- */
+  let g = null;
+  function gStart(ev, from, onTap) {
+    if (g || (ev.pointerType === "mouse" && ev.button)) return;
+    g = { id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, t0: performance.now(), from, onTap, started: false, dead: false, samples: [] };
+  }
+  function begin(ev) {
+    if (st.raf) { cancelAnimationFrame(st.raf); st.raf = 0; }         // caught mid-spring: carry on from where it is
+    else prep();
+    g.started = true; g.y0 = ev.clientY; g.p0 = st.p; g.travel = Math.max(200, st.h1 - st.h0);
+    wrap.classList.add("xp-anim"); wrap.classList.remove("xp-on");
+  }
+  document.addEventListener("pointermove", ev => {
+    if (!g || ev.pointerId !== g.id) return;
+    const dx = ev.clientX - g.x0, dy = ev.clientY - g.y0;
+    if (!g.started) {
+      if (g.dead || Math.hypot(dx, dy) < 7) return;
+      const vert = Math.abs(dy) > Math.abs(dx) * 1.1, ok = g.from < .5 ? dy > 0 : dy < 0;
+      if (!vert || !ok || !canExpand() || (g.from < .5 && drawerOpen())) { g.dead = true; return; }
+      begin(ev); return;
+    }
+    let p = g.p0 + (ev.clientY - g.y0) / g.travel;
+    if (p > 1) p = 1 + (p - 1) * .2; else if (p < 0) p *= .2;        // a little give past either end
+    st.p = p; render(p);
+    const now = performance.now(); g.samples.push([now, p]); while (g.samples.length > 2 && now - g.samples[0][0] > 90) g.samples.shift();
+  });
+  const gEnd = ev => {
+    if (!g || ev.pointerId !== g.id) return;
+    const w = g; g = null;
+    if (!w.started) { if (!w.dead && ev.type === "pointerup" && performance.now() - w.t0 < 500 && w.onTap) w.onTap(); return; }
+    let v = 0; const s = w.samples; if (s.length > 1) { const a = s[0], b = s[s.length - 1]; if (b[0] > a[0]) v = (b[1] - a[1]) / ((b[0] - a[0]) / 1000); }
+    const t = v > 1.4 ? 1 : v < -1.4 ? 0 : w.from < .5 ? (st.p > .3 ? 1 : 0) : (st.p < .7 ? 0 : 1);
+    if (t === 1 && w.from < .5) haptic("light");
+    animateTo(t, v);
+  };
+  document.addEventListener("pointerup", gEnd); document.addEventListener("pointercancel", gEnd);
+  document.addEventListener("touchmove", ev => { if (g && g.started) ev.preventDefault(); }, { passive: false });
+  xpPullHook = (d, ev) => {                                          // a pull on the glass that clearly goes down (or up, when expanded)
+    if (g || st.raf || !canExpand() || drawerOpen()) return false;
+    const dx = d.cx - d.sx, dy = d.cy - d.sy;
+    const down = !st.expanded && dy > 26 && dy > Math.abs(dx) * 1.2, upw = st.expanded && dy < -26 && -dy > Math.abs(dx) * 1.2;
+    if (!down && !upw) return false;
+    g = { id: d.id, x0: ev.clientX, y0: ev.clientY, t0: performance.now(), from: st.expanded ? 1 : 0, started: false, dead: false, samples: [] };
+    begin(ev); return true;
+  };
+  artBox.addEventListener("pointerdown", ev => gStart(ev, 0, open));
+  art.addEventListener("pointerdown", ev => { if (st.expanded) gStart(ev, 1, null); });
+  handle.addEventListener("pointerdown", ev => { if (st.expanded) gStart(ev, 1, close); });
+  handle.addEventListener("click", e => { if (e.detail === 0) close(); });   // keyboard
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && st.expanded && !drawerOpen() && !settingsPanel.classList.contains("active")) close(); });
+
+  /* ---- controls ---- */
+  $("xp-play").addEventListener("click", () => { audio.paused ? playTrack() : pauseTrack(); haptic("light"); });
+  $("xp-prev").addEventListener("click", () => { nudge($("xp-prev"), -1); playPrev(); haptic("light"); });
+  $("xp-next").addEventListener("click", () => { nudge($("xp-next"), 1); playNext(); haptic("light"); });
+  $("xp-shuffle").addEventListener("click", toggleShuffle);
+  $("xp-repeat").addEventListener("click", cycleRepeat);
+  $("xp-see-all").addEventListener("click", () => toggleTab(btnQueue));
+  $("xp-queue-btn").addEventListener("click", () => toggleTab(btnQueue));
+  $("xp-lib-btn").addEventListener("click", () => toggleTab(btnPlaylist));
+  $("xp-artists-btn").addEventListener("click", () => toggleTab(btnArtists));
+  $("xp-gear").innerHTML = gear.innerHTML.trim() + "Settings";
+  $("xp-gear").addEventListener("click", e => { e.stopPropagation(); settingsPanel.classList.toggle("active"); haptic("light"); });
+  $("xp-artist").addEventListener("click", () => { const t = trackById(curId); if (t) openArtist(t.artist); });
+  const xpCtrl = setupCustomSlider("xp-progress",
+    v => { if (isFinite(audio.duration)) seekTo(v * audio.duration); },
+    v => { if (isFinite(audio.duration)) showTime(v * audio.duration, audio.duration); });
+  function showTime(c, d) { $("xp-cur").textContent = fmt(c); $("xp-left").textContent = "-" + fmt(Math.max(0, d - c)); }
+  function time() {
+    if (!shown()) return;
+    const d = isFinite(audio.duration) ? audio.duration : (saveStateNow.dur || 0), c = pendingSeek != null ? pendingSeek : audio.currentTime || 0;
+    xpCtrl.setValue(d ? Math.min(1, c / d) : 0); if (!xpCtrl.dragging) showTime(c, d);
+  }
+  ["timeupdate", "loadedmetadata", "seeked", "emptied"].forEach(k => audio.addEventListener(k, time));
+
+  /* ---- the big cover mirrors the small one (same artwork, same moment) ---- */
+  const srcImg = $("track-art-img"), xImg = $("xp-art-img"), xFb = $("xp-fallback");
+  function mirrorArt() {
+    const src = srcImg.style.display !== "none" && srcImg.getAttribute("src");
+    if (src) { if (xImg.getAttribute("src") !== src) xImg.src = src; xImg.style.display = "block"; xFb.style.display = "none"; bloom.style.backgroundImage = `url("${String(src).replace(/"/g, "%22")}")`; }
+    else { xImg.style.display = "none"; xFb.style.display = "block"; bloom.style.backgroundImage = ""; }
+  }
+  new MutationObserver(mirrorArt).observe(srcImg, { attributes: true, attributeFilter: ["src", "style"] }); mirrorArt();
+
+  /* ---- text, buttons, strip ---- */
+  let stripDirty = true;
+  function sync(force) {
+    if (!force && !shown()) { stripDirty = true; return; }
+    const t = trackById(curId);
+    $("xp-title").textContent = t ? t.title : "";
+    $("xp-artist").textContent = t ? t.artist : "";
+    const extra = t ? [t.album !== "Unknown Album" ? t.album : "", t.year || ""].filter(Boolean).join(" · ") : "";
+    $("xp-album").textContent = extra ? " · " + extra : "";
+    const sh = $("xp-shuffle"), rp = $("xp-repeat");
+    sh.classList.toggle("on", shuffle); sh.setAttribute("aria-pressed", String(shuffle));
+    rp.classList.toggle("on", repeatMode !== "off"); $("xp-repeat-path").setAttribute("d", repeatMode === "one" ? REPEAT_ONE : REPEAT);
+    rp.setAttribute("aria-label", repeatMode === "one" ? "Repeat: this song" : repeatMode === "off" ? "Repeat: off" : "Repeat: all");
+    renderStrip(); time();
+    if (!canExpand() && (st.expanded || st.raf)) reset();
+  }
+  function onSong(dir, auto) {
+    if (!shown()) { stripDirty = true; return; }
+    sync(true);
+    if (!st.expanded || RM || !auto) return;
+    meta.animate([{ opacity: 0, transform: dir ? `translateX(${dir * 26}px)` : "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 480, easing: "cubic-bezier(.22,1,.36,1)" });
+    clip.animate([{ transform: "scale(.93)", filter: "brightness(.8)" }, { transform: "scale(1.015)", filter: "brightness(1.08)", offset: .55 }, { transform: "none", filter: "brightness(1)" }], { duration: 620, easing: "cubic-bezier(.22,1,.36,1)" });
+    strip.scrollTo({ left: 0, behavior: "smooth" });
+  }
+  let sDrag = null;
+  function renderStrip() {
+    if (sDrag) { stripDirty = true; return; }
+    stripDirty = false;
+    const keep = strip.scrollLeft; strip.innerHTML = "";
+    const all = [...queue.map((e, i) => ({ id: e.id, kind: "queue", i })), ...(ctx ? ctxUpcoming().slice(0, 40) : []).map((id, i) => ({ id, kind: "ctx", i }))].filter(x => trackById(x.id));
+    $("xp-next-label").textContent = queue.length ? `Up next · ${queue.length} queued` : ctx ? `Next from ${ctx.name}` : "Up next";
+    if (!all.length) {
+      const n = document.createElement("div"); n.className = "xp-empty";
+      n.textContent = ctx && ctxList().length && repeatMode !== "off" ? `Then ${ctx.name} starts again` : "Nothing up next";
+      strip.appendChild(n); return;
+    }
+    all.forEach((it, k) => {
+      if (k && it.kind !== all[k - 1].kind) { const d = document.createElement("div"); d.className = "xp-div"; strip.appendChild(d); }
+      const t = trackById(it.id), c = document.createElement("div"), a = t.art || albumCover(t.album);
+      c.className = "xp-card" + (it.kind === "queue" ? " q" : ""); c.dataset.kind = it.kind; c._i = it.i;
+      c.innerHTML = `<div class="xp-card-art">${a ? `<img src="${esc(a)}" alt="">` : noteSvg}</div><div class="xp-card-t"><div class="xp-card-title"></div><div class="xp-card-artist"></div></div>`;
+      c.querySelector(".xp-card-title").textContent = t.title; c.querySelector(".xp-card-artist").textContent = t.artist;
+      c.addEventListener("click", () => { if (c._sup) { c._sup = false; return; } playFromQueue(it.kind, it.i); });
+      cardGestures(c);
+      strip.appendChild(c);
+    });
+    strip.scrollLeft = keep;
+  }
+  function cardGestures(c) {
+    c.addEventListener("contextmenu", e => e.preventDefault());
+    c.addEventListener("pointerdown", e => {
+      if ((e.pointerType === "mouse" && e.button) || sDrag) return;
+      const x0 = e.clientX, y0 = e.clientY, id = e.pointerId;
+      let lp = setTimeout(() => { lp = 0; cleanup(); c._sup = true; liftCard(c, x0, y0, id); }, LONG_PRESS);
+      const mv = ev => {
+        if (ev.pointerId !== id) return;
+        const dx = ev.clientX - x0, dy = ev.clientY - y0;
+        if (dy < -10 && Math.abs(dy) > Math.abs(dx) * 1.3) { clearTimeout(lp); cleanup(); c._sup = true; flickCard(c, y0, id); }
+        else if (Math.hypot(dx, dy) > 9) { clearTimeout(lp); cleanup(); }   // a sideways swipe: the strip scrolls
+      };
+      const stop = () => { clearTimeout(lp); cleanup(); };
+      const cleanup = () => { c.removeEventListener("pointermove", mv); c.removeEventListener("pointerup", stop); c.removeEventListener("pointercancel", stop); };
+      c.addEventListener("pointermove", mv); c.addEventListener("pointerup", stop); c.addEventListener("pointercancel", stop);
+    });
+  }
+  function flickCard(c, y0, id) {                                    // pull a card up: past the line it turns red, let go to remove
+    try { c.setPointerCapture(id); } catch (e) {}
+    qDrag = c; let armed = false;
+    c.style.transition = "none";
+    const mv = ev => {
+      if (ev.pointerId !== id) return;
+      const d = ev.clientY - y0, dy = d < 0 ? d : d * .2, a = dy < -30;
+      if (a !== armed) { armed = a; c.classList.toggle("rm", a); haptic("select"); }
+      c.style.transform = `translateY(${dy.toFixed(1)}px) scale(${(1 - Math.min(.08, -Math.min(0, dy) / 500)).toFixed(3)})`;
+      c.style.opacity = String(Math.max(.45, 1 + Math.min(0, dy) / 120).toFixed(3));
+    };
+    const up = ev => {
+      if (ev.pointerId !== id) return;
+      c.removeEventListener("pointermove", mv); c.removeEventListener("pointerup", up); c.removeEventListener("pointercancel", up);
+      qDrag = null; setTimeout(() => { c._sup = false; }, 400);
+      if (armed && ev.type === "pointerup") { removeCard(c); return; }
+      c.classList.remove("rm"); c.style.transition = "transform .3s var(--ease),opacity .25s ease"; c.style.transform = ""; c.style.opacity = "";
+      setTimeout(() => { c.style.transition = ""; }, 320);
+    };
+    c.addEventListener("pointermove", mv); c.addEventListener("pointerup", up); c.addEventListener("pointercancel", up);
+  }
+  function removeCard(c) {                                           // the card lifts away, the gap closes, then the queue changes
+    haptic("light"); sDrag = c;
+    c.style.transition = "transform .18s var(--ease),opacity .18s ease"; c.style.transform = "translateY(-34px) scale(.9)"; c.style.opacity = "0";
+    setTimeout(() => {
+      Object.assign(c.style, { overflow: "hidden", minWidth: "0", transition: "flex-basis .22s var(--ease),margin .22s var(--ease),padding .22s var(--ease)", flexBasis: "0px", marginRight: "-8px", paddingLeft: "0", paddingRight: "0", borderWidth: "0" });
+    }, 160);
+    setTimeout(() => { sDrag = null; removeRow(c.dataset.kind, c._i); }, 400);
+  }
+  function liftCard(c, x0, y0, id) {                                 // hold, then drag sideways to reorder (within your queue, or within the album)
+    const kind = c.dataset.kind, cards = [...strip.querySelectorAll(`.xp-card[data-kind="${kind}"]`)], me = cards.indexOf(c);
+    if (me < 0) return;
+    try { c.setPointerCapture(id); } catch (e) {}
+    const lefts = cards.map(o => o.offsetLeft), ws = cards.map(o => o.offsetWidth), W = ws[me], gap = 8, mid = j => lefts[j] + ws[j] / 2;
+    const lastI = cards.length - 1, minX = lefts[0] - lefts[me] - 6, maxX = lefts[lastI] + ws[lastI] - lefts[me] - W + 6;
+    const sl0 = strip.scrollLeft; let x = x0, y = y0, to = me, cx = 0, cy = 0, sc = 1, raf = 0, armed = false, done = false;
+    sDrag = c; qDrag = c; haptic("medium");
+    strip.classList.add("dragging"); c.classList.add("lifted"); c.style.transition = "none";
+    cards.forEach(o => { if (o !== c) o.style.transition = "transform .24s var(--ease),opacity .22s ease"; });
+    const frame = () => {
+      const r = strip.getBoundingClientRect(), v = x < r.left + 36 ? -6 : x > r.right - 36 ? 6 : 0;   // keeps scrolling while held near an edge
+      if (v) strip.scrollLeft += v;
+      const tx = Math.max(minX, Math.min(maxX, x - x0 + strip.scrollLeft - sl0)), upd = Math.min(0, y - y0);
+      const a = upd < -36; if (a !== armed) { armed = a; c.classList.toggle("rm", a); haptic("select"); }
+      cx += (tx - cx) * .42; cy += ((armed ? upd * .7 : upd * .25) - cy) * .4; sc += (1.06 - sc) * .22;
+      c.style.transform = `translate(${cx.toFixed(1)}px,${cy.toFixed(1)}px) scale(${sc.toFixed(3)})`;
+      const L = lefts[me] + cx, R = L + W; let nt = me;
+      cards.forEach((o, j) => {
+        if (o === c) return;
+        const left = !armed && j < me && L < mid(j), right = !armed && j > me && R > mid(j);
+        if (left) nt--; if (right) nt++;
+        const want = left ? `translateX(${W + gap}px)` : right ? `translateX(${-(W + gap)}px)` : "";
+        if (o.style.transform !== want) o.style.transform = want;
+      });
+      if (nt !== to) { to = nt; haptic("select"); }
+      raf = requestAnimationFrame(frame);
+    };
+    const mv = ev => { if (ev.pointerId === id) { x = ev.clientX; y = ev.clientY; } };
+    const up = ev => {
+      if (ev.pointerId !== id || done) return; done = true;
+      cancelAnimationFrame(raf); c.removeEventListener("pointermove", mv); c.removeEventListener("pointerup", up); c.removeEventListener("pointercancel", up);
+      qDrag = null; strip.classList.remove("dragging"); setTimeout(() => { c._sup = false; }, 400);
+      if (armed && ev.type === "pointerup") { c.classList.remove("lifted"); cards.forEach(o => { if (o !== c) o.style.transform = ""; }); removeCard(c); return; }
+      let land = 0;
+      if (to > me) for (let j = me + 1; j <= to; j++) land += ws[j] + gap; else for (let j = to; j < me; j++) land -= ws[j] + gap;
+      c.classList.remove("rm", "lifted"); c.style.transition = "transform .28s var(--ease)"; c.style.transform = `translate(${land}px,0)`;
+      haptic("light");
+      setTimeout(() => {
+        sDrag = null;
+        if (to !== me) {
+          const idx = cards.map(o => o._i);
+          if (kind === "queue") { const [e2] = queue.splice(idx[me], 1); queue.splice(idx[to], 0, e2); }
+          else { const o = ctxOwnOrder(), base = o.indexOf(ctx.at) + 1, [xx] = o.splice(base + idx[me], 1); o.splice(base + idx[to], 0, xx); }
+          queueChanged();
+        } else renderStrip();
+      }, 290);
+    };
+    c.addEventListener("pointermove", mv); c.addEventListener("pointerup", up); c.addEventListener("pointercancel", up);
+    raf = requestAnimationFrame(frame);
+  }
+
+  const onResize = () => { if (!st.expanded || st.raf || g) return; layout(); wrap.style.height = st.h1 + "px"; };
+  addEventListener("resize", onResize); if (window.visualViewport) visualViewport.addEventListener("resize", onResize);
+  return { open, close, sync, onSong, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, _st: st };
+})();
 
 /* ---------- LIQUID GLASS: tilt (optional) adds to the cover light; the light also moves on its own ---------- */
 let tiltAt = 0;                                                      // last time tilt/mouse moved the light (keeps the light loop at full frame rate)
@@ -1469,7 +2938,7 @@ function fetchSong(t) {
   lib.jobs.set(rid, p); return p;
 }
 function prefetchNext() {
-  const n = tracks.find(x => x.id === (queue.length ? queue[0] : stepId(1)));
+  const n = trackById(peekNext());
   if (!n || !n.remote || n.file) return;
   if (phoneIdx[n.remote.id]) phoneGet(n.remote.id).then(b => { if (b) { n.file = b; keepMem(n); } else fetchSong(n); });
   else fetchSong(n);
@@ -1501,6 +2970,7 @@ function libUI(state) {
   }
   const dz = $("drop-zone"), small = s => `<br><span style="font-size:11px;opacity:.7;">${s}</span>`;
   dz.style.display = ""; ["player-main", "controls-main", "footer-main"].forEach(i => { $(i).style.display = "none"; });
+  if (XP) XP.sync();                                                 // no songs left: the big player folds away
   dz.innerHTML = state === "loading" ? "Loading your library…"
     : state === "empty" ? "Send me some songs" + small("Upload or forward audio files in this chat. They show up here straight away.")
     : /invite|\/start/.test(state) ? "No access yet" + small("This player is private: " + esc(state) + ". You can still play songs from your phone: tap here.")
@@ -1525,13 +2995,16 @@ async function syncLibrary() {
         lib.byRid.set(x.id, tr); tracks.push(tr); added.push(tr); scheduleAlbumWork(tr); delete albumRelease[tr.album];
       } else if (t.remote.rev !== x.rev) {                           // the server finished reading the file's tags (album, cover...)
         delete albumRelease[t.album]; Object.assign(t, libFields(x)); t.remote.rev = x.rev; scheduleAlbumWork(t); delete albumRelease[t.album];
-        if (t.id === curId) { refreshNowPlaying(); $("track-title").innerText = t.title; $("track-artist").innerText = t.artist; }
+        if (t.id === curId) { refreshNowPlaying(); $("track-title").innerText = t.title; $("track-artist").innerText = t.artist; if (XP) XP.sync(); }
       }
     }
-    for (const [rid, t] of lib.byRid) if (!seen.has(rid)) { lib.byRid.delete(rid); tracks = tracks.filter(x => x !== t); queue = queue.filter(i => i !== t.id); }
+    for (const [rid, t] of lib.byRid) if (!seen.has(rid)) { lib.byRid.delete(rid); tracks = tracks.filter(x => x !== t); queue = queue.filter(e => e.id !== t.id); history = history.filter(h => h.id !== t.id); }
     tracks.sort(cmpTracks); scheduleResolve();
     if (!first && added.length) toast(added.length === 1 ? `Added “${added[0].title}”` : `Added ${added.length} songs`);
+    if (first && tracks.length) { showPlayerUI(); restoreState(); }
     libUI("empty");
+    if (queueShown()) renderQueue();
+    if (XP) XP.sync();
   } catch (e) {
     if (first) { botMode = false; libUI(e.message || "no connection"); }   // fall back to the phone's own files for this session
   } finally { syncLibrary.busy = false; }
@@ -1556,21 +3029,22 @@ if (TG) (function () {
     if (tgAt("8.0") && /^(ios|android)$/.test(TG.platform) && !TG.isFullscreen) TG.requestFullscreen();   // edge to edge, like the home-screen app
   } catch (e) {}
   /* Telegram's own back button (top left) mirrors the in-app ones: settings or edit mode -> close; album tracks -> albums;
-     artist page -> previous artist or the artist list; any open tab -> close the drawer. With nothing open it shows Close. */
+     artist page -> previous artist or the artist list; any open tab -> close the drawer (from the big player's sheet this
+     brings the big player back); the big player -> fold it back. With nothing open it shows Close. */
   if (tgAt("6.1")) {
-    const back = TG.BackButton;
-    const need = () => settingsPanel.classList.contains("active") || editing || open();
+    const back = TG.BackButton, wrap = document.querySelector(".player-wrapper");
+    const need = () => settingsPanel.classList.contains("active") || editing || open() || wrap.classList.contains("xp-on");
     const sync = () => { need() ? back.show() : back.hide(); };
     back.onClick(() => {
       if (settingsPanel.classList.contains("active")) settingsPanel.classList.remove("active");
       else if (editing) setEdit(false);
       else if (open() && shown(playlistWrapper)) $("back-to-grid-btn").click();
       else if (open() && shown(artistWrapper)) $("artist-back").click();
-      else { const a = [btnQueue, btnPlaylist, btnArtists].find(b => b.classList.contains("active")); if (a) toggleTab(a); }
+      else { const a = [btnQueue, btnPlaylist, btnArtists].find(b => b.classList.contains("active")); if (a && open()) toggleTab(a); else if (XP && XP.expanded) XP.close(); else if (a) toggleTab(a); }
       haptic("light");
     });
     const mo = new MutationObserver(sync);
-    [drawerBox, settingsPanel, $("albums-shelf")].forEach(el => mo.observe(el, { attributes: true, attributeFilter: ["class"] }));
+    [drawerBox, settingsPanel, $("albums-shelf"), wrap].forEach(el => mo.observe(el, { attributes: true, attributeFilter: ["class"] }));
     sync();
   }
   /* "Settings" in Telegram's ⋯ menu opens the same panel as the gear button */
@@ -1606,7 +3080,7 @@ if (TG) (function () {
    The track is decoded once, offline, into a smooth loudness+bass envelope (30/frames per second).
    The glow then just reads that envelope at audio.currentTime, so playback is never routed through Web Audio. */
 const envCache = new Map(); let env = null, envId = null, pulse = 0, pRaf = 0;
-const pulseEls = () => [$("art-bloom"), $("glow-layer"), $("player-main"), $("progress-slider").querySelector(".slider-thumb")];
+const pulseEls = () => [$("art-bloom"), $("glow-layer"), $("player-main"), $("progress-slider").querySelector(".slider-thumb"), $("xp")];
 function envelope(ab) {
   const chs = []; for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
   const sr = ab.sampleRate, N = ab.length, hop = Math.round(sr / 30), F = Math.floor(N / hop), nc = chs.length;
@@ -1727,6 +3201,8 @@ function pulseLoop() {
   if (!playing && energy < .02 && now - tiltAt > 600 && pulseLoop.t && now - pulseLoop.t < 45) { pRaf = requestAnimationFrame(pulseLoop); return; }   // idle and nobody tilting: ~20 fps is plenty for a slow drift
   pulseLoop.t = now;
   sparkTick(playing, dt);
+  if (flare > .003) { flare *= Math.exp(-dt / .45); rimA += flare * 260 * dt; } else flare = 0;   // song change: the cover light swings round quickly, then settles
+  breathe(now);
   energy += ((playing ? 1 : 0) - energy) * (1 - Math.exp(-dt / (playing ? .4 : 1.8)));   // one smooth "how alive" level: quick up, slow settle down
   rimA = (rimA + (4 + energy * (5 + pulse * 14)) * dt) % 360;                              // the light slowly orbits the cover on its own; a little livelier with the music
   const R = document.documentElement.style, tx = parseFloat(R.getPropertyValue("--tx")) || 0, ty = parseFloat(R.getPropertyValue("--ty")) || 0;
@@ -1735,7 +3211,7 @@ function pulseLoop() {
   /* glass light: one direction shared by the halo behind, the rim, the edge glow and the surface hotspot */
   const la = rimA + 50 + tx * 40 - ty * 12, th = la * Math.PI / 180, rr = 30 + 6 * Math.sin(s / 7.3);
   pm.setProperty("--ang", (la - 50).toFixed(1) + "deg"); pm.setProperty("--la", la.toFixed(1) + "deg");
-  pm.setProperty("--en", energy.toFixed(3));
+  pm.setProperty("--en", energy.toFixed(3)); pm.setProperty("--fl", flare.toFixed(3));
   pm.setProperty("--br", (.5 + .5 * Math.sin(now / 2600)).toFixed(3));
   pm.setProperty("--gx", (50 + rr * Math.sin(th) - tx * 12).toFixed(1) + "%"); pm.setProperty("--gy", (50 - rr * Math.cos(th) - ty * 12).toFixed(1) + "%");
   pm.setProperty("--gi", Math.min(1, .5 + energy * .12 + pulse * .14 + tilt * .35 + .06 * Math.sin(s / 3.1)).toFixed(3));
@@ -1745,6 +3221,15 @@ function pulseLoop() {
   pRaf = requestAnimationFrame(pulseLoop);
 }
 let rimA = 0, energy = 0, tilt = 0;
+/* the controls breathe: Play follows the music directly, prev/next a few frames later (a ripple outwards);
+   paused, Play keeps a slow breath of its own */
+const bpHist = [], bpLast = [-1, -1, -1];
+function breathe(now) {
+  bpHist.push(pulse); if (bpHist.length > 6) bpHist.shift();
+  const lag = bpHist[0], idle = (1 - energy) * (.16 + .14 * Math.sin(now / 1500));
+  const v = [lag * .7, Math.max(pulse, idle), lag * .7];
+  [$("prev-btn"), playBtn, $("skip-btn")].forEach((b, i) => { if (Math.abs(v[i] - bpLast[i]) > .004) { bpLast[i] = v[i]; b.style.setProperty("--bp", v[i].toFixed(3)); } });
+}
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
 
@@ -1828,7 +3313,7 @@ function sparkTick(playing, dt) {
 }
 function sparkFire(b) {                                               // b: brightness 0..1
   const pm = $("player-main"), ti = $("track-title"), gl = $("title-glint");
-  if (!gl || !gl.animate || pm.style.display === "none" || document.hidden) return;
+  if (!gl || !gl.animate || pm.style.display === "none" || document.hidden || (XP && XP.expanded)) return;
   gl.textContent = ti.textContent;
   const w = titleVisW(); if (w < 12) return;
   const D = spDur(w), B = 84, x0 = -B * .8, x1 = w - B * .2, X = o => x0 + (x1 - x0) * o;   // band's left edge: starts just before the text, ends past it
@@ -1836,6 +3321,7 @@ function sparkFire(b) {                                               // b: brig
   gl.animate(offs.map((o, i) => ({ offset: o, opacity: +(op[i] * (.55 + .45 * b)).toFixed(3), backgroundPosition: `${X(o).toFixed(1)}px 0px` })),
     { duration: D, easing: "cubic-bezier(.45,0,.3,1)" });
   spBusy = performance.now() + D + 250;
+  setTimeout(() => ringFire(b), D * .38);                            // the light carries on round the Play button
 }
 
 /* ---------- glow layer ----------
@@ -1916,6 +3402,7 @@ function sparkFire(b) {                                               // b: brig
     const src = img.style.display !== "none" && img.getAttribute("src"); if (!src) return;
     pal(src).then(o => { if (img.getAttribute("src") !== src) return;
       pm.style.setProperty("--lc", o.c1); pm.style.setProperty("--lc2", o.c2); pm.style.setProperty("--lk", o.k);
+      const wr = document.querySelector(".player-wrapper").style; wr.setProperty("--lc", o.c1); wr.setProperty("--lc2", o.c2);
       pm.style.setProperty("--gl", (1.25 - .6 * (o.lum != null ? o.lum : .5)).toFixed(2)); });   // dark covers get a clearer reflection, bright ones a softer one
   }
   new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
