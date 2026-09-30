@@ -386,7 +386,7 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 .player-btn svg{position:relative;z-index:1}
 /* the three controls breathe with the music (--bp, set per button by the glow loop: Play leads, the sides follow a beat
    later); when paused, Play keeps a slow breath of its own. The glow is tinted with the cover's colour. */
-.controls-cluster .player-btn,.controls-cluster .player-btn:active{
+.controls-cluster .player-btn,.controls-cluster .player-btn:active,.xp-ctrls .player-btn:not(.xp-tog){
   transform:scale(calc(1 + var(--bp,0) * var(--bs,.035)));
   border-color:rgba(255,255,255,calc(.15 + var(--bp,0) * .22));
   box-shadow:0 2px 5px rgba(0,0,0,.2),0 0 calc(2px + var(--bp,0) * 13px) rgba(var(--lc,200,215,225),calc(var(--bp,0) * .42)),inset 0 0 calc(1px + var(--bp,0) * 5px) rgba(255,255,255,calc(.04 + var(--bp,0) * .2))}
@@ -406,9 +406,9 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 /* song change: the old title/artist leave as a copy while the new ones slide in */
 .tt-ghost{position:absolute;margin:0!important;pointer-events:none;z-index:2}
 /* ...and the cover light flares for a moment (--fl, decays in the glow loop) */
-.art-light{opacity:calc((.24 + var(--en,0) * .26 + var(--pulse,0) * .22 + var(--br,.5) * .05 + var(--fl,0) * .45) * var(--lk,1));
+.art-light{opacity:calc((.24 + var(--en,0) * .26 + var(--pulse,0) * .22 + var(--br,.5) * .05 + var(--fl,0) * .45) * var(--lk,1) * var(--hm,1));
   transform:rotate(var(--ang,0deg)) scale(calc(1 + var(--fl,0) * .18))}
-.art-bloom{opacity:calc(.32 + var(--en,0) * .06 + var(--pulse,0) * .22 + var(--br,.5) * .06 + var(--fl,0) * .22);
+.art-bloom{opacity:calc((.32 + var(--en,0) * .06 + var(--pulse,0) * .22 + var(--br,.5) * .06 + var(--fl,0) * .22) * var(--hm,1));
   transform:translate3d(calc(var(--tx,0) * 12px),calc(var(--ty,0) * 12px),0) scale(calc(1.5 + var(--pulse,0) * .12 + var(--br,.5) * .05 + var(--fl,0) * .22))}
 /* Liquid Glass tab slider: position via `translate`, stretch via width, squash via transform, pop in/out via `scale` */
 .tab-buttons{position:relative;gap:24px}
@@ -480,29 +480,43 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .player-wrapper.xp-on .xp{pointer-events:auto}
 .player-wrapper.xp-on>#player-main,.player-wrapper.xp-on>#controls-main,.player-wrapper.xp-on>#footer-main{visibility:hidden}
 .player-wrapper.xp-anim>#player-main,.player-wrapper.xp-anim>#controls-main,.player-wrapper.xp-anim>#footer-main{pointer-events:none}
-.xp-top{position:absolute;left:0;right:0;top:0;padding:2px 22px 0;display:flex;flex-direction:column}
+.xp-top{position:absolute;left:0;right:0;top:0;padding:6px 22px 0;display:flex;flex-direction:column}
 .xp-handle{align-self:center;width:72px;height:20px;background:none;border:0;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .xp-handle i{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.38)}
-.xp-slot{position:relative;width:var(--xs,280px);height:var(--xs,280px);margin:4px auto 0;flex-shrink:0}
+.xp-slot{position:relative;width:var(--xs,280px);height:var(--xs,280px);margin:10px auto 0;flex-shrink:0}
 .xp-art{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0;border-radius:18px;will-change:transform;cursor:grab}
-.xp-bloom{position:absolute;left:6%;right:6%;top:10%;bottom:-4%;border-radius:30px;background-size:cover;background-position:center;filter:blur(34px) saturate(1.6);opacity:0;pointer-events:none}
-.xp-clip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;
+.xp-clip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;background:rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center;isolation:isolate;
   box-shadow:0 18px 40px rgba(0,0,0,.34),0 4px 12px rgba(0,0,0,.2)}
 .xp-clip img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
 .xp-clip svg{width:26%;height:26%;fill:rgba(255,255,255,.4)}
-.xp-clip::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),inset 0 1px 0 rgba(255,255,255,.3);background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,0) 42%)}
-.xp-meta{margin-top:16px;transform-origin:0 0;min-width:0;max-width:100%;align-self:center;text-align:center}
+/* The big cover wears exactly the small cover's effects (glow behind, circling light, glass layers), driven by the same
+   values, so nothing switches off while it grows or once it's open. Its box is S px at rest and is scaled down onto the
+   66 px cover at p = 0, so sizes are written in the small cover's px times a factor:
+   --k = S / 66 (glows: they stay in proportion to the cover), --u = set per frame by the expansion (fine details: at
+   p = 0 it equals --k, so both covers match to the pixel; open, the rim and edge bands are 1.6x the small cover's). */
+/* the two glows are pre-blurred bitmaps (drawn once per song, see glowArt below): a CSS blur this big would be redone by
+   the browser on every frame while the cover grows. Each canvas covers the glow plus its soft tail, centred on the cover. */
+.xp-art .art-bloom{left:-75.758%;top:-75.758%;width:251.515%;height:251.515%;border-radius:0;filter:none;background:none;
+  transform:translate3d(calc(var(--tx,0) * 12px * var(--k,3)),calc(var(--ty,0) * 12px * var(--k,3)),0) scale(calc(1.5 + var(--pulse,0) * .12 + var(--br,.5) * .05 + var(--fl,0) * .22))}
+.xp-art .art-light{left:-86.364%;top:-86.364%;width:272.727%;height:272.727%;border-radius:0;filter:none;background:none}
+.xp-clip .g-refr{background-position:calc(50% + var(--rx,0px) * var(--u,1)) calc(50% + var(--ry,0px) * var(--u,1));filter:saturate(1.35) brightness(1.14) blur(calc(.4px * var(--u,1)));
+  -webkit-mask-image:linear-gradient(90deg,#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000),linear-gradient(#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000);
+          mask-image:linear-gradient(90deg,#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000),linear-gradient(#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000)}
+.xp-clip .g-shade{box-shadow:inset 0 calc(-12px * var(--u,1)) calc(16px * var(--u,1)) calc(-14px * var(--u,1)) rgba(0,0,0,.45),inset 0 calc(11px * var(--u,1)) calc(14px * var(--u,1)) calc(-14px * var(--u,1)) rgba(255,255,255,.3)}
+.xp-clip .g-glow{-webkit-mask-image:linear-gradient(90deg,#000,transparent calc(7px * var(--u,1)),transparent calc(100% - 7px * var(--u,1)),#000),linear-gradient(#000,transparent calc(7px * var(--u,1)),transparent calc(100% - 7px * var(--u,1)),#000);
+          mask-image:linear-gradient(90deg,#000,transparent calc(7px * var(--u,1)),transparent calc(100% - 7px * var(--u,1)),#000),linear-gradient(#000,transparent calc(7px * var(--u,1)),transparent calc(100% - 7px * var(--u,1)),#000)}
+.xp-clip .g-rim{padding:calc(1px * var(--u,1))}
+.xp-meta{margin-top:22px;transform-origin:0 0;min-width:0;max-width:100%;align-self:center;text-align:center}
 .xp-title{font-size:20px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 6px rgba(0,0,0,.45)}
-.xp-sub{margin-top:2px;font-size:13.5px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.xp-sub{margin-top:5px;font-size:13.5px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .xp-artist{color:rgba(255,255,255,.85);cursor:pointer}
-.xp-scrub{margin-top:14px}
+.xp-scrub{margin-top:24px}
 .xp-scrub .custom-range-slider{height:4px;border-radius:3px}
-.xp-times{display:flex;justify-content:space-between;margin-top:7px;font-size:11px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
-.xp-ctrls{display:flex;align-items:center;justify-content:space-between;margin-top:4px;padding:0 4px}
+.xp-times{display:flex;justify-content:space-between;margin-top:9px;font-size:11px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
+.xp-ctrls{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:0 4px}
 .xp-ctrls .player-btn{width:46px;height:46px}
 .xp-ctrls .player-btn svg{width:20px;height:20px}
-.xp-ctrls #xp-play{width:60px;height:60px;box-shadow:0 6px 18px rgba(0,0,0,.25),0 0 calc(4px + var(--pulse,0) * 16px) rgba(var(--lc,200,215,225),calc(.12 + var(--pulse,0) * .3))}
+.xp-ctrls #xp-play{width:60px;height:60px}
 .xp-ctrls #xp-play svg{width:26px;height:26px}
 .xp-ctrls .xp-tog{width:40px;height:40px;background-color:transparent;border-color:transparent;box-shadow:none;color:rgba(255,255,255,.55)}
 .xp-ctrls .xp-tog:active{background-color:rgba(255,255,255,.1)}
@@ -510,7 +524,7 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-tog.on{color:rgb(120,222,202)}
 .xp-tog::after{content:'';position:absolute;bottom:3px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;opacity:0;transition:opacity .25s var(--ease)}
 .xp-tog.on::after{opacity:1}
-.xp-bottom{position:absolute;left:0;right:0;bottom:0;padding:0 0 8px}
+.xp-bottom{position:absolute;left:0;right:0;bottom:0;padding:0 0 12px}
 .xp-next-h{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;height:24px;padding:0 20px;font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);pointer-events:none}
 .xp-next-h span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .xp-next-h button{pointer-events:auto;flex-shrink:0;background:none;border:0;color:rgba(255,255,255,.7);font:inherit;letter-spacing:inherit;padding:6px 0 6px 12px;cursor:pointer}
@@ -628,9 +642,10 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
     <div class="xp-top" id="xp-top">
       <button class="xp-handle" id="xp-handle" aria-label="Close the big player"><i></i></button>
       <div class="xp-slot" id="xp-slot">
-        <div class="xp-art" id="xp-art"><div class="xp-bloom" id="xp-bloom"></div><div class="xp-clip" id="xp-clip">
+        <div class="xp-art" id="xp-art"><canvas class="art-bloom" id="xp-bloom" width="128" height="128"></canvas><canvas class="art-light" id="xp-light" width="128" height="128"></canvas><div class="xp-clip" id="xp-clip">
           <svg id="xp-fallback" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
           <img id="xp-art-img" alt="" style="display:none">
+          <i class="g g-refr" aria-hidden="true"></i><i class="g g-shade" aria-hidden="true"></i><i class="g g-spec" aria-hidden="true"></i><i class="g g-streak" aria-hidden="true"></i><i class="g g-glow" aria-hidden="true"></i><i class="g g-rim" aria-hidden="true"></i>
         </div></div>
       </div>
       <div class="xp-meta" id="xp-meta"><div class="xp-title" id="xp-title"></div><div class="xp-sub"><span class="xp-artist" id="xp-artist"></span><span id="xp-album"></span></div></div>
@@ -2561,6 +2576,7 @@ XP = (() => {
   const wrap = document.querySelector(".player-wrapper"), xp = $("xp"), top = $("xp-top"), bot = $("xp-bottom");
   const slot = $("xp-slot"), art = $("xp-art"), bloom = $("xp-bloom"), clip = $("xp-clip"), meta = $("xp-meta");
   const scrub = $("xp-scrub"), ctrls = $("xp-ctrls"), handle = $("xp-handle"), strip = $("xp-strip"), gear = $("gear-trigger");
+  const smBloom = $("art-bloom"), smLight = $("art-light"), glight = $("xp-light");           // the small cover's glows: handed over to the big cover's own while it's shown
   const pm = $("player-main"), cm = $("controls-main"), fm = $("footer-main"), artBox = $("album-art-box"), tText = pm.querySelector(".track-text");
   const REPEAT = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z", REPEAT_ONE = REPEAT + "m-4-2V9h-1l-2 1v1h1.5v4H13z";
   const st = { p: 0, v: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
@@ -2576,16 +2592,17 @@ XP = (() => {
   }
   /* sizes: the cover takes about 60 % of the panel's width (COVER), smaller on short screens; the panel ends right
      under its content, so the whole player sits high and compact */
-  const COVER = .6, COVER_MAX = 260;
+  const COVER = .6, COVER_MAX = 260, GAP = 36;                       // GAP: space between the controls and Up next
   function layout() {
     const vv = window.visualViewport, vh = vv ? vv.height : innerHeight;
     const topY = wrap.getBoundingClientRect().top, safeB = $("safe-probe").offsetHeight || 0;
     const avail = vh - topY - safeB - 14, W = wrap.clientWidth - 40;
     xp.style.setProperty("--xs", "0px");
     const topFixed = top.offsetHeight, botH = bot.offsetHeight;
-    const S = Math.round(Math.max(120, Math.min(W * COVER, COVER_MAX, avail - topFixed - botH - 20)));
+    const S = Math.round(Math.max(120, Math.min(W * COVER, COVER_MAX, avail - topFixed - botH - GAP)));
     xp.style.setProperty("--xs", S + "px");
-    st.S = S; st.h1 = Math.round(topFixed + S + botH + 20);
+    st.S = S; st.h1 = Math.round(topFixed + S + botH + GAP);
+    art.style.setProperty("--k", (S / (artBox.offsetWidth || 66)).toFixed(4));
   }
   function measureRects() {
     const a = rel(artBox), s = rel(slot), ct = rel($("track-title")), xt = rel($("xp-title"));
@@ -2613,7 +2630,11 @@ XP = (() => {
     const size = lerp(m.aw, st.S, P), s = size / st.S, curX = lerp(m.ax, m.sx, P), curY = lerp(m.ay, m.sy, P);
     art.style.transform = `translate(${(curX - m.sx).toFixed(2)}px,${(curY - m.sy).toFixed(2)}px) scale(${s.toFixed(4)})`;
     art.style.borderRadius = (lerp(12, 18, c) / s).toFixed(2) + "px";
-    bloom.style.opacity = (fade(P, .1, 1) * .55).toFixed(3);
+    art.style.setProperty("--u", (lerp(1, 1.6, c) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
+    /* the two covers' glows sit exactly on top of each other near p = 0: cross-fade them over the last stretch instead
+       of switching at one instant (a hidden CSS blur shown again gets redrawn, which showed as a jump on iPhone) */
+    const hm = fade(P, 0, .12), hs = hm.toFixed(3), hr = (1 - hm).toFixed(3);
+    if (st.hm !== hs) { st.hm = hs; bloom.style.setProperty("--hm", hs); glight.style.setProperty("--hm", hs); smBloom.style.setProperty("--hm", hr); smLight.style.setProperty("--hm", hr); }
     /* the title glides from beside the cover to under it; once the growing cover reaches it, the cover pushes it down
        instead of sliding over it. Both titles (the leaving small one and the arriving big one) travel together. */
     const lx = lerp(m.ctx, m.xtx, c), ly0 = lerp(m.cty, m.xty, c), ov = clamp01((curX + size + 10 - lx) / 40);
@@ -2640,7 +2661,7 @@ XP = (() => {
     xp.classList.remove("show"); xp.setAttribute("aria-hidden", "true");
     wrap.classList.remove("xp-on", "xp-anim");
     [pm, cm, fm].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
-    tText.style.transform = ""; artBox.style.visibility = ""; gear.style.opacity = ""; gear.style.pointerEvents = "";
+    tText.style.transform = ""; artBox.style.visibility = ""; st.hm = null; smBloom.style.removeProperty("--hm"); smLight.style.removeProperty("--hm"); gear.style.opacity = ""; gear.style.pointerEvents = "";
     if (st.sheet) { st.shT = setTimeout(settleHeight, Math.max(0, 440 - (performance.now() - st.sheetAt))); }   // let the drawer finish opening first
     else wrap.style.height = "";
   }
@@ -2787,14 +2808,86 @@ XP = (() => {
   }
   ["timeupdate", "loadedmetadata", "seeked", "emptied"].forEach(k => audio.addEventListener(k, time));
 
+  /* ---- the big cover's glows, pre-blurred ----
+     Same look as the small cover's CSS glows (bloom: the artwork blurred 20 px and saturated 1.6x, 1.5x the cover;
+     light: a two-colour wedge in a 110 px circle blurred 15 px), in the small cover's units, drawn into 128 px canvases.
+     The blur is three box passes (close to a gaussian). If the artwork can't be read (another site's image), the bloom
+     falls back to shrinking and re-enlarging it, which blurs it just as softly without reading pixels. */
+  const glowArt = (() => {
+    const N = 128, bl = $("xp-bloom"), li = $("xp-light"), bx = bl.getContext("2d"), lx = li.getContext("2d");
+    function blur(d, r) {                                              // premultiplied float RGBA, 3 box passes each way
+      const t = new Float32Array(d.length);
+      for (let pass = 0; pass < 3; pass++) for (let dir = 0; dir < 2; dir++) {
+        const src = dir ? t : d, dst = dir ? d : t, w = 2 * r + 1;
+        for (let a = 0; a < N; a++) for (let ch = 0; ch < 4; ch++) {
+          let acc = 0; const at = i => { const j = Math.max(0, Math.min(N - 1, i)); return (dir ? j * N + a : a * N + j) * 4 + ch; };
+          for (let i = -r; i <= r; i++) acc += src[at(i)];
+          for (let i = 0; i < N; i++) { dst[(dir ? i * N + a : a * N + i) * 4 + ch] = acc / w; acc += src[at(i + r + 1)] - src[at(i - r)]; }
+        }
+      }
+    }
+    function put(ctx, d, sat) {
+      const im = ctx.createImageData(N, N), o = im.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const a = d[i + 3]; if (a < .5) { o[i + 3] = 0; continue; }
+        const k = 65025 / a; let r = d[i] * k, g = d[i + 1] * k, b = d[i + 2] * k;   // colour is stored premultiplied as 0..1, alpha as 0..255
+        if (sat !== 1) { const l = .2126 * r + .7152 * g + .0722 * b; r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat; }
+        o[i] = r; o[i + 1] = g; o[i + 2] = b; o[i + 3] = a;
+      }
+      ctx.putImageData(im, 0, 0);
+    }
+    function bloom(img) {                                              // canvas = 166 units (cover 66 + 50 each side)
+      bx.clearRect(0, 0, N, N);
+      if (!img || !img.naturalWidth) return;
+      const u = N / 166, iw = img.naturalWidth, ih = img.naturalHeight, m = Math.min(iw, ih);
+      const draw = (ctx, x, y, w) => ctx.drawImage(img, (iw - m) / 2, (ih - m) / 2, m, m, x, y, w, w);
+      try {
+        draw(bx, 50 * u, 50 * u, 66 * u);
+        const src = bx.getImageData(0, 0, N, N).data, d = new Float32Array(src.length);
+        for (let i = 0; i < src.length; i += 4) { const a = src[i + 3] / 255; d[i] = src[i] * a / 255; d[i + 1] = src[i + 1] * a / 255; d[i + 2] = src[i + 2] * a / 255; d[i + 3] = src[i + 3]; }
+        blur(d, Math.round(20 * u)); put(bx, d, 1.6);   // 3 box passes of radius r ≈ a gaussian of σ = r
+      } catch (e) {                                                    // tainted: shrink to a few pixels, then enlarge smoothly
+        bx.clearRect(0, 0, N, N);
+        const t = document.createElement("canvas"); t.width = t.height = 12; const tc = t.getContext("2d");
+        draw(tc, 3.6, 3.6, 4.8);
+        bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = "high"; bx.drawImage(t, 0, 0, N, N);
+      }
+    }
+    let lastLc = "";
+    function light(c1, c2) {                                           // canvas = 180 units (circle of 110 + 35 each side)
+      const key = c1 + "|" + c2; if (key === lastLc) return; lastLc = key;
+      const A = c1.split(",").map(Number), B = c2.split(",").map(Number), u = N / 180, R0 = 55 * u, c = N / 2, d = new Float32Array(N * N * 4);
+      const stops = [[0, A, 0], [50, A, .9], [135, A, 0], [190, B, 0], [245, B, .55], [320, B, 0], [360, B, 0]];
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        const dx = x + .5 - c, dy = y + .5 - c, rr = Math.hypot(dx, dy); if (rr > R0 + .5) continue;
+        const edge = Math.min(1, R0 + .5 - rr);
+        let ang = Math.atan2(dx, -dy) * 180 / Math.PI; if (ang < 0) ang += 360;
+        let k = 0; while (k < stops.length - 2 && ang > stops[k + 1][0]) k++;
+        const [a0, C0, al0] = stops[k], [a1, C1, al1] = stops[k + 1], t = (ang - a0) / (a1 - a0);
+        const al = (al0 + (al1 - al0) * t) * edge, i = (y * N + x) * 4;
+        for (let ch = 0; ch < 3; ch++) d[i + ch] = (C0[ch] + (C1[ch] - C0[ch]) * t) / 255 * al;
+        d[i + 3] = al * 255;
+      }
+      blur(d, Math.round(15 * u)); put(lx, d, 1);
+    }
+    return { bloom, light };
+  })();
+
   /* ---- the big cover mirrors the small one (same artwork, same moment) ---- */
   const srcImg = $("track-art-img"), xImg = $("xp-art-img"), xFb = $("xp-fallback");
   function mirrorArt() {
     const src = srcImg.style.display !== "none" && srcImg.getAttribute("src");
-    if (src) { if (xImg.getAttribute("src") !== src) xImg.src = src; xImg.style.display = "block"; xFb.style.display = "none"; bloom.style.backgroundImage = `url("${String(src).replace(/"/g, "%22")}")`; }
-    else { xImg.style.display = "none"; xFb.style.display = "block"; bloom.style.backgroundImage = ""; }
+    const u = src ? `url("${String(src).replace(/"/g, "%22")}")` : "";
+    if (src) { if (xImg.getAttribute("src") !== src) xImg.src = src; xImg.style.display = "block"; xFb.style.display = "none"; }
+    else { xImg.style.display = "none"; xFb.style.display = "block"; }
+    if (!src) glowArt.bloom(null);
+    const on = artBox.style.getPropertyValue("--art-on") || (src ? "1" : "0");   // written only when changed (this also runs as the small cover is hidden/shown)
+    if (art._u !== u) { art._u = u; art.style.setProperty("--art", u || "none"); }
+    if (art._on !== on) { art._on = on; art.style.setProperty("--art-on", on); }
   }
-  new MutationObserver(mirrorArt).observe(srcImg, { attributes: true, attributeFilter: ["src", "style"] }); mirrorArt();
+  new MutationObserver(mirrorArt).observe(srcImg, { attributes: true, attributeFilter: ["src", "style"] });
+  new MutationObserver(mirrorArt).observe(artBox, { attributes: true, attributeFilter: ["style"] }); mirrorArt();
+  xImg.addEventListener("load", () => glowArt.bloom(xImg)); if (xImg.complete) glowArt.bloom(xImg);
 
   /* ---- text, buttons, strip ---- */
   let stripDirty = true;
@@ -2945,7 +3038,7 @@ XP = (() => {
 
   const onResize = () => { if (!st.expanded || st.raf || g) return; layout(); wrap.style.height = st.h1 + "px"; measureRects(); };
   addEventListener("resize", onResize); if (window.visualViewport) visualViewport.addEventListener("resize", onResize);
-  return { open, close, sync, onSong, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, _st: st };
+  return { glowLight: glowArt.light, open, close, sync, onSong, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, _st: st };
 })();
 
 /* ---------- LIQUID GLASS: tilt (optional) adds to the cover light; the light also moves on its own ---------- */
@@ -3338,7 +3431,7 @@ let pEls = null;
 function pulseLoop(now) {
   pRaf = 0;
   if (document.hidden) { PERF.gap(); pulseLoop.t = 0; return; }       // restarted by visibilitychange
-  if (!pEls) pEls = { pm: $("player-main"), glow: $("glow-layer"), thumb: $("progress-slider").querySelector(".slider-thumb"), xpPlay: $("xp-play"), xp: $("xp") };
+  if (!pEls) pEls = { pm: $("player-main"), glow: $("glow-layer"), thumb: $("progress-slider").querySelector(".slider-thumb"), xpPlay: $("xp-play"), xp: $("xp"), xa: $("xp-art"), xThumb: $("xp-progress").querySelector(".slider-thumb") };
   const playing = !audio.paused, pmOn = pEls.pm.style.display !== "none";
   const idle = !playing && energy < .02 && flare === 0 && pulse < .003 && now - tiltAt > 600;
   if (!idle) {
@@ -3356,17 +3449,20 @@ function pulseLoop(now) {
   const pv = pulse.toFixed(2), xpOn = pEls.xp.classList.contains("show"), big = !!(XP && XP.expanded);
   if (!big) { pset(pEls.pm, "--pulse", pv); pset(pEls.thumb, "--pulse", pv); }
   if (drawerBox.classList.contains("expanded")) pset(pEls.glow, "--pulse", pv);
-  if (xpOn) pset(pEls.xpPlay, "--pulse", pv);
+  if (xpOn) { pset(pEls.xa, "--pulse", pv); pset(pEls.xThumb, "--pulse", pv); }
   sparkTick(playing, dt);
   if (flare > .003) { flare *= Math.exp(-dt / .45); rimA += flare * 260 * dt; } else flare = 0;   // song change: the cover light swings round quickly, then settles
-  if (!big) breathe(now, dt);
+  breathe(now, dt, big);
   energy += ((playing ? 1 : 0) - energy) * (1 - Math.exp(-dt / (playing ? .4 : 1.8)));   // one smooth "how alive" level: quick up, slow settle down
   if (!playing && energy < .005) energy = 0;
   rimA = (rimA + (4 + energy * (5 + pulse * 14)) * dt) % 360;                              // the light slowly orbits the cover on its own; a little livelier with the music
   const tx = TILT.x, ty = TILT.y, s = now / 1000;
   tilt += (Math.min(1, Math.hypot(tx, ty)) - tilt) * (1 - Math.exp(-dt / .35));            // 0 without tilt: the glass then runs on its ambient motion alone
-  if (pmOn && !big) {                                                // the compact cover isn't on screen while the big player is open: skip its light
-    const pm = pEls.pm;
+  /* the cover light goes to whichever cover is on screen: the small one, the big one, or both while it expands */
+  const covers = []; if (pmOn && !big) covers.push(pEls.pm); if (xpOn) covers.push(pEls.xa);
+  if (xpOn) { const xa = pEls.xa, ps = pEls.pm.style; pset(xa, "--lk", ps.getPropertyValue("--lk") || "1");
+    XP.glowLight((ps.getPropertyValue("--lc") || "200,215,225").trim(), (ps.getPropertyValue("--lc2") || "200,215,225").trim()); pset(xa, "--tx", tx.toFixed(3)); pset(xa, "--ty", ty.toFixed(3)); }
+  for (const pm of covers) {
     /* glass light: one direction shared by the halo behind, the rim, the edge glow and the surface hotspot */
     const la = rimA + 50 + tx * 40 - ty * 12, th = la * Math.PI / 180, rr = 30 + 6 * Math.sin(s / 7.3);
     pset(pm, "--ang", (la - 50).toFixed(1) + "deg"); pset(pm, "--la", la.toFixed(1) + "deg");
@@ -3389,12 +3485,13 @@ let rimA = 0, energy = 0, tilt = 0;
    paused, Play keeps a slow breath of its own */
 const bpHist = [], bpLast = [-1, -1, -1];
 let bpBtns = null;
-function breathe(now, dt) {
+let bpXp = null;
+function breathe(now, dt, big) {
   bpHist.push(pulse); while (bpHist.length > Math.max(2, Math.round(.1 / (dt || .016)) + 1)) bpHist.shift();   // the sides follow ~0.1 s later, at any frame rate
   const lag = bpHist[0], idle = (1 - energy) * (.16 + .14 * Math.sin(now / 1500));
   const v = [lag * .7, Math.max(pulse, idle), lag * .7];
-  if (!bpBtns) bpBtns = [$("prev-btn"), playBtn, $("skip-btn")];
-  bpBtns.forEach((b, i) => { if (Math.abs(v[i] - bpLast[i]) > .006) { bpLast[i] = v[i]; b.style.setProperty("--bp", v[i].toFixed(3)); } });
+  if (!bpBtns) { bpBtns = [$("prev-btn"), playBtn, $("skip-btn")]; bpXp = [$("xp-prev"), $("xp-play"), $("xp-next")]; }
+  (big ? bpXp : bpBtns).forEach((b, i) => { if (Math.abs(v[i] - (b._bp ?? -1)) > .006) { b._bp = v[i]; b.style.setProperty("--bp", v[i].toFixed(3)); } });
 }
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
