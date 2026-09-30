@@ -2408,7 +2408,15 @@ const bubble = (() => {
       const bg = mainBg, vig = document.querySelector(".bg-vignette");
       geo = { cw: bg.offsetWidth, ch: bg.offsetHeight, vw: vig.offsetWidth, vh: vig.offsetHeight };
     }
-    addEventListener("resize", () => { geo = null; request(true); });
+    /* Inside Telegram the window "resize" event fires while the web view is still changing size (the sheet expanding to
+       full screen, a rotation), and no event follows once it settles: the wallpaper box was measured mid-change and kept,
+       so the glass painted the wrong (darker) part of the photo until a reload. Now the wallpaper box itself is watched
+       (fires on every real size change, including the final one), plus Telegram's own viewport / safe-area events (the
+       safe area moves the panel down under Close / ... without resizing it). */
+    const regeo = () => { geo = null; request(true); };
+    addEventListener("resize", regeo);
+    try { new ResizeObserver(regeo).observe(mainBg); } catch (e) {}
+    if (TG) ["viewportChanged", "fullscreenChanged", "safeAreaChanged", "contentSafeAreaChanged"].forEach(ev => { try { TG.onEvent(ev, regeo); } catch (e) {} });
     document.addEventListener("visibilitychange", () => { if (!document.hidden) request(true); });
     function draw() {
       if (!G.ready || !on || !G.cv.isConnected || !W) return;
