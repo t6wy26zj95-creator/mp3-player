@@ -200,7 +200,10 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 /* ===== one idea: clear glass + the cover's own glow. Tilt only moves that glow (and the wallpaper a hair). ===== */
 :root{--inset:10px;--glass-blur:blur(3px) saturate(150%) brightness(.92);--cw:114px;--art-x:24px}   /* --cw = prev+play+next width (3x34 + 2x6); cover (66px) is centred over that group */
 .player-wrapper{background:linear-gradient(rgba(6,18,26,.13),rgba(6,18,26,.13)),var(--glass-bg)}
-.bg-container{transform:translate3d(calc(var(--tx,0) * -6px),calc(var(--ty,0) * -6px),0) scale(1.04);will-change:transform}
+.bg-container{transform:scale(1.04);will-change:transform}   /* the tilt parallax is set inline by JS (a plain transform: the compositor moves it, nothing is restyled) */
+/* the two soft glows behind the cover change every frame, but only in transform and opacity: on their own layers they are
+   blurred once and then just moved and faded by the GPU instead of being re-blurred 30-60 times a second */
+.art-bloom,.art-light{will-change:transform,opacity}
 /* corner highlight: fixed size (px), so it no longer grows when the drawer opens; no tilt */
 .player-wrapper::before{background:linear-gradient(135deg,rgba(255,255,255,.17) 0,rgba(255,255,255,.04) 90px,rgba(255,255,255,0) 170px)}
 .player-wrapper::after{content:none}
@@ -434,6 +437,11 @@ html.bubble.gl-glass .bubble-svg{opacity:0}
 .bubble-skin{background:linear-gradient(rgba(6,18,26,.1),rgba(6,18,26,.1));   /* clear glass: a light blur and a faint tint, no milky sheen */
   backdrop-filter:blur(2px) saturate(135%) brightness(.94);-webkit-backdrop-filter:blur(2px) saturate(135%) brightness(.94)}
 .bubble-svg{overflow:visible;border-radius:0}
+/* once the WebGL glass has faded in it draws the whole glass (blur and tint included), so the CSS backdrop blur beneath it
+   is switched off. A backdrop blur is recomputed over the whole panel every time anything inside the panel repaints
+   (the cover light, the glow, the progress dot...), many times a second; the WebGL glass is redrawn only when the
+   wallpaper or the panel itself moves. */
+html.bubble.gl-solid .bubble-skin{backdrop-filter:none;-webkit-backdrop-filter:none;background:none}
 html.bubble .player-wrapper{background:transparent;border-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border-radius:36px;
   box-shadow:0 22px 50px rgba(0,0,0,.26),0 5px 16px rgba(0,0,0,.13);
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
@@ -669,6 +677,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
   <button class="more-toggle" id="more-toggle" aria-expanded="false">More<svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
   <div class="more-box" id="more-box" hidden>
     <div class="set-row"><span>Old panel<small>The previous flat glass panel</small></span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Old panel"><i></i></button></div>
+    <div class="set-row" style="margin-top:10px"><span>Light effects<small>Fewer glass redraws. Turns on by itself while the phone struggles (e.g. screen recording)</small></span><button class="switch" id="lite-switch" role="switch" aria-checked="false" aria-label="Light effects"><i></i></button></div>
   </div>
 </div>
 
@@ -695,14 +704,51 @@ function haptic(kind) {                               // "light" | "medium" | "s
 /* Telegram may clear the web view's storage (low space, cache cleanup). Settings and caches are mirrored into Telegram's
    DeviceStorage (on the phone, 5 MB per bot); if the local copy is gone at launch it is pulled back once and the page reloads. */
 const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
-const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState"], mirrorT = {};
+/* Each write to Telegram's storage is a round trip through the app, so a key is sent at most once per its delay (the
+   latest value wins), and whatever is still waiting is sent straight away when the app is hidden or closed. The play
+   position changes every few seconds while you listen: it goes at most every 30 s (and on pause / hide). */
+const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite"], mirrorT = {}, mirrorV = {};
+const MIRROR_DELAY = { playState: 3000, playPos: 30000, artistCache: 5000, releaseMap2: 5000 };
+function mirrorSend(k) { clearTimeout(mirrorT[k]); delete mirrorT[k]; if (!(k in mirrorV)) return; const v = mirrorV[k]; delete mirrorV[k]; try { tgStore.setItem(k, v); } catch (e) {} }
+function mirrorFlush() { Object.keys(mirrorV).forEach(mirrorSend); }
 const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}
-  if (tgStore && MIRROR.includes(k)) { clearTimeout(mirrorT[k]); mirrorT[k] = setTimeout(() => { try { tgStore.setItem(k, String(v)); } catch (e) {} }, 800); }}};
+  if (tgStore && MIRROR.includes(k)) { mirrorV[k] = String(v); if (!mirrorT[k]) mirrorT[k] = setTimeout(() => mirrorSend(k), MIRROR_DELAY[k] || 800); }}};
 if (tgStore && !store.get("tgMark")) (function () {
   let left = MIRROR.length, got = 0;
   const done = () => { if (--left) return; try { localStorage.setItem("tgMark", "1"); } catch (e) {} if (got && store.get("tgMark")) location.reload(); };   // reload only if the mark stuck (no reload loop when storage is blocked)
   MIRROR.forEach(k => { try { tgStore.getItem(k, (err, v) => { if (!err && v) { try { localStorage.setItem(k, v); got++; } catch (e) {} } done(); }); } catch (e) { done(); } });
 })();
+
+/* ---------- PERFORMANCE ----------
+   Two quality levels. Normal: everything as designed, with the decorative light (glow, cover glass, breathing buttons)
+   redrawn at up to 30 fps on phones; gestures and transitions always get every frame. Light: kicks in on its own when
+   the phone can't keep up for a couple of seconds (screen recording, Low Power Mode, a hot phone, an old phone) and
+   drops the costliest extras: the wallpaper parallax (which forces the whole glass panel to be re-blurred), and the
+   glass edge is drawn at lower resolution with fewer samples. It switches back once things are smooth again for a
+   while (unless it had to switch twice, then it stays light until the app is reopened). Settings > More > "Light
+   effects" forces it on. Every loop that animates reports its frame times here through PERF.frame(). */
+const TILT = { x: 0, y: 0, apply() {}, redraw: null };                // the current (smoothed) tilt, -1..1; set by the tilt module
+const PERF = (() => {
+  const phone = matchMedia("(pointer:coarse)").matches;
+  let lite = false, auto = false, trips = 0, avg = 16.7, last = 0, slow = 0, fast = 0;
+  const subs = [], forced = () => store.get("perfLite") === "1";
+  function set(v) {
+    if (v === lite) return; lite = v;
+    document.documentElement.classList.toggle("lite", v);
+    subs.forEach(f => { try { f(v); } catch (e) {} });
+  }
+  function frame(now) {                                               // call once per animation frame from a loop that asks for every frame
+    const d = last ? now - last : 0; last = now;
+    if (!d || d > 250) return;                                        // first frame, or a stall / tab switch: not a measure of smoothness
+    avg += (d - avg) * .05;
+    if (!lite) { if (avg > 24) { if (++slow > 75) { slow = 0; auto = true; trips++; set(true); } } else slow = 0; }   // below ~42 fps for ~2-3 s
+    else if (auto && !forced() && trips < 2) { if (avg < 18.5) { if (++fast > 700) { fast = 0; auto = false; set(false); } } else fast = 0; }
+  }
+  return { frame, gap() { last = 0; }, on: f => subs.push(f), get lite() { return lite; }, phone,
+    force(v) { store.set("perfLite", v ? "1" : "0"); if (v) set(true); else if (!auto) set(false); },
+    get decoFps() { return lite ? 24 : phone ? 30 : 60; } };
+})();
+if (store.get("perfLite") === "1") PERF.force(true);
 
 const LASTFM_API_KEY = "dbe9aea2d4e59436f4b2015d1f0e027a";
 const albumMeta = {};
@@ -734,18 +780,39 @@ const DEFAULT_WALL = "https://images.unsplash.com/photo-1478760329108-5c3ed9d495
 const FALLBACK_BG = "linear-gradient(160deg,#0b1d24,#1d4e5f 60%,#0b1d24)";
 const mainBg = $("main-bg");
 function applyBg() {
-  mainBg.style.filter = `blur(${store.get("wallpaperBlur") || 0}px)`;
+  const bl = +(store.get("wallpaperBlur") || 0);
+  mainBg.style.filter = bl ? `blur(${bl}px)` : "";                  // no blur(0px) filter: even a zero blur costs an extra full-screen pass
   const custom = store.get("photoData");
   mainBg.style.backgroundImage = `url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;
   const pos = custom ? "center" : "70% 24%";
   mainBg.style.backgroundPosition = `${pos}, center`;
-  // Same wallpaper painted on the page canvas itself, so it also fills the strip under Safari's bar
+  // Same wallpaper painted on the page canvas itself, so it also fills the strip under Safari's bar.
+  // Inside Telegram there is no such bar: a plain colour there saves painting the full-size photo twice.
   const root = document.documentElement.style, vig = "radial-gradient(circle at center,rgba(0,0,0,0) 30%,rgba(0,0,0,.6) 100%)";
-  root.backgroundImage = `${vig}, url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;
-  root.backgroundSize = "100% 100%, cover, cover";
-  root.backgroundPosition = `center, ${pos}, center`;
+  if (TG) root.backgroundImage = "";
+  else {
+    root.backgroundImage = `${vig}, url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;
+    root.backgroundSize = "100% 100%, cover, cover";
+    root.backgroundPosition = `center, ${pos}, center`;
+  }
   if (window.__bgChanged) window.__bgChanged();                     // the Liquid Glass panel draws the wallpaper itself
 }
+/* the wallpaper's tilt parallax (a plain transform, moved by the compositor). Light mode keeps it still: a moving
+   wallpaper makes the browser re-blur everything behind the glass panel on every frame. The glass edge (WebGL) is drawn
+   from the same numbers, so the two always line up. */
+TILT.ex = TILT.ey = 0; TILT.m = PERF.lite ? 0 : 1;                  // m: how much of the tilt the wallpaper follows (eases to 0 in light mode)
+TILT.apply = () => {
+  const x = +(TILT.x * TILT.m).toFixed(4), y = +(TILT.y * TILT.m).toFixed(4);
+  if (x === TILT.ex && y === TILT.ey) return;
+  TILT.ex = x; TILT.ey = y;
+  mainBg.style.transform = x || y ? `translate3d(${(x * -6).toFixed(2)}px,${(y * -6).toFixed(2)}px,0) scale(1.04)` : "";
+  if (TILT.redraw) TILT.redraw();
+};
+PERF.on(v => {                                                       // glide the wallpaper to rest (or back) over half a second instead of jumping
+  const from = TILT.m, to = v ? 0 : 1, t0 = performance.now();
+  const step = now => { const k = Math.min(1, (now - t0) / 500); TILT.m = from + (to - from) * (1 - Math.pow(1 - k, 3)); TILT.apply(); if (k < 1 && TILT.m !== to) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+});
 $("upload-wall").addEventListener("click", () => $("photo-input").click());
 $("reset-wall").addEventListener("click", () => { store.set("photoData", ""); applyBg(); });
 $("photo-input").addEventListener("change", e => {
@@ -790,7 +857,7 @@ const progressCtrl = setupCustomSlider("progress-slider",
   v => { if (isFinite(audio.duration)) $("current-time").innerText = fmt(v * audio.duration); });
 
 /* ---------- LOADING SONGS ---------- */
-function showPlayerUI() { $("drop-zone").style.display = "none"; $("player-main").style.display = "flex"; $("controls-main").style.display = "flex"; $("footer-main").style.display = "flex"; }
+function showPlayerUI() { $("drop-zone").style.display = "none"; $("player-main").style.display = "flex"; $("controls-main").style.display = "flex"; $("footer-main").style.display = "flex"; startPulse(); }
 $("drop-zone").addEventListener("click", () => { if (!botMode) $("file-input").click(); });
 $("btn-add").addEventListener("click", () => { if (botMode) { toast("Send or forward songs in the bot chat"); haptic("light"); } else $("file-input").click(); });
 $("file-input").addEventListener("change", async e => {
@@ -799,6 +866,7 @@ $("file-input").addEventListener("change", async e => {
   showPlayerUI();
   dupCount = 0;
   for (const f of files) await addFile(f);
+  tracks.sort(cmpTracks);
   if (!curPlayed) restoreState(); else restored = true;
   renderAlbums(); renderPlaylist();
   if (queueShown()) renderQueue();
@@ -840,7 +908,7 @@ async function addFile(f) {
   if (tagKeys.has(tk)) { dupCount++; return; }                        // identical track already in this album
   tagKeys.add(tk);
   if (t.picture) { try { tr.art = URL.createObjectURL(new Blob([new Uint8Array(t.picture.data)], { type: t.picture.format || "image/jpeg" })); } catch (e) {} }
-  tracks.push(tr); tracks.sort(cmpTracks);
+  tracks.push(tr);                                                    // sorted once after the whole batch (see the file picker)
   scheduleAlbumWork(tr); delete albumRelease[tr.album]; scheduleResolve();
   if (curId === null) loadTrack(tr.id, false);
 }
@@ -859,7 +927,7 @@ function fetchAlbumMeta(artist, album) {
       let list = a.tracks && a.tracks.track ? a.tracks.track : [];
       if (!Array.isArray(list)) list = [list];
       albumMeta[album] = { artist, cover: img ? img["#text"] : null, tracks: list.map(t => t.name) };
-      renderAlbums(); renderPlaylist();
+      libRenderSoon();
       return albumMeta[album];
     } catch (e) { return null; }
   })();
@@ -871,7 +939,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const cleanTitle = s => s.replace(/\s*[\(\[].*?[\)\]]/g, "").replace(/\s-\s.*$/, "").trim();
 const mainArtist = s => s.split(/\s*(?:;|,|&|\bfeat\.|\bft\.)\s*/i)[0].trim();
 function refreshNowPlaying() {
-  const t = tracks.find(x => x.id === curId); if (!t) return;
+  const t = trackById(curId); if (!t) return;
   setCover(t.art || albumCover(t.album));
 }
 /* Cover change: the old cover stays on screen until the new one is downloaded and decoded, then they swap in one frame.
@@ -1019,8 +1087,17 @@ function ownedAlbumKey(a) {
   if (!a || !a.id) return null;
   return Object.keys(albumRelease).find(n => albumRelease[n] == a.id && tracks.some(t => t.album === n)) || null;
 }
+/* Album info arrives one album at a time (dozens of replies right after the library loads). The grid used to be rebuilt
+   from scratch on every reply, even while it wasn't on screen. Now replies are gathered for a quarter of a second and
+   only what is actually showing is rebuilt; a hidden grid is rebuilt when it is opened anyway. */
+let libRT = 0;
+const gridShown = () => albumsGridWrapper.style.display === "block" && drawerBox.classList.contains("expanded");
+function libRenderSoon() {
+  if (libRT) return;
+  libRT = setTimeout(() => { libRT = 0; if (gridShown()) renderAlbums(); if (playlistWrapper.style.display === "block") renderPlaylist(); }, 250);
+}
 function refreshOwnership() {
-  renderAlbums();
+  if (gridShown()) renderAlbums();
   if (playlistWrapper.style.display === "block") renderPlaylist();
   if (artistWrapper.style.display === "block" && lastArtist) updateArtistOwnership();
 }
@@ -1267,7 +1344,10 @@ let history = [], nowFrom = "other", curPlayed = false, shuffle = false;
 let repeatMode = ["all", "one", "off"].includes(store.get("repeatMode")) ? store.get("repeatMode") : "all";
 let ctx = null;                                                      // { name, ids: [..] | null (= whole library, live), order: [..] | null (= the list's own order), at: id }
 const HIST_MAX = 100, CTX_ROWS = 20;
-const trackById = id => tracks.find(x => x.id === id);
+/* id -> song, via an index that is rebuilt only when the library changes (a new array or a different length). This is
+   looked up many times per list, strip and queue render; a plain search over a big library added up. */
+let tIdx = null, tIdxOf = null, tIdxN = -1;
+const trackById = id => { if (tIdxOf !== tracks || tIdxN !== tracks.length) { tIdx = new Map(tracks.map(t => [t.id, t])); tIdxOf = tracks; tIdxN = tracks.length; } return tIdx.get(id); };
 const allIds = () => tracks.map(t => t.id);
 const queueShown = () => queueWrapper.style.display === "block" && drawerBox.classList.contains("expanded");
 function shuffled(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
@@ -1568,11 +1648,21 @@ function beginDrag(r, from, group, e, el) {
    opens. Songs are matched by a stable key: the server's id for bot songs, the tags for songs picked from the phone.
    The whole-library context is saved as "library", not as a list. */
 const tkey = t => t.remote ? "r:" + t.remote.id : "l:" + [t.artist, t.album, t.disc, t.num, t.title].join("|").toLowerCase();
-let pendingSeek = null, restored = false, lastSave = 0;
-function saveState() { clearTimeout(saveState.t); saveState.t = setTimeout(saveStateNow, 400); }
+let pendingSeek = null, restored = false, lastSave = 0, stateDirty = true;
+/* Two keys: playState (song, queue, history, album and its order: can be big with a large library) is written only when
+   one of those changes, or when you pause / leave; playPos (just the song and the position, tiny) is what the timer
+   writes every few seconds while you listen. Before, the whole state was rebuilt and written every 5 s, which on a big
+   library was a small but regular hitch. */
+function saveState() { stateDirty = true; clearTimeout(saveState.t); saveState.t = setTimeout(saveStateNow, 400); }
+function savePos() {
+  lastSave = Date.now(); const cur = trackById(curId); if (!cur || !restored) return;
+  const pos = pendingSeek != null ? pendingSeek : audio.currentTime || 0, dur = isFinite(audio.duration) ? audio.duration : (saveStateNow.dur || 0);
+  store.set("playPos", JSON.stringify({ cur: tkey(cur), pos: +pos.toFixed(1), dur: +dur.toFixed(1) }));
+}
 function saveStateNow() {
-  clearTimeout(saveState.t); lastSave = Date.now();
-  const cur = trackById(curId); if (!cur || !restored) return;         // never overwrite a saved state before it has been restored
+  clearTimeout(saveState.t); savePos();
+  const cur = trackById(curId); if (!cur || !restored || !stateDirty) return;   // never overwrite a saved state before it has been restored
+  stateDirty = false;
   const K = ids => ids.map(trackById).filter(Boolean).map(tkey), k1 = id => { const t = trackById(id); return t ? tkey(t) : null; };
   const pos = pendingSeek != null ? pendingSeek : audio.currentTime || 0, dur = isFinite(audio.duration) ? audio.duration : (saveStateNow.dur || 0);
   store.set("playState", JSON.stringify({ v: 3, cur: tkey(cur), from: nowFrom, pos: +pos.toFixed(1), dur: +dur.toFixed(1),
@@ -1582,6 +1672,7 @@ function saveStateNow() {
 function restoreState() {                                             // once, when the library first appears (bot) or the first songs are picked (web)
   if (restored) return; restored = true;
   let s = null; try { s = JSON.parse(store.get("playState") || "null"); } catch (e) {}
+  try { const pp = JSON.parse(store.get("playPos") || "null"); if (s && pp && pp.cur === s.cur) { s.pos = pp.pos; s.dur = pp.dur || s.dur; } } catch (e) {}   // the newer position
   const map = new Map(tracks.map(t => [tkey(t), t.id])), cur = s && map.get(s.cur);
   if (!s || cur == null || ![1, 2, 3].includes(s.v)) { ensureContext(); return; }
   const I = a => (a || []).map(k => map.get(k)).filter(x => x != null);
@@ -1616,9 +1707,9 @@ function applyPendingSeek() {
   progressCtrl.setValue(p / audio.duration); $("current-time").innerText = fmt(p);
 }
 audio.addEventListener("loadedmetadata", applyPendingSeek);
-audio.addEventListener("pause", () => saveStateNow());
-addEventListener("pagehide", () => saveStateNow());
-document.addEventListener("visibilitychange", () => { if (document.hidden) saveStateNow(); });
+audio.addEventListener("pause", () => { saveStateNow(); if (tgStore) mirrorSend("playPos"); });
+addEventListener("pagehide", () => { saveStateNow(); if (tgStore) mirrorFlush(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden) { saveStateNow(); if (tgStore) mirrorFlush(); } });
 
 /* ---------- PLAYBACK ---------- */
 let curUrl = null;
@@ -1626,7 +1717,8 @@ let curUrl = null;
    o.back: going back through History (the song you leave isn't added to History again)
    o.noHist: restoring the last session */
 function loadTrack(id, autoplay, o = {}) {
-  const t = tracks.find(x => x.id === id); if (!t) return;
+  const t = trackById(id); if (!t) return;
+  glowKick();                                                        // the album glowing as "now playing" may change
   const dir = songDir; songDir = 0;
   const anim = !!autoplay && curId !== null && curId !== id && songOut(dir);   // the old title leaves before the new one is written
   if (curId !== null && curId !== id && curPlayed && !o.back && !o.noHist) pushHistory(curId, nowFrom);
@@ -1660,7 +1752,7 @@ function pauseTrack() { audio.pause(); setPlayIcon(false); }
    instead of a new request to the server. */
 function seekTo(time) {
   pendingSeek = null;
-  const t = tracks.find(x => x.id === curId);
+  const t = trackById(curId);
   if (t && t.remote && t.file && !curUrl) {
     const wasPlaying = !audio.paused;
     curUrl = URL.createObjectURL(t.file); audio.src = curUrl;
@@ -1716,7 +1808,7 @@ function playPrev() {
 const fmt = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
 audio.addEventListener("timeupdate", () => {
   if (!isFinite(audio.duration)) return;
-  if (!audio.paused && Date.now() - lastSave > 5000) saveState();         // position survives the app being closed
+  if (!audio.paused && Date.now() - lastSave > 5000) savePos();          // position survives the app being closed (just the position: cheap)
   progressCtrl.setValue(audio.currentTime / audio.duration);
   if (!progressCtrl.dragging) $("current-time").innerText = fmt(audio.currentTime);
 });
@@ -2089,7 +2181,7 @@ function renderArtists() {
     shelf.appendChild(card);
   });
 }
-$("track-artist").addEventListener("click", () => { const t = tracks.find(x => x.id === curId); if (t) openArtist(t.artist); });
+$("track-artist").addEventListener("click", () => { const t = trackById(curId); if (t) openArtist(t.artist); });
 
 /* ---------- TABS ---------- */
 const btnQueue = $("btn-queue"), btnPlaylist = $("btn-playlist"), drawerBox = $("drawer-box");
@@ -2210,8 +2302,8 @@ const bubble = (() => {
      panel's lean and stretch. It appears with a fade once the wallpaper is ready; without WebGL or a usable image the
      simple SVG rim stays. */
   const glass = (() => {
-    const G = { cv: null, ready: false, dirty: true, init, draw: () => draw() };
-    let gl = null, prog = null, U = {}, tex = null, texSrc = "", texW = 1, texH = 1, lastTx = null, lastTy = null, looping = false;
+    const G = { cv: null, ready: false, dirty: true, urgent: false, init, draw: () => draw(), request, now() { if (G.ready && on && !document.hidden) { G.dirty = true; draw(); } } };
+    let gl = null, prog = null, U = {}, tex = null, texSrc = "", texW = 1, texH = 1, rq = 0, lastDraw = 0, geo = null;
     const VS = `#version 300 es
       in vec2 a; void main(){ gl_Position = vec4(a, 0., 1.); }`;
     const FS = `#version 300 es
@@ -2228,13 +2320,13 @@ const bubble = (() => {
       }
       vec2 toPage(vec2 cp) { return uOrigin + mat2(uM.x, uM.y, uM.z, uM.w) * cp; }   // canvas point -> page point (follows the panel's transform)
       uniform float uBlur;                                             // the glass's blur radius in css px (the same as backdrop-filter)
+      uniform float uQ;                                                // 1 = full quality, 0 = light mode (one ring of taps, no colour split)
       vec3 tap(vec2 pc) { return textureLod(uTex, clamp(pc * uUvA + uUvB, .0005, .9995), uLod).rgb; }
-      vec3 wall(vec2 pc) {                                             // the wallpaper as the page shows it at pc, blurred like the glass: a smooth gaussian, not blocky mip levels
-        vec3 c = tap(pc) * .2;
-        for (int i = 0; i < 12; i++) {
-          float a = float(i) * 2.39996, r = uBlur * (i < 6 ? .55 : 1.1);   // two rings of taps, golden-angle spread
-          c += tap(pc + vec2(cos(a), sin(a)) * r) * (i < 6 ? .0867 : .0467);
-        }
+      vec3 wall(vec2 pc, bool full) {                                  // the wallpaper as the page shows it at pc, blurred like the glass: a smooth gaussian, not blocky mip levels
+        vec3 c = tap(pc) * .2;                                         // full: two rings of taps (the refracting edge); otherwise one ring (the flat middle, light mode)
+        float wi = full ? .0867 : .1333;
+        for (int i = 0; i < 6; i++) { float a = float(i) * 2.39996; c += tap(pc + vec2(cos(a), sin(a)) * uBlur * .55) * wi; }   // golden-angle spread
+        if (full) for (int i = 6; i < 12; i++) { float a = float(i) * 2.39996; c += tap(pc + vec2(cos(a), sin(a)) * uBlur * 1.1) * .0467; }
         return c * (1. - clamp((length(pc - uVigC) / uVigR - .3) / .7, 0., 1.) * .6);
       }
       vec3 glassy(vec3 c, vec2 cp) {                                   // exactly the CSS glass's layers, so the ring blends into it invisibly
@@ -2242,16 +2334,19 @@ const bubble = (() => {
         return mix(c, vec3(6., 18., 26.) / 255., .1);                   // the tint: linear-gradient(rgba(6,18,26,.1)) on top
       }
       void main() {
-        vec2 cp = vec2(gl_FragCoord.x, uCanvasPx.y - gl_FragCoord.y) / uDpr, n;
+        vec2 cp = vec2(gl_FragCoord.x, uCanvasPx.y - gl_FragCoord.y) / uDpr - 1., n;   // the canvas starts 1 px outside the panel (see .bubble-gl)
         float sd = rr(cp, n), aa = clamp(.5 - sd * uDpr, 0., 1.), din = max(0., -sd), t = clamp(1. - din / uBevel, 0., 1.);
-        if (aa <= 0. || t <= 0.) { o = vec4(0.); return; }
+        if (aa <= 0.) { o = vec4(0.); return; }
+        vec3 base = glassy(wall(toPage(cp), false), cp);                       // the glass itself (what the CSS backdrop-filter used to draw): blurred, tinted wallpaper
+        if (t <= 0.) { o = vec4(base, 1.) * aa; return; }
         float bend = uRefr * (1. - sqrt(max(0., 1. - t * t)));        // rounded edge: the closer to the rim, the more it bends
-        vec3 col = glassy(vec3(wall(toPage(cp - n * bend)).r, wall(toPage(cp - n * bend * 1.05)).g, wall(toPage(cp - n * bend * 1.1)).b), cp);
+        vec3 col = uQ > .5 ? glassy(vec3(wall(toPage(cp - n * bend), true).r, wall(toPage(cp - n * bend * 1.05), true).g, wall(toPage(cp - n * bend * 1.1), true).b), cp)
+                           : glassy(wall(toPage(cp - n * bend * 1.05), false), cp);
         float ring = smoothstep(0., 1., t);                             // fades into the CSS glass inside it
         float sp = pow(max(0., dot(n, uLight)), 2.) + .5 * pow(max(0., dot(n, -uLight)), 2.5);
         float hl = min(1., exp(-din / .8) * (.1 + .45 * sp) + pow(t, 6.) * .12 * sp);   // a thin rim line + a narrow specular on the lit side only
-        vec3 rgb = col * ring * (1. - hl) + vec3(hl);
-        o = vec4(rgb, ring + (1. - ring) * hl) * aa;
+        vec3 rgb = mix(base, col, ring) * (1. - hl) + vec3(hl);
+        o = vec4(rgb, 1.) * aa;
       }`;
     function init() {
       if (G.cv || !window.WebGL2RenderingContext) return;
@@ -2265,10 +2360,10 @@ const bubble = (() => {
         gl.useProgram(prog);
         const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
         const loc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-        ["uTex", "uBlur", "uCanvasPx", "uPanel", "uOrigin", "uUvA", "uUvB", "uVigC", "uLight", "uM", "uDpr", "uR", "uVigR", "uLod", "uBevel", "uRefr"].forEach(k => U[k] = gl.getUniformLocation(prog, k));
-        cv.addEventListener("webglcontextlost", ev => { ev.preventDefault(); G.ready = false; document.documentElement.classList.remove("gl-glass"); });
+        ["uTex", "uBlur", "uCanvasPx", "uPanel", "uOrigin", "uUvA", "uUvB", "uVigC", "uLight", "uM", "uDpr", "uR", "uVigR", "uLod", "uBevel", "uRefr", "uQ"].forEach(k => U[k] = gl.getUniformLocation(prog, k));
+        cv.addEventListener("webglcontextlost", ev => { ev.preventDefault(); G.ready = false; document.documentElement.classList.remove("gl-glass", "gl-solid"); });
         skin.after(cv); G.cv = cv;                                     // above the CSS glass (otherwise the glass blurs and tints the edge a second time), below the content
-        window.__bgChanged = () => { loadTex(); G.dirty = true; };
+        window.__bgChanged = () => { loadTex(); request(true); };
         loadTex();
       } catch (err) { console.warn("glass", err.message); gl = null; }
     }
@@ -2291,27 +2386,47 @@ const bubble = (() => {
           texW = im.naturalWidth; texH = im.naturalHeight; G.texPx = c.width;
           G.ready = true; G.dirty = true; draw();
           requestAnimationFrame(() => { if (G.ready) document.documentElement.classList.add("gl-glass"); });   // fade in only once the first frame is drawn
-          loop();
-        } catch (err) { console.warn("glass texture", err.message); G.ready = false; document.documentElement.classList.remove("gl-glass"); }
+          clearTimeout(G.solidT); G.solidT = setTimeout(() => { if (G.ready) document.documentElement.classList.add("gl-solid"); }, 800);   // faded in: the CSS glass underneath can stop working
+        } catch (err) { console.warn("glass texture", err.message); G.ready = false; document.documentElement.classList.remove("gl-glass", "gl-solid"); }
       };
-      im.onerror = () => { if (texSrc === src) { G.ready = false; document.documentElement.classList.remove("gl-glass"); } };
+      im.onerror = () => { if (texSrc === src) { G.ready = false; document.documentElement.classList.remove("gl-glass", "gl-solid"); } };
       im.src = src;
     }
+    /* Redraws happen only when something changed, at most once per frame. The panel moving or resizing (a pull, the big
+       player opening) is drawn on the very next frame so the edge never trails the panel; tilt changes are drawn at the
+       decorative frame rate (30 fps on phones, 24 in light mode, none at all in light mode since the wallpaper stays still). */
+    function request(urgent) {
+      G.dirty = true; if (urgent) G.urgent = true;
+      if (!rq && on && G.ready) rq = requestAnimationFrame(frame);
+    }
+    function frame(t) {
+      rq = 0; if (!G.dirty || !on || !G.ready || document.hidden) return;   // hidden: drawn again when the page comes back
+      if (!G.urgent && t - lastDraw < 1000 / PERF.decoFps - 4) { rq = requestAnimationFrame(frame); return; }
+      G.urgent = false; lastDraw = t; draw();
+    }
+    function measureGeo() {                                            // the wallpaper and vignette boxes (fixed, viewport-sized): read once per resize, not per draw
+      const bg = mainBg, vig = document.querySelector(".bg-vignette");
+      geo = { cw: bg.offsetWidth, ch: bg.offsetHeight, vw: vig.offsetWidth, vh: vig.offsetHeight };
+    }
+    addEventListener("resize", () => { geo = null; request(true); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) request(true); });
     function draw() {
       if (!G.ready || !on || !G.cv.isConnected || !W) return;
-      const cv = G.cv, dpr = Math.min(2, devicePixelRatio || 1), bw = Math.round(W * dpr), bh = Math.round(H * dpr);
-      if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+      if (!geo) measureGeo();
+      const cv = G.cv, lite = PERF.lite, dpr = lite ? 1 : Math.min(2, devicePixelRatio || 1);
+      /* the canvas's height grows in 128 px steps: while the big player opens, the panel grows every frame, and resizing a
+         canvas throws its whole buffer away. The rows below the panel are simply left transparent. */
+      const Hb = Math.ceil(H / 128) * 128, bw = Math.round((W + 2) * dpr), bh = Math.round((Hb + 2) * dpr);   // 1:1 with its css box, which is 2 px larger than the panel
+      if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; cv.style.height = (Hb + 2) + "px"; }
       /* where the wallpaper sits: .bg-container is fixed, background-size cover at applyBg's position, moved by the tilt
          parallax and scaled 1.04 about its centre. uv = ((pc - c - t) / 1.04 + c - off) / size */
-      const bg = mainBg, cw0 = bg.offsetWidth, ch0 = bg.offsetHeight, R = document.documentElement.style;
-      const tx = parseFloat(R.getPropertyValue("--tx")) || 0, ty = parseFloat(R.getPropertyValue("--ty")) || 0;
+      const cw0 = geo.cw, ch0 = geo.ch, tx = TILT.ex || 0, ty = TILT.ey || 0;
       const custom = !!store.get("photoData"), posX = custom ? .5 : .7, posY = custom ? .5 : .24;
       const scl = Math.max(cw0 / texW, ch0 / texH), dw = texW * scl, dh = texH * scl, offX = (cw0 - dw) * posX, offY = (ch0 - dh) * posY;
       const cx = cw0 / 2, cy = ch0 / 2, S = 1.04, ttx = tx * -6, tty = ty * -6;
       gl.viewport(0, 0, bw, bh); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.uniform2f(U.uUvA, 1 / (S * dw), 1 / (S * dh)); gl.uniform2f(U.uUvB, ((-cx - ttx) / S + cx - offX) / dw, ((-cy - tty) / S + cy - offY) / dh);
-      const vig = document.querySelector(".bg-vignette"), vw = vig.offsetWidth, vh = vig.offsetHeight;
-      gl.uniform2f(U.uVigC, vw / 2, vh / 2); gl.uniform1f(U.uVigR, Math.hypot(vw / 2, vh / 2));
+      gl.uniform2f(U.uVigC, geo.vw / 2, geo.vh / 2); gl.uniform1f(U.uVigR, Math.hypot(geo.vw / 2, geo.vh / 2));
       /* the panel's own transform: page point of canvas point p = base + C + M (p - C) + lean */
       const bx = wrap.offsetLeft - scrollX, by = wrap.offsetTop - scrollY, Cx = W / 2, Cy = H / 2;
       gl.uniform4f(U.uM, M.a, M.b, M.c, M.d);
@@ -2319,29 +2434,20 @@ const bubble = (() => {
       /* the page's own blur is baked into a slightly softer mip level; the glass's own blur is done with the gaussian taps */
       const userBlur = +(store.get("wallpaperBlur") || 0), texPerCss = G.texPx / dw;
       gl.uniform1f(U.uLod, Math.max(0, Math.log2(Math.max(1, (userBlur * 1.4 + .6) * texPerCss))));
-      gl.uniform1f(U.uBlur, GLASS_BLUR * 1.1);
-      gl.uniform2f(U.uCanvasPx, bw, bh); gl.uniform1f(U.uDpr, bw / W); gl.uniform2f(U.uPanel, W, H); gl.uniform1f(U.uR, Math.min(RAD, W / 2, H / 2));
+      gl.uniform1f(U.uBlur, GLASS_BLUR * 1.1); gl.uniform1f(U.uQ, lite ? 0 : 1);
+      const r = Math.min(RAD, W / 2, H / 2);
+      gl.uniform2f(U.uCanvasPx, bw, bh); gl.uniform1f(U.uDpr, bw / (W + 2)); gl.uniform2f(U.uPanel, W, H); gl.uniform1f(U.uR, r);
       const lx = -.55 + tx * .35, ly = -.83 + ty * .35, ll = Math.hypot(lx, ly); gl.uniform2f(U.uLight, lx / ll, ly / ll);   // light from the top left; tilting moves it
       gl.uniform1f(U.uBevel, 16); gl.uniform1f(U.uRefr, 12);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(U.uTex, 0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       G.dirty = false;
     }
-    function loop() {                                                  // redraw only when something moved: tilt parallax, the panel, its size
-      if (looping) return; looping = true;
-      const f = () => {
-        if (!on || !G.ready) { looping = false; return; }
-        const R = document.documentElement.style, tx = R.getPropertyValue("--tx"), ty = R.getPropertyValue("--ty");
-        if (tx !== lastTx || ty !== lastTy) { lastTx = tx; lastTy = ty; G.dirty = true; }
-        if (G.dirty && !document.hidden) draw();
-        requestAnimationFrame(f);
-      };
-      requestAnimationFrame(f);
-    }
-    G.loop = loop;
     return G;
   })();
 
+  TILT.redraw = () => glass.now();                                  // the wallpaper moved with the tilt: redraw the glass in the same frame, so the two never part
+  PERF.on(() => glass.request(true));                               // light mode changes the edge's resolution and sample count
   function build() {
     if (skin) return;
     skin = document.createElement("div"); skin.className = "bubble-skin";
@@ -2359,7 +2465,7 @@ const bubble = (() => {
     const r = Math.min(RAD, w / 2, h / 2), f = n => +n.toFixed(2);
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     svg.querySelector("#bb-path").setAttribute("d", `M${r} 0H${f(w - r)}A${r} ${r} 0 0 1 ${w} ${r}V${f(h - r)}A${r} ${r} 0 0 1 ${f(w - r)} ${h}H${r}A${r} ${r} 0 0 1 0 ${f(h - r)}V${r}A${r} ${r} 0 0 1 ${r} 0Z`);
-    glass.dirty = true;
+    glass.request(true);
   }
   function apply() {                                                 // lean + stretch along the drag + press, as one matrix about the centre
     /* axis-aligned only: a diagonal pull stretches a little both ways instead of shearing the panel into a parallelogram */
@@ -2367,7 +2473,7 @@ const bubble = (() => {
     const rest = Math.abs(x) + Math.abs(y) < .02 && Math.abs(M.a - 1) + Math.abs(M.d - 1) < 1e-4;
     wrap.style.transform = rest ? "" : `matrix(${M.a.toFixed(5)},${M.b.toFixed(5)},${M.c.toFixed(5)},${M.d.toFixed(5)},${x.toFixed(2)},${y.toFixed(2)})`;
     if (rest) { M.a = M.d = 1; M.b = M.c = 0; }
-    glass.dirty = true;
+    glass.request(true);
   }
   function frame(now) {
     raf = 0; if (!on) return;
@@ -2420,7 +2526,7 @@ const bubble = (() => {
     $("old-panel-switch").setAttribute("aria-checked", String(!v));
     if (v) {
       build(); W = H = 0; measure();
-      if (glass.ready) { glass.dirty = true; glass.loop(); }
+      glass.request(true);
       if (anim && !RM) { q = 2.5; go(); }                           // switched on: it settles into place once
     } else {
       cancelAnimationFrame(raf); raf = 0; drag = null; last = 0;
@@ -2433,6 +2539,12 @@ const bubble = (() => {
 $("old-panel-switch").addEventListener("click", () => { const old = bubble.on; store.set("oldPanel", old ? "1" : "0"); bubble.set(!old, true); haptic("light"); });
 $("more-toggle").addEventListener("click", () => { const b = $("more-box"), open = b.hidden; b.hidden = !open; $("more-toggle").setAttribute("aria-expanded", String(open)); haptic("light"); });
 bubble.set(store.get("oldPanel") !== "1", false);
+/* Settings > More > Light effects: on = always light; off = automatic (light only while the phone can't keep up) */
+(function () {
+  const sw = $("lite-switch"), show = () => sw.setAttribute("aria-checked", String(store.get("perfLite") === "1"));
+  sw.addEventListener("click", () => { PERF.force(store.get("perfLite") !== "1"); show(); haptic("light"); });
+  show();
+})();
 
 /* ---------- EXPANDED PLAYER ----------
    The same panel, unfolded. Open it by tapping the cover, dragging the cover down, or pulling the glass down (a short
@@ -2544,8 +2656,9 @@ XP = (() => {
     const K = target ? 210 : 240, Z = target ? .8 : .95, C = 2 * Math.sqrt(K) * Z;   // opening overshoots a touch ("springs open"); closing lands softly
     let last = 0;
     const step = now => {
-      const dt = Math.min(.034, last ? (now - last) / 1000 : .016); last = now;
-      for (let i = 0, n = 4, h = dt / n; i < n; i++) { st.v += (K * (target - st.p) - C * st.v) * h; st.p += st.v * h; }
+      const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;   // a slow frame moves it further (up to 50 ms), so it doesn't turn to slow motion
+      PERF.frame(now);
+      for (let i = 0, n = Math.max(4, Math.ceil(dt / .006)), h = dt / n; i < n; i++) { st.v += (K * (target - st.p) - C * st.v) * h; st.p += st.v * h; }
       if (!target && st.p < 0) { st.p = 0; st.v = 0; }
       render(st.p);
       if (Math.abs(target - st.p) < .0015 && Math.abs(st.v) < .03) { settle(target); return; }
@@ -2831,14 +2944,24 @@ XP = (() => {
 let tiltAt = 0;                                                      // last time tilt/mouse moved the light (keeps the light loop at full frame rate)
 (function () {
   if (matchMedia("(prefers-reduced-motion:reduce)").matches) return;
-  const R = document.documentElement.style, cl = v => Math.max(-1, Math.min(1, v));
-  let bB = null, bG = null, tx = 0, ty = 0, cx = 0, cy = 0, on = false, raf = 0;
-  function tick() {
-    raf = 0; cx += (tx - cx) * .1; cy += (ty - cy) * .1; tiltAt = performance.now();
-    R.setProperty("--tx", cx.toFixed(3)); R.setProperty("--ty", cy.toFixed(3));
-    R.setProperty("--lx", (30 + cx * 45).toFixed(1) + "%"); R.setProperty("--ly", (8 + cy * 40).toFixed(1) + "%");
-    R.setProperty("--sx", (38 + cx * 55).toFixed(1) + "%");
-    if (Math.abs(tx - cx) + Math.abs(ty - cy) > .002) go();
+  const cl = v => Math.max(-1, Math.min(1, v)), pm = $("player-main");
+  let bB = null, bG = null, tx = 0, ty = 0, cx = 0, cy = 0, on = false, raf = 0, wx = 9, wy = 9, lastT = 0, pend = false, lastA = 0;
+  /* Tilt used to be written onto the page root (--tx/--ty), 60 times a second: every write made the browser restyle the
+     whole page, which was the single biggest cause of the lag. Now it is written only where it is read (the cover's
+     glow), the wallpaper is moved with a plain transform, and the glass edge is told directly. Changes smaller than
+     ~0.1 degree (sensor noise, you can't see them) aren't written at all, so a phone lying still costs nothing. */
+  function tick(now) {
+    raf = 0; const k = 1 - Math.pow(.9, Math.min(4, lastT ? (now - lastT) / 16.7 : 1)); lastT = now;   // same smoothing at 30, 60 or 120 fps
+    cx += (tx - cx) * k; cy += (ty - cy) * k;
+    if (Math.abs(cx - wx) + Math.abs(cy - wy) > .012) {
+      wx = cx; wy = cy; tiltAt = now; TILT.x = cx; TILT.y = cy;
+      pm.style.setProperty("--tx", cx.toFixed(3)); pm.style.setProperty("--ty", cy.toFixed(3));
+      pend = true;
+    }
+    const moving = Math.abs(tx - cx) + Math.abs(ty - cy) > .012;
+    /* the wallpaper and the glass edge move together, at the decorative frame rate: each move redraws the whole glass */
+    if (pend && (!moving || now - lastA >= 1000 / PERF.decoFps - 4)) { pend = false; lastA = now; TILT.apply(); }
+    if (moving || pend) go(); else lastT = 0;
   }
   const go = () => { if (!raf) raf = requestAnimationFrame(tick); };
   function ori(e) {
@@ -3014,7 +3137,7 @@ if (botMode) {
   setInterval(() => { if (!document.hidden) syncLibrary(); }, 15000);     // songs you send while the player is open appear within seconds
   document.addEventListener("visibilitychange", () => { if (!document.hidden) syncLibrary(); });
   try { TG.onEvent("activated", syncLibrary); } catch (e) {}
-  audio.addEventListener("play", () => { const t = tracks.find(x => x.id === curId); if (t && t.remote && !t.file) fetchSong(t); });
+  audio.addEventListener("play", () => { const t = trackById(curId); if (t && t.remote && !t.file) fetchSong(t); });
 }
 
 /* ---------- TELEGRAM MINI APP ----------
@@ -3080,7 +3203,6 @@ if (TG) (function () {
    The track is decoded once, offline, into a smooth loudness+bass envelope (30/frames per second).
    The glow then just reads that envelope at audio.currentTime, so playback is never routed through Web Audio. */
 const envCache = new Map(); let env = null, envId = null, pulse = 0, pRaf = 0;
-const pulseEls = () => [$("art-bloom"), $("glow-layer"), $("player-main"), $("progress-slider").querySelector(".slider-thumb"), $("xp")];
 function envelope(ab) {
   const chs = []; for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
   const sr = ab.sampleRate, N = ab.length, hop = Math.round(sr / 30), F = Math.floor(N / hop), nc = chs.length;
@@ -3175,60 +3297,96 @@ async function analyze(t) {
     const buf = await t.file.arrayBuffer(), OC = window.OfflineAudioContext || window.webkitOfflineAudioContext, ctx = new OC(1, 1, 22050);
     let ab = await new Promise((res, rej) => { const r = ctx.decodeAudioData(buf, res, rej); if (r && r.then) r.then(res, rej); });
     if (envId !== t.id) return;
-    const n = ab.length, nc = ab.numberOfChannels, sr = ab.sampleRate, mono = new Float32Array(n);
-    for (let c = 0; c < nc; c++) { const d = ab.getChannelData(c); for (let i = 0; i < n; i++) mono[i] += d[i]; }
-    if (nc > 1) for (let i = 0; i < n; i++) mono[i] /= nc;
-    ab = null;
+    const n = ab.length, nc = ab.numberOfChannels, sr = ab.sampleRate, mono = new Float32Array(n), chs = [];
+    for (let c = 0; c < nc; c++) chs.push(ab.getChannelData(c));
+    /* mixed down in slices of ~8 ms with a pause for the page in between: done in one go, this loop froze the screen for
+       a moment a couple of seconds into every new song */
+    for (let i0 = 0; i0 < n; i0 += 131072) {
+      const e = Math.min(n, i0 + 131072);
+      if (nc === 1) mono.set(chs[0].subarray(i0, e), i0);
+      else for (let i = i0; i < e; i++) { let x = 0; for (let c = 0; c < nc; c++) x += chs[c][i]; mono[i] = x / nc; }
+      await sleep(0); if (envId !== t.id) return;
+    }
+    chs.length = 0; ab = null;
     const e = await envCompute(mono, sr); envCache.set(t.id, e); if (envId === t.id) env = e;
   } catch (err) {}                                                   // no envelope -> the glow just breathes slowly
 }
-function startPulse() { if (!pRaf && !matchMedia("(prefers-reduced-motion:reduce)").matches) pRaf = requestAnimationFrame(pulseLoop); }
-/* Budget phones: the glass light is redrawn at ~30 fps instead of every frame. Every blur, glow and glass layer stays exactly
-   as it is; they just get repainted half as often, which halves the drawing work that was making the phone drop parts of
-   the page for a moment. The smoothing below is adjusted so the glow still rises and falls at the same speed. */
-const LOW_END = (navigator.deviceMemory || 8) <= 4 || (navigator.hardwareConcurrency || 8) <= 4;
-function pulseLoop() {
+/* The decorative loop: music glow, cover glass light, breathing buttons, title spark.
+   - Runs at the decorative frame rate (PERF.decoFps: 30 on phones, 24 in light mode), not at the screen's 60/120 Hz:
+     each tick restyles and repaints the cover's glass layers, and half as many ticks is half that work. All the
+     smoothing below is time-based, so the glow rises and falls at the same speed at any rate.
+   - Paused and settled (nothing but the slow drift of the cover light): ~10 fps from a timer, so the phone isn't woken
+     up every frame for nothing. Nothing on screen (the song picker) or the app in the background: it stops.
+   - Values are written only to the elements that read them, and only when they changed. */
+let pTimer = 0;
+function startPulse() {
+  if (RM) return;
+  if (pTimer) { clearTimeout(pTimer); pTimer = 0; }
+  if (!pRaf) { PERF.gap(); pRaf = requestAnimationFrame(pulseLoop); }
+}
+const pw = {};                                                        // last written value per element + property
+function pset(el, k, v) { if (!el) return; const key = (el.id || el.className) + k; if (pw[key] === v) return; pw[key] = v; el.style.setProperty(k, v); }
+let pEls = null;
+function pulseLoop(now) {
   pRaf = 0;
-  if (LOW_END && pulseLoop.t && performance.now() - pulseLoop.t < 30) { pRaf = requestAnimationFrame(pulseLoop); return; }
-  const playing = !audio.paused && !document.hidden; let target = 0;
+  if (document.hidden) { PERF.gap(); pulseLoop.t = 0; return; }       // restarted by visibilitychange
+  if (!pEls) pEls = { pm: $("player-main"), glow: $("glow-layer"), thumb: $("progress-slider").querySelector(".slider-thumb"), xpPlay: $("xp-play"), xp: $("xp") };
+  const playing = !audio.paused, pmOn = pEls.pm.style.display !== "none";
+  const idle = !playing && energy < .02 && flare === 0 && pulse < .003 && now - tiltAt > 600;
+  if (!idle) {
+    PERF.frame(now);
+    if (pulseLoop.t && now - pulseLoop.t < 1000 / PERF.decoFps - 3) { pRaf = requestAnimationFrame(pulseLoop); return; }
+  }
+  const dt = Math.min(.1, pulseLoop.t ? (now - pulseLoop.t) / 1000 : .033); pulseLoop.t = now;
+  let target = 0;
   if (playing) {
     if (env) target = env[Math.min(env.length - 1, Math.max(0, Math.floor(audio.currentTime * 30)))];
-    else target = .4 + .15 * Math.sin(performance.now() / 1500);
+    else target = .4 + .15 * Math.sin(now / 1500);
   }
-  const nv = pulse + (target - pulse) * (target > pulse ? (LOW_END ? .26 : .14) : (LOW_END ? .078 : .04));   // quick-ish rise, slow fall
-  if (Math.abs(nv - pulse) > .0015) { pulse = nv; const v = pulse.toFixed(3); pulseEls().forEach(el => el && el.style.setProperty("--pulse", v)); }
-  const now = performance.now(), dt = Math.min(.1, (now - (pulseLoop.t || now)) / 1000);
-  if (!playing && energy < .02 && now - tiltAt > 600 && pulseLoop.t && now - pulseLoop.t < 45) { pRaf = requestAnimationFrame(pulseLoop); return; }   // idle and nobody tilting: ~20 fps is plenty for a slow drift
-  pulseLoop.t = now;
+  pulse += (target - pulse) * (1 - Math.pow(target > pulse ? .86 : .96, dt * 60));   // quick-ish rise, slow fall (the same curve as before at 60 fps)
+  if (pulse < .003 && !playing) pulse = 0;
+  const pv = pulse.toFixed(2), xpOn = pEls.xp.classList.contains("show"), big = !!(XP && XP.expanded);
+  if (!big) { pset(pEls.pm, "--pulse", pv); pset(pEls.thumb, "--pulse", pv); }
+  if (drawerBox.classList.contains("expanded")) pset(pEls.glow, "--pulse", pv);
+  if (xpOn) pset(pEls.xpPlay, "--pulse", pv);
   sparkTick(playing, dt);
   if (flare > .003) { flare *= Math.exp(-dt / .45); rimA += flare * 260 * dt; } else flare = 0;   // song change: the cover light swings round quickly, then settles
-  breathe(now);
+  if (!big) breathe(now, dt);
   energy += ((playing ? 1 : 0) - energy) * (1 - Math.exp(-dt / (playing ? .4 : 1.8)));   // one smooth "how alive" level: quick up, slow settle down
+  if (!playing && energy < .005) energy = 0;
   rimA = (rimA + (4 + energy * (5 + pulse * 14)) * dt) % 360;                              // the light slowly orbits the cover on its own; a little livelier with the music
-  const R = document.documentElement.style, tx = parseFloat(R.getPropertyValue("--tx")) || 0, ty = parseFloat(R.getPropertyValue("--ty")) || 0;
-  const pm = $("player-main").style, s = now / 1000;
+  const tx = TILT.x, ty = TILT.y, s = now / 1000;
   tilt += (Math.min(1, Math.hypot(tx, ty)) - tilt) * (1 - Math.exp(-dt / .35));            // 0 without tilt: the glass then runs on its ambient motion alone
-  /* glass light: one direction shared by the halo behind, the rim, the edge glow and the surface hotspot */
-  const la = rimA + 50 + tx * 40 - ty * 12, th = la * Math.PI / 180, rr = 30 + 6 * Math.sin(s / 7.3);
-  pm.setProperty("--ang", (la - 50).toFixed(1) + "deg"); pm.setProperty("--la", la.toFixed(1) + "deg");
-  pm.setProperty("--en", energy.toFixed(3)); pm.setProperty("--fl", flare.toFixed(3));
-  pm.setProperty("--br", (.5 + .5 * Math.sin(now / 2600)).toFixed(3));
-  pm.setProperty("--gx", (50 + rr * Math.sin(th) - tx * 12).toFixed(1) + "%"); pm.setProperty("--gy", (50 - rr * Math.cos(th) - ty * 12).toFixed(1) + "%");
-  pm.setProperty("--gi", Math.min(1, .5 + energy * .12 + pulse * .14 + tilt * .35 + .06 * Math.sin(s / 3.1)).toFixed(3));
-  pm.setProperty("--gt", tilt.toFixed(3));
-  pm.setProperty("--sh", Math.max(0, Math.min(1, .5 + .45 * Math.sin(s / 9.5) + tx * .4)).toFixed(3));
-  pm.setProperty("--rx", (1.1 * Math.sin(s / 8.7) + tx * 2.6).toFixed(2) + "px"); pm.setProperty("--ry", (1.1 * Math.cos(s / 11.3) + ty * 2.6).toFixed(2) + "px");
-  pRaf = requestAnimationFrame(pulseLoop);
+  if (pmOn && !big) {                                                // the compact cover isn't on screen while the big player is open: skip its light
+    const pm = pEls.pm;
+    /* glass light: one direction shared by the halo behind, the rim, the edge glow and the surface hotspot */
+    const la = rimA + 50 + tx * 40 - ty * 12, th = la * Math.PI / 180, rr = 30 + 6 * Math.sin(s / 7.3);
+    pset(pm, "--ang", (la - 50).toFixed(1) + "deg"); pset(pm, "--la", la.toFixed(1) + "deg");
+    pset(pm, "--en", energy.toFixed(2)); pset(pm, "--fl", flare.toFixed(2));
+    pset(pm, "--br", (.5 + .5 * Math.sin(now / 2600)).toFixed(2));
+    pset(pm, "--gx", (50 + rr * Math.sin(th) - tx * 12).toFixed(1) + "%"); pset(pm, "--gy", (50 - rr * Math.cos(th) - ty * 12).toFixed(1) + "%");
+    pset(pm, "--gi", Math.min(1, .5 + energy * .12 + pulse * .14 + tilt * .35 + .06 * Math.sin(s / 3.1)).toFixed(2));
+    pset(pm, "--gt", tilt.toFixed(2));
+    pset(pm, "--sh", Math.max(0, Math.min(1, .5 + .45 * Math.sin(s / 9.5) + tx * .4)).toFixed(3));
+    pset(pm, "--rx", (1.1 * Math.sin(s / 8.7) + tx * 2.6).toFixed(1) + "px"); pset(pm, "--ry", (1.1 * Math.cos(s / 11.3) + ty * 2.6).toFixed(1) + "px");
+  }
+  if (idle) {
+    PERF.gap();
+    if (!pmOn) { pulseLoop.t = 0; return; }                          // nothing on screen to animate: startPulse() wakes it up again
+    pTimer = setTimeout(() => { pTimer = 0; if (!pRaf) pRaf = requestAnimationFrame(pulseLoop); }, 100);
+  } else pRaf = requestAnimationFrame(pulseLoop);
 }
 let rimA = 0, energy = 0, tilt = 0;
 /* the controls breathe: Play follows the music directly, prev/next a few frames later (a ripple outwards);
    paused, Play keeps a slow breath of its own */
 const bpHist = [], bpLast = [-1, -1, -1];
-function breathe(now) {
-  bpHist.push(pulse); if (bpHist.length > 6) bpHist.shift();
+let bpBtns = null;
+function breathe(now, dt) {
+  bpHist.push(pulse); while (bpHist.length > Math.max(2, Math.round(.1 / (dt || .016)) + 1)) bpHist.shift();   // the sides follow ~0.1 s later, at any frame rate
   const lag = bpHist[0], idle = (1 - energy) * (.16 + .14 * Math.sin(now / 1500));
   const v = [lag * .7, Math.max(pulse, idle), lag * .7];
-  [$("prev-btn"), playBtn, $("skip-btn")].forEach((b, i) => { if (Math.abs(v[i] - bpLast[i]) > .004) { bpLast[i] = v[i]; b.style.setProperty("--bp", v[i].toFixed(3)); } });
+  if (!bpBtns) bpBtns = [$("prev-btn"), playBtn, $("skip-btn")];
+  bpBtns.forEach((b, i) => { if (Math.abs(v[i] - bpLast[i]) > .006) { bpLast[i] = v[i]; b.style.setProperty("--bp", v[i].toFixed(3)); } });
 }
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
@@ -3327,21 +3485,25 @@ function sparkFire(b) {                                               // b: brig
 /* ---------- glow layer ----------
    One layer behind the drawer content, not inside any scroller. Each cover's glow is positioned from the
    cover's on-screen rect every frame (only while the drawer is open), so it can spill past the scroller's edge
-   and is faded there by the layer's mask, while the covers themselves stay clipped by their scroller. */
+   and is faded there by the layer's mask, while the covers themselves stay clipped by their scroller.
+   It only runs while something can move a cover (scrolling, the drawer opening, cards appearing, a drag, a resize) and
+   stops ~half a second after; before, it measured every cover on every frame for as long as the Library was open. */
+var glowKick = () => {};
 (function () {
   const layer = $("glow-layer"), inner = document.querySelector(".drawer-inner"), wrap = document.querySelector(".player-wrapper"), M = 22;
   const map = new Map(); let raf = 0, stopAt = 0;
   function frame() {
     raf = 0;
     const open = drawerBox.classList.contains("expanded");
-    if (!open && performance.now() > stopAt) { layer.classList.remove("on"); map.forEach(g => g.remove()); map.clear(); return; }
+    const done = performance.now() > stopAt;
+    if (!open && done) { layer.classList.remove("on"); map.forEach(g => g.remove()); map.clear(); return; }
     // reads
     const wr = wrap.getBoundingClientRect(), di = inner.getBoundingClientRect();
     const cs = [...viewHost.querySelectorAll('.album-card[style*="--art"]')].filter(c => c.offsetParent);
     const rects = cs.map(c => c.getBoundingClientRect());
     const sc = cs.length && cs[0].closest(".albums-grid-container,.artist-scroll"), sr = sc ? sc.getBoundingClientRect() : di;
     const rt = Math.max(sr.top, di.top), rb = Math.max(rt, Math.min(sr.bottom, di.bottom)), H = rb - rt + 2 * M;
-    const cur = tracks.find(t => t.id === curId), curAlbum = cur && cur.album;
+    const cur = trackById(curId), curAlbum = cur && cur.album;
     // writes
     layer.classList.toggle("on", open); layer.classList.toggle("off", editing);
     layer.style.top = (rt - wr.top - 1 - M) + "px"; layer.style.height = H + "px";
@@ -3361,10 +3523,16 @@ function sparkFire(b) {                                               // b: brig
       g.classList.toggle("live", !!curAlbum && c.dataset.key === curAlbum);
     });
     map.forEach((g, c) => { if (!seen.has(c)) { g.remove(); map.delete(c); } });
-    raf = requestAnimationFrame(frame);
+    if (!done) raf = requestAnimationFrame(frame);
   }
   const kick = ms => { stopAt = Math.max(stopAt, performance.now() + ms); if (!raf) raf = requestAnimationFrame(frame); };
+  glowKick = () => kick(100);
   new MutationObserver(() => kick(900)).observe(drawerBox, { attributes: true, attributeFilter: ["class"] });
+  new MutationObserver(() => { if (drawerBox.classList.contains("expanded")) kick(500); })
+    .observe(viewHost, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class"] });
+  viewHost.addEventListener("scroll", () => kick(150), { capture: true, passive: true });
+  new ResizeObserver(() => kick(300)).observe(wrap);
+  addEventListener("resize", () => kick(300));
   document.addEventListener("visibilitychange", () => kick(900));
 })();
 /* cover light colours: cluster the artwork into hue buckets, score them for how good they look as a glow, then correct the winner.
