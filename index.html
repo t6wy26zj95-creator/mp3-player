@@ -471,19 +471,20 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
    One layer over the panel's own content. The compact rows stay where they are (hidden once expanded), so switching
    back is exact. While the finger moves, JS drives everything from one number p (0 = compact, 1 = expanded): the panel's
    height, the big cover (scaled down onto the small cover at p = 0), the title and the fades. The top part is anchored
-   to the panel's top and the bottom part (Up next + the bar) to its bottom, so nothing reflows while it grows. */
-.album-art,.xp-art,.xp-handle{touch-action:none}
+   to the panel's top and the bottom part (Up next) to its bottom, so nothing reflows while it grows. */
+.album-art,.xp-art,.xp-handle,.xp{touch-action:none}
+.xp .xp-strip{touch-action:pan-x}
 .album-art{cursor:pointer}
 .xp{position:absolute;inset:0;z-index:3;display:none;border-radius:inherit;overflow:hidden;pointer-events:none}
 .xp.show{display:block}
 .player-wrapper.xp-on .xp{pointer-events:auto}
 .player-wrapper.xp-on>#player-main,.player-wrapper.xp-on>#controls-main,.player-wrapper.xp-on>#footer-main{visibility:hidden}
 .player-wrapper.xp-anim>#player-main,.player-wrapper.xp-anim>#controls-main,.player-wrapper.xp-anim>#footer-main{pointer-events:none}
-.xp-top{position:absolute;left:0;right:0;top:0;padding:4px 20px 0;display:flex;flex-direction:column}
-.xp-handle{align-self:center;width:72px;height:22px;background:none;border:0;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.xp-top{position:absolute;left:0;right:0;top:0;padding:2px 22px 0;display:flex;flex-direction:column}
+.xp-handle{align-self:center;width:72px;height:20px;background:none;border:0;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .xp-handle i{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.38)}
-.xp-slot{position:relative;width:var(--xs,280px);height:var(--xs,280px);margin:8px auto 0;flex-shrink:0}
-.xp-art{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0;border-radius:22px;will-change:transform;cursor:grab}
+.xp-slot{position:relative;width:var(--xs,280px);height:var(--xs,280px);margin:4px auto 0;flex-shrink:0}
+.xp-art{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0;border-radius:18px;will-change:transform;cursor:grab}
 .xp-bloom{position:absolute;left:6%;right:6%;top:10%;bottom:-4%;border-radius:30px;background-size:cover;background-position:center;filter:blur(34px) saturate(1.6);opacity:0;pointer-events:none}
 .xp-clip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;
   box-shadow:0 18px 40px rgba(0,0,0,.34),0 4px 12px rgba(0,0,0,.2)}
@@ -491,25 +492,25 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-clip svg{width:26%;height:26%;fill:rgba(255,255,255,.4)}
 .xp-clip::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),inset 0 1px 0 rgba(255,255,255,.3);background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,0) 42%)}
-.xp-meta{margin-top:18px;transform-origin:0 0;min-width:0}
-.xp-title{font-size:21px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 6px rgba(0,0,0,.45)}
-.xp-sub{margin-top:3px;font-size:14px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.xp-meta{margin-top:16px;transform-origin:0 0;min-width:0;max-width:100%;align-self:center;text-align:center}
+.xp-title{font-size:20px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 6px rgba(0,0,0,.45)}
+.xp-sub{margin-top:2px;font-size:13.5px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .xp-artist{color:rgba(255,255,255,.85);cursor:pointer}
-.xp-scrub{margin-top:18px}
-.xp-scrub .custom-range-slider{height:5px;border-radius:3px}
-.xp-times{display:flex;justify-content:space-between;margin-top:9px;font-size:11px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
-.xp-ctrls{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
-.xp-ctrls .player-btn{width:52px;height:52px}
-.xp-ctrls .player-btn svg{width:22px;height:22px}
-.xp-ctrls #xp-play{width:68px;height:68px;box-shadow:0 6px 18px rgba(0,0,0,.25),0 0 calc(4px + var(--pulse,0) * 16px) rgba(var(--lc,200,215,225),calc(.12 + var(--pulse,0) * .3))}
-.xp-ctrls #xp-play svg{width:30px;height:30px}
-.xp-ctrls .xp-tog{width:42px;height:42px;background-color:transparent;border-color:transparent;box-shadow:none;color:rgba(255,255,255,.55)}
+.xp-scrub{margin-top:14px}
+.xp-scrub .custom-range-slider{height:4px;border-radius:3px}
+.xp-times{display:flex;justify-content:space-between;margin-top:7px;font-size:11px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
+.xp-ctrls{display:flex;align-items:center;justify-content:space-between;margin-top:4px;padding:0 4px}
+.xp-ctrls .player-btn{width:46px;height:46px}
+.xp-ctrls .player-btn svg{width:20px;height:20px}
+.xp-ctrls #xp-play{width:60px;height:60px;box-shadow:0 6px 18px rgba(0,0,0,.25),0 0 calc(4px + var(--pulse,0) * 16px) rgba(var(--lc,200,215,225),calc(.12 + var(--pulse,0) * .3))}
+.xp-ctrls #xp-play svg{width:26px;height:26px}
+.xp-ctrls .xp-tog{width:40px;height:40px;background-color:transparent;border-color:transparent;box-shadow:none;color:rgba(255,255,255,.55)}
 .xp-ctrls .xp-tog:active{background-color:rgba(255,255,255,.1)}
 .xp-ctrls .xp-tog svg{width:20px;height:20px}
 .xp-tog.on{color:rgb(120,222,202)}
 .xp-tog::after{content:'';position:absolute;bottom:3px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;opacity:0;transition:opacity .25s var(--ease)}
 .xp-tog.on::after{opacity:1}
-.xp-bottom{position:absolute;left:0;right:0;bottom:0;padding:0 0 10px}
+.xp-bottom{position:absolute;left:0;right:0;bottom:0;padding:0 0 8px}
 .xp-next-h{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;height:24px;padding:0 20px;font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);pointer-events:none}
 .xp-next-h span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .xp-next-h button{pointer-events:auto;flex-shrink:0;background:none;border:0;color:rgba(255,255,255,.7);font:inherit;letter-spacing:inherit;padding:6px 0 6px 12px;cursor:pointer}
@@ -535,10 +536,6 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-card.rm{background:rgba(255,99,99,.42);border-color:rgba(255,150,150,.55)}
 .xp-div{flex:0 0 1px;align-self:stretch;margin:6px 2px;background:rgba(255,255,255,.14)}
 .xp-empty{font-size:12px;color:rgba(255,255,255,.42);padding:0 2px;white-space:nowrap}
-.xp-bar{display:flex;align-items:center;justify-content:space-around;padding:2px 8px 0}
-.xp-bar button{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;color:rgba(255,255,255,.62);font:600 10px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.5px;padding:6px 10px;cursor:pointer;transition:color .2s var(--ease)}
-.xp-bar button:active{color:#fff}
-.xp-bar svg{width:20px;height:20px;fill:currentColor}
 .gear-btn{transition:opacity .25s var(--ease)}
 /* Library / Artists / Queue opened from the expanded player: the lists grow to fill the tall panel (a sheet under the
    now-playing row); closing the section brings the big player back */
@@ -652,12 +649,6 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
     <div class="xp-bottom" id="xp-bottom">
       <div class="xp-next-h"><span id="xp-next-label">Up next</span><button id="xp-see-all">See all</button></div>
       <div class="xp-strip" id="xp-strip"></div>
-      <div class="xp-bar">
-        <button id="xp-queue-btn"><svg viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>Queue</button>
-        <button id="xp-lib-btn"><svg viewBox="0 0 24 24"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 5h-3v5.5c0 1.38-1.12 2.5-2.5 2.5S10 13.88 10 12.5s1.12-2.5 2.5-2.5c.57 0 1.08.19 1.5.51V5h4v2zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6z"/></svg>Library</button>
-        <button id="xp-artists-btn"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>Artists</button>
-        <button id="xp-gear"></button>
-      </div>
     </div>
   </div>
 </div>
@@ -1826,7 +1817,7 @@ audio.addEventListener("ended", onEnded);
      springs back in once the new artwork is ready, and the cover light flares.
    Web Animations and small rAF loops only; nothing moves with reduced motion turned on. */
 const RM = matchMedia("(prefers-reduced-motion:reduce)").matches;
-const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.upload-btn,.done-btn,.gear-btn,.hidden-toggle,.q-sec button,.artist-more,.switch,.more-toggle,.xp-bar button,.xp-next-h button";
+const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.upload-btn,.done-btn,.gear-btn,.hidden-toggle,.q-sec button,.artist-more,.switch,.more-toggle,.xp-next-h button";
 const curScale = el => { const v = parseFloat(getComputedStyle(el).scale); return isFinite(v) ? v : 1; };
 function pressDown(el) {
   if (RM || !el.animate) return;
@@ -2288,7 +2279,7 @@ const bubble = (() => {
   const wrap = document.querySelector(".player-wrapper"), NS = "http://www.w3.org/2000/svg";
   const GLASS_BLUR = 2;                                              // px; keep in step with --bubble-blur below
   const RAD = 36, GRAB = 26, MAXT = 9, LEAN = .8, STRETCH = .018, GIVE = .009, PRESS = .011;
-  const NO_PULL = "button,input,a,label,.custom-range-slider,.sw,.album-card,.playlist-container,.queue-container,.albums-grid-container,.artist-scroll,.track-artist,.chip,.gear-btn,.floating-customizer,.toast,.drop-zone,.album-art,.xp-art,.xp-strip,.xp-artist";
+  const NO_PULL = "button,input,a,label,.custom-range-slider,.sw,.album-card,.playlist-container,.queue-container,.albums-grid-container,.artist-scroll,.track-artist,.chip,.gear-btn,.floating-customizer,.toast,.drop-zone,.album-art,.xp,.xp-strip,.xp-artist";
   let on = false, skin = null, svg = null, W = 0, H = 0, raf = 0, last = 0, drag = null;
   let x = 0, y = 0, vx = 0, vy = 0, e = 0, ve = 0, q = 0, vq = 0, ux = 0, uy = 1;   // lean (px), stretch 0..1, press 0..1, stretch direction
   const M = { a: 1, b: 0, c: 0, d: 1 };                             // the current stretch/press matrix (about the panel's centre)
@@ -2508,7 +2499,7 @@ const bubble = (() => {
   }
   const go = () => { if (on && !raf) raf = requestAnimationFrame(frame); };
   document.addEventListener("pointerdown", ev => {
-    if (!on || drag || (ev.pointerType === "mouse" && ev.button)) return;
+    if (!on || drag || ev._xp || (ev.pointerType === "mouse" && ev.button)) return;
     if (ev.target.closest && ev.target.closest(NO_PULL)) return;
     const r = wrap.getBoundingClientRect();
     if (ev.clientX < r.left - GRAB || ev.clientX > r.right + GRAB || ev.clientY < r.top - GRAB || ev.clientY > r.bottom + GRAB) return;
@@ -2573,7 +2564,8 @@ XP = (() => {
   const pm = $("player-main"), cm = $("controls-main"), fm = $("footer-main"), artBox = $("album-art-box"), tText = pm.querySelector(".track-text");
   const REPEAT = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z", REPEAT_ONE = REPEAT + "m-4-2V9h-1l-2 1v1h1.5v4H13z";
   const st = { p: 0, v: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
-  const clamp01 = v => Math.max(0, Math.min(1, v)), lerp = (a, b, t) => a + (b - a) * t, fade = (p, a, b) => clamp01((p - a) / (b - a));
+  const clamp01 = v => Math.max(0, Math.min(1, v)), lerp = (a, b, t) => a + (b - a) * t, lin = (p, a, b) => clamp01((p - a) / (b - a));
+  const fade = (p, a, b) => { const t = lin(p, a, b); return t * t * (3 - 2 * t); };   // eased in and out, so nothing pops in or stops abruptly
   const canExpand = () => pm.style.display !== "none" && curId != null;
   const drawerOpen = () => drawerBox.classList.contains("expanded");
   const shown = () => xp.classList.contains("show");
@@ -2582,17 +2574,18 @@ XP = (() => {
     if (!drawerOpen()) { const s = wrap.style.height; wrap.style.height = ""; const h = wrap.offsetHeight; wrap.style.height = s; return h; }
     return pm.offsetHeight + cm.offsetHeight + fm.offsetHeight + 48 + 42;
   }
-  /* sizes: the cover is as big as the panel's width allows, unless the screen is too short; the panel then ends just
-     above the bottom edge (safe area included) */
+  /* sizes: the cover takes about 60 % of the panel's width (COVER), smaller on short screens; the panel ends right
+     under its content, so the whole player sits high and compact */
+  const COVER = .6, COVER_MAX = 260;
   function layout() {
     const vv = window.visualViewport, vh = vv ? vv.height : innerHeight;
     const topY = wrap.getBoundingClientRect().top, safeB = $("safe-probe").offsetHeight || 0;
     const avail = vh - topY - safeB - 14, W = wrap.clientWidth - 40;
     xp.style.setProperty("--xs", "0px");
     const topFixed = top.offsetHeight, botH = bot.offsetHeight;
-    const S = Math.round(Math.max(120, Math.min(W, 420, avail - topFixed - botH - 24)));
+    const S = Math.round(Math.max(120, Math.min(W * COVER, COVER_MAX, avail - topFixed - botH - 20)));
     xp.style.setProperty("--xs", S + "px");
-    st.S = S; st.h1 = Math.round(topFixed + S + botH + 24);
+    st.S = S; st.h1 = Math.round(topFixed + S + botH + 20);
   }
   function measureRects() {
     const a = rel(artBox), s = rel(slot), ct = rel($("track-title")), xt = rel($("xp-title"));
@@ -2602,7 +2595,7 @@ XP = (() => {
     clearTimeout(st.shT); wrap.style.transition = "";
     xp.classList.add("show"); xp.setAttribute("aria-hidden", "false");
     wrap.classList.add("xp-anim");
-    sync(true);
+    sync(true, true);
     layout();
     if (!drawerOpen()) st.compactH = naturalH();
     st.h0 = h0 != null ? h0 : st.compactH;
@@ -2610,7 +2603,7 @@ XP = (() => {
   }
   function render(p) {
     const m = st.m; if (!m) return;
-    const P = Math.max(0, p), c = Math.min(1, P), sc = 21 / 17;
+    const P = Math.max(0, p), c = Math.min(1, P), sc = 20 / 17;
     wrap.style.height = lerp(st.h0, st.h1, p).toFixed(1) + "px";   // may overshoot a hair while it springs open
     const cf = (1 - fade(P, 0, .3)).toFixed(3);
     pm.style.opacity = cm.style.opacity = fm.style.opacity = cf;
@@ -2619,7 +2612,7 @@ XP = (() => {
     /* the big cover, scaled down onto the small one at p = 0 */
     const size = lerp(m.aw, st.S, P), s = size / st.S, curX = lerp(m.ax, m.sx, P), curY = lerp(m.ay, m.sy, P);
     art.style.transform = `translate(${(curX - m.sx).toFixed(2)}px,${(curY - m.sy).toFixed(2)}px) scale(${s.toFixed(4)})`;
-    art.style.borderRadius = (lerp(12, 22, c) / s).toFixed(2) + "px";
+    art.style.borderRadius = (lerp(12, 18, c) / s).toFixed(2) + "px";
     bloom.style.opacity = (fade(P, .1, 1) * .55).toFixed(3);
     /* the title glides from beside the cover to under it; once the growing cover reaches it, the cover pushes it down
        instead of sliding over it. Both titles (the leaving small one and the arriving big one) travel together. */
@@ -2629,9 +2622,9 @@ XP = (() => {
     tText.style.transform = c ? `translate(${(lx - m.ctx).toFixed(1)}px,${(ly - m.cty).toFixed(1)}px) scale(${lerp(1, sc, c).toFixed(3)})` : "";
     meta.style.opacity = fade(P, .12, .45).toFixed(3);
     meta.style.transform = `translate(${(lx - m.xtx).toFixed(1)}px,${(ly - m.xty).toFixed(1)}px) scale(${lerp(1 / sc, 1, c).toFixed(3)})`;
-    const co = fade(P, .4, .85); scrub.style.opacity = ctrls.style.opacity = co.toFixed(3);
-    scrub.style.transform = ctrls.style.transform = `translateY(${((1 - co) * 16).toFixed(1)}px)`;
-    const bo = fade(P, .62, .98); bot.style.opacity = bo.toFixed(3); bot.style.transform = `translateY(${((1 - bo) * 18).toFixed(1)}px)`;
+    const co = fade(P, .35, .85); scrub.style.opacity = ctrls.style.opacity = co.toFixed(3);
+    scrub.style.transform = ctrls.style.transform = `translateY(${((1 - co) * 12).toFixed(1)}px)`;
+    const bo = fade(P, .74, 1); bot.style.opacity = bo.toFixed(3); bot.style.transform = `translateY(${((1 - bo) * 12).toFixed(1)}px)`;
     handle.style.opacity = fade(P, .5, .9).toFixed(3);
     gear.style.opacity = ((1 - fade(P, 0, .25)) * .75).toFixed(3); gear.style.pointerEvents = P > .1 ? "none" : "";
   }
@@ -2661,7 +2654,7 @@ XP = (() => {
   function animateTo(target, v0) {
     cancelAnimationFrame(st.raf); st.target = target; st.v = v0 || 0;
     if (RM) { render(target); settle(target); return; }
-    const K = target ? 210 : 240, Z = target ? .8 : .95, C = 2 * Math.sqrt(K) * Z;   // opening overshoots a touch ("springs open"); closing lands softly
+    const K = target ? 170 : 200, Z = target ? .88 : 1, C = 2 * Math.sqrt(K) * Z;   // opening leans past by a hair; closing lands without any bounce
     let last = 0;
     const step = now => {
       const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;   // a slow frame moves it further (up to 50 ms), so it doesn't turn to slow motion
@@ -2669,7 +2662,7 @@ XP = (() => {
       for (let i = 0, n = Math.max(4, Math.ceil(dt / .006)), h = dt / n; i < n; i++) { st.v += (K * (target - st.p) - C * st.v) * h; st.p += st.v * h; }
       if (!target && st.p < 0) { st.p = 0; st.v = 0; }
       render(st.p);
-      if (Math.abs(target - st.p) < .0015 && Math.abs(st.v) < .03) { settle(target); return; }
+      if (Math.abs(target - st.p) < .001 && Math.abs(st.v) < .02) { settle(target); return; }
       st.raf = requestAnimationFrame(step);
     };
     st.raf = requestAnimationFrame(step);
@@ -2715,13 +2708,15 @@ XP = (() => {
 
   /* ---- gestures: the cover, the handle, and pulls handed over by the bubble ---- */
   let g = null;
-  function gStart(ev, from, onTap) {
+  let dragEndAt = 0;                                                 // a drag that ended on a button must not also press it
+  function gStart(ev, from, onTap, any) {
     if (g || (ev.pointerType === "mouse" && ev.button)) return;
-    g = { id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, t0: performance.now(), from, onTap, started: false, dead: false, samples: [] };
+    g = { id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, t0: performance.now(), from, onTap, any, started: false, dead: false, samples: [] };
+    ev._xp = true;                                                   // the bubble leaves this pull alone
   }
   function begin(ev) {
     if (st.raf) { cancelAnimationFrame(st.raf); st.raf = 0; }         // caught mid-spring: carry on from where it is
-    else prep();
+    else if (!st.expanded || !st.m) prep();                          // already open: everything is measured, just move (no rebuild, no hitch)
     g.started = true; g.y0 = ev.clientY; g.p0 = st.p; g.travel = Math.max(200, st.h1 - st.h0);
     wrap.classList.add("xp-anim"); wrap.classList.remove("xp-on");
   }
@@ -2730,7 +2725,7 @@ XP = (() => {
     const dx = ev.clientX - g.x0, dy = ev.clientY - g.y0;
     if (!g.started) {
       if (g.dead || Math.hypot(dx, dy) < 7) return;
-      const vert = Math.abs(dy) > Math.abs(dx) * 1.1, ok = g.from < .5 ? dy > 0 : dy < 0;
+      const vert = Math.abs(dy) > Math.abs(dx) * 1.1, ok = g.any || (g.from < .5 ? dy > 0 : true);   // open: down only; open or mid-spring: either way (down just gives a little)
       if (!vert || !ok || !canExpand() || (g.from < .5 && drawerOpen())) { g.dead = true; return; }
       begin(ev); return;
     }
@@ -2744,8 +2739,11 @@ XP = (() => {
     const w = g; g = null;
     if (!w.started) { if (!w.dead && ev.type === "pointerup" && performance.now() - w.t0 < 500 && w.onTap) w.onTap(); return; }
     let v = 0; const s = w.samples; if (s.length > 1) { const a = s[0], b = s[s.length - 1]; if (b[0] > a[0]) v = (b[1] - a[1]) / ((b[0] - a[0]) / 1000); }
-    const t = v > 1.4 ? 1 : v < -1.4 ? 0 : w.from < .5 ? (st.p > .3 ? 1 : 0) : (st.p < .7 ? 0 : 1);
-    if (t === 1 && w.from < .5) haptic("light");
+    dragEndAt = performance.now();
+    /* where the flick would carry it: a short, quick swipe is enough; a slow drag has to go about a third of the way */
+    const proj = st.p + Math.max(-.6, Math.min(.6, v * .16));
+    const t = w.any ? (proj > .5 ? 1 : 0) : w.from < .5 ? (proj > .3 ? 1 : 0) : (proj < .72 ? 0 : 1);
+    if (t !== Math.round(w.from)) haptic("light");
     animateTo(t, v);
   };
   document.addEventListener("pointerup", gEnd); document.addEventListener("pointercancel", gEnd);
@@ -2759,8 +2757,14 @@ XP = (() => {
     begin(ev); return true;
   };
   artBox.addEventListener("pointerdown", ev => gStart(ev, 0, open));
-  art.addEventListener("pointerdown", ev => { if (st.expanded) gStart(ev, 1, null); });
-  handle.addEventListener("pointerdown", ev => { if (st.expanded) gStart(ev, 1, close); });
+  /* open: swipe up anywhere on the player to fold it back (not on the scrubber or the Up next strip, which have their
+     own gestures); the handle also closes on a tap. While it springs, a touch anywhere on the panel catches it. */
+  xp.addEventListener("pointerdown", ev => {
+    if (!st.expanded || st.raf || ev.target.closest(".custom-range-slider,.xp-strip")) return;
+    gStart(ev, 1, ev.target.closest(".xp-handle") ? close : null);
+  });
+  wrap.addEventListener("pointerdown", ev => { if (st.raf && !st.sheet && !drawerOpen()) gStart(ev, st.target, null, true); });
+  xp.addEventListener("click", ev => { if (performance.now() - dragEndAt < 350) { ev.stopPropagation(); ev.preventDefault(); } }, true);
   handle.addEventListener("click", e => { if (e.detail === 0) close(); });   // keyboard
   document.addEventListener("keydown", e => { if (e.key === "Escape" && st.expanded && !drawerOpen() && !settingsPanel.classList.contains("active")) close(); });
 
@@ -2771,11 +2775,6 @@ XP = (() => {
   $("xp-shuffle").addEventListener("click", toggleShuffle);
   $("xp-repeat").addEventListener("click", cycleRepeat);
   $("xp-see-all").addEventListener("click", () => toggleTab(btnQueue));
-  $("xp-queue-btn").addEventListener("click", () => toggleTab(btnQueue));
-  $("xp-lib-btn").addEventListener("click", () => toggleTab(btnPlaylist));
-  $("xp-artists-btn").addEventListener("click", () => toggleTab(btnArtists));
-  $("xp-gear").innerHTML = gear.innerHTML.trim() + "Settings";
-  $("xp-gear").addEventListener("click", e => { e.stopPropagation(); settingsPanel.classList.toggle("active"); haptic("light"); });
   $("xp-artist").addEventListener("click", () => { const t = trackById(curId); if (t) openArtist(t.artist); });
   const xpCtrl = setupCustomSlider("xp-progress",
     v => { if (isFinite(audio.duration)) seekTo(v * audio.duration); },
@@ -2799,7 +2798,7 @@ XP = (() => {
 
   /* ---- text, buttons, strip ---- */
   let stripDirty = true;
-  function sync(force) {
+  function sync(force, light) {
     if (!force && !shown()) { stripDirty = true; return; }
     const t = trackById(curId);
     $("xp-title").textContent = t ? t.title : "";
@@ -2810,7 +2809,8 @@ XP = (() => {
     sh.classList.toggle("on", shuffle); sh.setAttribute("aria-pressed", String(shuffle));
     rp.classList.toggle("on", repeatMode !== "off"); $("xp-repeat-path").setAttribute("d", repeatMode === "one" ? REPEAT_ONE : REPEAT);
     rp.setAttribute("aria-label", repeatMode === "one" ? "Repeat: this song" : repeatMode === "off" ? "Repeat: off" : "Repeat: all");
-    renderStrip(); time();
+    if (!light || stripDirty) renderStrip();
+    time();
     if (!canExpand() && (st.expanded || st.raf)) reset();
   }
   function onSong(dir, auto) {
@@ -2943,7 +2943,7 @@ XP = (() => {
     raf = requestAnimationFrame(frame);
   }
 
-  const onResize = () => { if (!st.expanded || st.raf || g) return; layout(); wrap.style.height = st.h1 + "px"; };
+  const onResize = () => { if (!st.expanded || st.raf || g) return; layout(); wrap.style.height = st.h1 + "px"; measureRects(); };
   addEventListener("resize", onResize); if (window.visualViewport) visualViewport.addEventListener("resize", onResize);
   return { open, close, sync, onSong, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, _st: st };
 })();
