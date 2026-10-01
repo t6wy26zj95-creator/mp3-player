@@ -870,9 +870,16 @@ function setupCustomSlider(id, cb, onMove) {
   slider.addEventListener("pointercancel", () => { dragging = false; });
   return { setValue: v => { if (!dragging) visual(v * 100); }, get dragging() { return dragging; } };
 }
+/* the song's length: the real one once loaded; before that (iPhone loads nothing before Play) the one the server or the
+   last session reported, so the scrubber also works before the first Play */
+function songLen() {
+  if (isFinite(audio.duration) && audio.duration > 0) return audio.duration;
+  const t = typeof trackById === "function" && trackById(curId);
+  return (t && t.dur) || saveStateNow.dur || 0;
+}
 const progressCtrl = setupCustomSlider("progress-slider",
-  v => { if (isFinite(audio.duration)) seekTo(v * audio.duration); },
-  v => { if (isFinite(audio.duration)) $("current-time").innerText = fmt(v * audio.duration); });
+  v => { const d = songLen(); if (d) seekTo(v * d); },
+  v => { const d = songLen(); if (d) $("current-time").innerText = fmt(v * d); });
 
 /* ---------- LOADING SONGS ---------- */
 function showPlayerUI() { $("drop-zone").style.display = "none"; $("player-main").style.display = "flex"; $("controls-main").style.display = "flex"; $("footer-main").style.display = "flex"; startPulse(); }
@@ -1667,6 +1674,14 @@ function beginDrag(r, from, group, e, el) {
    The whole-library context is saved as "library", not as a list. */
 const tkey = t => t.remote ? "r:" + t.remote.id : "l:" + [t.artist, t.album, t.disc, t.num, t.title].join("|").toLowerCase();
 let pendingSeek = null, restored = false, lastSave = 0, stateDirty = true;
+/* Resuming where you were. On iPhone a jump (setting currentTime) made while the song is still loading, before it really
+   plays, can be dropped silently: the music starts from 0:00 while the player keeps reporting the jump's target as its
+   position, so both timers stood still on the saved time (1:08) although the song was playing. So the restored song
+   doesn't jump at all: its start time is part of its address (a media fragment, "#t=68"), which the phone uses when it
+   first loads the song. Only if a browser ignores that is the position corrected, and then only once playback is
+   actually running. pendingSeek is what the timers show until then. */
+let resumeAt = null;                                                   // { id, pos }: the restored song and where it starts
+const srcFor = (url, id) => resumeAt && resumeAt.id === id ? url + "#t=" + resumeAt.pos.toFixed(2) : url;
 /* Two keys: playState (song, queue, history, album and its order: can be big with a large library) is written only when
    one of those changes, or when you pause / leave; playPos (just the song and the position, tiny) is what the timer
    writes every few seconds while you listen. Before, the whole state was rebuilt and written every 5 s, which on a big
@@ -1707,32 +1722,26 @@ function restoreState() {                                             // once, w
     ctx = s.ctx && !ids.length ? null : { name: s.ctxName || "Library", ids, order: null, at: cur };
   }
   const from = s.v === 3 ? s.from : (s.cm || s.fq) ? "queue" : "context";
+  const resume = s.pos > 2 && (!s.dur || s.pos < s.dur - 2);
+  resumeAt = resume ? { id: cur, pos: s.pos } : null;                 // the song is loaded starting there (see srcFor)
   loadTrack(cur, false, { noHist: true, from: from === "context" && !ctx ? "other" : from });
   if (!ctx) ensureContext();
-  if (s.pos > 2 && (!s.dur || s.pos < s.dur - 2)) {                    // jump back to where you were once the song is ready
+  if (resume) {
     pendingSeek = s.pos; saveStateNow.dur = s.dur || 0;
     $("current-time").innerText = fmt(s.pos);
     if (s.dur) { $("total-duration").innerText = fmt(s.dur); progressCtrl.setValue(s.pos / s.dur); }
-    if (audio.readyState >= 1) applyPendingSeek();
   }
   saveState();
   if (XP) XP.sync();
 }
-/* The jump back to the saved position waits for the song's length. iPhones load nothing before Play and often report the
-   length a moment later (loadedmetadata with no finite duration yet), so it is tried again whenever the length or the
-   playback state changes. Once the song is actually playing it never waits any longer: it jumps without knowing the
-   length, and the timers follow the real position from then on (before, the big player kept showing the saved
-   position and never moved, and that same stale position was saved again). */
+/* Once the song is really playing: the timers switch from the saved position to the real one. If the start time in the
+   address was ignored (the song started near 0:00), it is put right now, while it plays, which is safe everywhere. */
 function applyPendingSeek(ev) {
-  if (pendingSeek == null) return;
-  const known = isFinite(audio.duration) && audio.duration > 0, playing = ev && (ev.type === "playing" || ev.type === "timeupdate") && !audio.paused;
-  if (!known && !playing) return;
-  const p = known ? Math.min(pendingSeek, audio.duration - 1) : pendingSeek; pendingSeek = null;
-  try { audio.currentTime = p; } catch (e) {}
-  if (known) progressCtrl.setValue(p / audio.duration);
-  $("current-time").innerText = fmt(p);
+  if (pendingSeek == null || audio.paused || !ev || (ev.type !== "playing" && ev.type !== "timeupdate")) return;
+  const want = pendingSeek; pendingSeek = null; resumeAt = null;
+  if (Math.abs(audio.currentTime - want) > 1.5) { try { audio.currentTime = isFinite(audio.duration) ? Math.min(want, audio.duration - 1) : want; } catch (e) {} }
 }
-["loadedmetadata", "durationchange", "canplay", "playing", "timeupdate"].forEach(k => audio.addEventListener(k, applyPendingSeek));
+["playing", "timeupdate"].forEach(k => audio.addEventListener(k, applyPendingSeek));
 audio.addEventListener("pause", () => { saveStateNow(); if (tgStore) mirrorSend("playPos"); });
 addEventListener("pagehide", () => { saveStateNow(); if (tgStore) mirrorFlush(); });
 document.addEventListener("visibilitychange", () => { if (document.hidden) { saveStateNow(); if (tgStore) mirrorFlush(); } });
@@ -1749,10 +1758,11 @@ function loadTrack(id, autoplay, o = {}) {
   const anim = !!autoplay && curId !== null && curId !== id && songOut(dir);   // the old title leaves before the new one is written
   if (curId !== null && curId !== id && curPlayed && !o.back && !o.noHist) pushHistory(curId, nowFrom);
   nowFrom = o.from || "other"; curPlayed = false; pendingSeek = null;
+  if (resumeAt && resumeAt.id !== id) resumeAt = null;
   curId = id;
   if (curUrl) { URL.revokeObjectURL(curUrl); curUrl = null; }
   let later = false;                                                 // true: a bot song is being read from the phone cache, it starts itself
-  if (t.file) { curUrl = URL.createObjectURL(t.file); audio.src = curUrl; analyze(t); }
+  if (t.file) { curUrl = URL.createObjectURL(t.file); audio.src = srcFor(curUrl, t.id); analyze(t); }
   else if (t.remote) later = remoteSrc(t, autoplay);
   $("track-title").innerText = t.title; sparkStop();
   $("track-artist").innerText = t.artist;
@@ -1778,6 +1788,12 @@ function pauseTrack() { audio.pause(); setPlayIcon(false); }
    instead of a new request to the server. */
 function seekTo(time) {
   pendingSeek = null;
+  if (audio.paused && audio.readyState < 3 && audio.getAttribute("src")) {   // not loaded yet (iPhone before Play): start there instead of jumping
+    const id = curId; resumeAt = { id, pos: time }; pendingSeek = time;
+    audio.src = srcFor(audio.src.split("#")[0], id);
+    if (XP) XP.sync(false, true);
+    return;
+  }
   const t = trackById(curId);
   if (t && t.remote && t.file && !curUrl) {
     const wasPlaying = !audio.paused;
@@ -1834,7 +1850,7 @@ function playPrev() {
 const fmt = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
 audio.addEventListener("timeupdate", () => {
   if (pendingSeek != null) return;                                     // still waiting to jump back to the saved position
-  const d = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (saveStateNow.dur || 0);   // length not known yet: the saved one
+  const d = songLen();                                                  // length not known yet: the reported one
   if (!audio.paused && Date.now() - lastSave > 5000) savePos();          // position survives the app being closed (just the position: cheap)
   if (d) progressCtrl.setValue(Math.min(1, audio.currentTime / d));
   if (!progressCtrl.dragging) $("current-time").innerText = fmt(audio.currentTime);
@@ -2773,15 +2789,16 @@ XP = (() => {
     m.pairs.forEach(q => { q.c.style.transformOrigin = q.x.style.transformOrigin = q.origin; });
     m.originsOn = true;
   }
-  function prep(h0) {                                                // before any move: show the layer, size it, measure both layouts
+  function prep(h0, warm) {                                          // before any move: show the layer, size it, measure both layouts
     clearTimeout(st.shT); wrap.style.transition = "";
     xp.classList.add("show"); xp.setAttribute("aria-hidden", "false");
-    wrap.classList.add("xp-anim");
+    st.warm = !!warm; if (!warm) wrap.classList.add("xp-anim");      // warm: shown but not yet moving, the compact row still takes taps
     sync(true, true);
     layout();
     if (!drawerOpen()) st.compactH = naturalH();
     st.h0 = h0 != null ? h0 : st.compactH;
     measureRects();
+    render(st.p);                                                    // laid out in the same frame it appears: never one frame of an unplaced layout
   }
   const setOp = (el, v) => { const s = v >= .999 ? "" : v.toFixed(3); if (el.style.opacity !== s) el.style.opacity = s; };
   function fadeEdge(el, text, x, k, limit) {                         // a line running past the panel's right edge fades out there
@@ -2801,7 +2818,7 @@ XP = (() => {
     art.style.borderRadius = (lerp(12, 18, P) / s).toFixed(2) + "px";
     art.style.setProperty("--u", (lerp(1, 1.6, P) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
     /* glows: both covers show the same bitmaps at the same place at p = 0, so the hand-over is a quick, invisible swap */
-    const hm = fade(P, 0, .04), hs = hm.toFixed(3), hr = (1 - hm).toFixed(3);
+    const hm = fade(P, 0, .04), hs = Math.max(.004, hm).toFixed(3), hr = (1 - hm).toFixed(3);   // never exactly 0: keeps the big glow's layer painted, ready
     if (st.hm !== hs) { st.hm = hs; bloom.style.setProperty("--hm", hs); glight.style.setProperty("--hm", hs); smBloom.style.setProperty("--hm", hr); smLight.style.setProperty("--hm", hr); }
     const v = fade(P, 0, .28), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
     const rowY = (y0, y1) => bottom + lerp(y0 - bottom0, y1 - bottom1, v);
@@ -2887,7 +2904,8 @@ XP = (() => {
       if (a) toggleTab(a); else drawerBox.classList.remove("expanded");
       return;
     }
-    if (!st.raf) prep();
+    if (!st.raf && !st.warm) prep();
+    st.warm = false; wrap.classList.add("xp-anim");
     haptic("light"); animateTo(1, st.v);
   }
   function close() {
@@ -2929,8 +2947,10 @@ XP = (() => {
   }
   function begin(ev) {
     if (st.raf) { cancelAnimationFrame(st.raf); st.raf = 0; }         // caught mid-spring: carry on from where it is
-    else if (!st.expanded || !st.m) prep();                          // already open: everything is measured, just move (no rebuild, no hitch)
+    else if (!st.warm && (!st.expanded || !st.m)) prep();            // already open (or warmed up by the touch): everything is measured, just move
+    st.warm = false;
     g.started = true; g.y0 = ev.clientY; g.p0 = st.p; g.travel = Math.max(200, st.h1 - st.h0);
+    render(st.p);                                                    // first: the compact copies get their place and fade before they are unhidden
     wrap.classList.add("xp-anim"); wrap.classList.remove("xp-on");
   }
   document.addEventListener("pointermove", ev => {
@@ -2986,6 +3006,13 @@ XP = (() => {
   /* the rest of the row: the bubble reports pulls that start here (see xpPullHook); without the bubble (Old panel), and on
      the artist name (a link, so the bubble leaves it alone), the row starts the expand gesture itself */
   pm.addEventListener("pointerdown", ev => { if (!ev._xp && (!bubble.on || ev.target.closest(".track-artist"))) gStart(ev, 0, null); });
+  /* Warm-up: a touch on the row may become an expand, so the big player's layer is put in place (invisibly, exactly over
+     the compact row) the moment the finger lands. The phone then has it painted, glow included, before the pull is
+     recognised; shown only at that moment, its glow came up a few frames late (a brief dip in the light). A touch that
+     turns out to be a tap or a stretch puts it away again. */
+  pm.addEventListener("pointerdown", () => { if (!st.expanded && !st.raf && !shown() && canExpand() && !drawerOpen()) prep(null, true); });
+  const cool = () => setTimeout(() => { if (st.warm && !st.raf && !(g && g.started) && !st.expanded) { st.warm = false; settle(0); } }, 0);
+  document.addEventListener("pointerup", cool); document.addEventListener("pointercancel", cool);
   /* open: swipe up anywhere on the player to fold it back (not on the scrubber or the Up next strip, which have their
      own gestures); the handle also closes on a tap. While it springs, a touch anywhere on the panel catches it. */
   xp.addEventListener("pointerdown", ev => {
@@ -3006,12 +3033,12 @@ XP = (() => {
   $("xp-see-all").addEventListener("click", () => toggleTab(btnQueue));
   $("xp-artist").addEventListener("click", () => { const t = trackById(curId); if (t) openArtist(t.artist); });
   const xpCtrl = setupCustomSlider("xp-progress",
-    v => { if (isFinite(audio.duration)) seekTo(v * audio.duration); },
-    v => { if (isFinite(audio.duration)) showTime(v * audio.duration, audio.duration); });
+    v => { const d = songLen(); if (d) seekTo(v * d); },
+    v => { const d = songLen(); if (d) showTime(v * d, d); });
   function showTime(c, d) { $("xp-cur").textContent = fmt(c); $("xp-left").textContent = "-" + fmt(Math.max(0, d - c)); }
   function time() {
     if (!shown()) return;
-    const d = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (saveStateNow.dur || 0);
+    const d = songLen();
     const c = pendingSeek != null && audio.paused ? pendingSeek : audio.currentTime || 0;   // the saved position only while nothing plays
     xpCtrl.setValue(d ? Math.min(1, c / d) : 0); if (!xpCtrl.dragging) showTime(c, d);
   }
@@ -3267,7 +3294,7 @@ const savePhoneIdx = () => store.set("songCache", JSON.stringify(phoneIdx));
 const audioURL = t => `${API_BASE}/api/audio/${t.remote.id}?t=${lib.token}`;
 function libFields(x) {
   return { title: x.title || "Unknown", artist: x.artist || "Unknown Artist", album: x.album || "Unknown Album", albumArtist: x.albumArtist || "",
-    disc: x.disc || 0, num: x.num || 0, year: x.year || 0, isrc: x.isrc || "", discName: "",
+    disc: x.disc || 0, num: x.num || 0, year: x.year || 0, isrc: x.isrc || "", discName: "", dur: x.duration || 0,
     art: x.cover ? `${API_BASE}/api/cover/${x.id}?t=${lib.token}&r=${x.rev}` : null };
 }
 async function phoneGet(rid) {
@@ -3315,13 +3342,13 @@ function remoteSrc(t, autoplay) {                                    // returns 
   if (phoneIdx[rid]) {
     phoneGet(rid).then(b => {
       if (curId !== id) return;
-      if (b) { t.file = b; keepMem(t); curUrl = URL.createObjectURL(b); audio.src = curUrl; analyze(t); prefetchNext(); }
-      else { delete phoneIdx[rid]; audio.src = audioURL(t); if (autoplay) fetchSong(t); }
+      if (b) { t.file = b; keepMem(t); curUrl = URL.createObjectURL(b); audio.src = srcFor(curUrl, id); analyze(t); prefetchNext(); }
+      else { delete phoneIdx[rid]; audio.src = srcFor(audioURL(t), id); if (autoplay) fetchSong(t); }
       if (autoplay) playTrack();
     });
     return true;
   }
-  audio.src = audioURL(t);
+  audio.src = srcFor(audioURL(t), id);
   if (autoplay) fetchSong(t);                                        // just opening the app doesn't download anything
   return false;
 }
