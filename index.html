@@ -498,19 +498,20 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
    p = 0 it equals --k, so both covers match to the pixel; open, the rim and edge bands are 1.6x the small cover's). */
 /* The cover glow (both covers): bitmaps drawn once per song (coverGlow, in the script), never a CSS blur, so nothing is
    re-blurred while the cover grows and the small and big covers show the very same image.
-   - bloom: a soft colour field from the artwork's colours (blobs sampled round its edge, on a round falloff): ambient
-     light, not a blurred copy of the picture. Canvas = 194 units: the 66 px cover plus 64 each side, centred on it.
+   - bloom: the artwork itself, enlarged 1.5x, saturated and softly blurred: the original glow (as it was before the
+     "colour field" experiment, which stacked saturated blobs into a near-solid orb), only pre-drawn instead of a live CSS
+     blur. Canvas = 280 units: the 66 px cover plus 107 each side, centred on it (room for the blur's soft tail).
    - light: the two-colour wedge circling behind the cover. Canvas = 180 units (a 110 circle + 35 each side). */
 #art-bloom,#art-light{filter:none;background:none;border-radius:0}
-#art-bloom{left:calc(var(--inset) + var(--art-x) - 64px);top:-62px;width:194px;height:194px}
+#art-bloom{left:calc(var(--inset) + var(--art-x) - 107px);top:-105px;width:280px;height:280px}
 #art-light{left:calc(var(--inset) + var(--art-x) - 57px);top:-55px;width:180px;height:180px}
 /* text and controls paint above the glow (it's an absolutely placed layer, which would otherwise draw over them) */
 .track-text:not(.tt-ghost),.progress-container,.player-footer,.xp-meta,.xp-scrub,.xp-ctrls{position:relative;z-index:2}
-.xp-art .art-bloom{left:-96.97%;top:-96.97%;width:293.94%;height:293.94%;border-radius:0;filter:none;background:none}
+.xp-art .art-bloom{left:-162.121%;top:-162.121%;width:424.242%;height:424.242%;border-radius:0;filter:none;background:none}
 .xp-art .art-light{left:-86.364%;top:-86.364%;width:272.727%;height:272.727%;border-radius:0;filter:none;background:none}
 #art-bloom,.xp-art .art-bloom{
-  opacity:calc((.5 + var(--en,0) * .1 + var(--pulse,0) * .25 + var(--br,.5) * .08 + var(--fl,0) * .2) * var(--hm,1));
-  transform:translate3d(calc(var(--tx,0) * 10px * var(--k,1)),calc(var(--ty,0) * 10px * var(--k,1)),0) scale(calc(1 + var(--pulse,0) * .07 + var(--br,.5) * .04 + var(--fl,0) * .1))}
+  opacity:calc((.32 + var(--en,0) * .06 + var(--pulse,0) * .22 + var(--br,.5) * .06 + var(--fl,0) * .22) * var(--hm,1));   /* the original glow's strength */
+  transform:translate3d(calc(var(--tx,0) * 12px * var(--k,1)),calc(var(--ty,0) * 12px * var(--k,1)),0) scale(calc(1 + var(--pulse,0) * .08 + var(--br,.5) * .0333 + var(--fl,0) * .1467))}   /* the old 1.5x is in the bitmap */
 .xp-clip .g-refr{background-position:calc(50% + var(--rx,0px) * var(--u,1)) calc(50% + var(--ry,0px) * var(--u,1));filter:saturate(1.35) brightness(1.14) blur(calc(.4px * var(--u,1)));
   -webkit-mask-image:linear-gradient(90deg,#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000),linear-gradient(#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000);
           mask-image:linear-gradient(90deg,#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000),linear-gradient(#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000)}
@@ -667,7 +668,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
   <input type="file" id="photo-input" accept="image/*" style="display:none;">
 
   <div class="track-info-container" id="player-main" style="display:none;">
-    <canvas class="art-bloom" id="art-bloom" width="128" height="128"></canvas>
+    <canvas class="art-bloom" id="art-bloom" width="160" height="160"></canvas>
     <canvas class="art-light" id="art-light" width="128" height="128"></canvas>
     <div class="album-art" id="album-art-box"><div class="art-clip">
       <svg id="fallback-art" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
@@ -732,7 +733,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
     <div class="xp-top" id="xp-top">
       <button class="xp-handle" id="xp-handle" aria-label="Close the big player"><i></i></button>
       <div class="xp-slot" id="xp-slot">
-        <div class="xp-art" id="xp-art"><canvas class="art-bloom" id="xp-bloom" width="128" height="128"></canvas><canvas class="art-light" id="xp-light" width="128" height="128"></canvas><div class="xp-clip" id="xp-clip">
+        <div class="xp-art" id="xp-art"><canvas class="art-bloom" id="xp-bloom" width="160" height="160"></canvas><canvas class="art-light" id="xp-light" width="128" height="128"></canvas><div class="xp-clip" id="xp-clip">
           <svg id="xp-fallback" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
           <img id="xp-art-img" alt="" style="display:none">
           <i class="g g-refr" aria-hidden="true"></i><i class="g g-shade" aria-hidden="true"></i><i class="g g-spec" aria-hidden="true"></i><i class="g g-streak" aria-hidden="true"></i><i class="g g-glow" aria-hidden="true"></i><i class="g g-rim" aria-hidden="true"></i>
@@ -806,7 +807,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v32";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v33";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 let botMode = !!TG && !!TG.initData;                   // switches off if the server can't be reached, so the phone's files still work
 function haptic(kind) {                               // "light" | "medium" | "select". Telegram's haptics also work on iPhone; navigator.vibrate is the fallback (Android browsers)
@@ -2695,75 +2696,70 @@ bubble.set(store.get("oldPanel") !== "1", false);
    One image per song, drawn once into canvases and then only moved, scaled and faded by the GPU. The small cover and the
    big cover get the very same bitmaps (copied), so when the big cover takes over from the small one nothing changes on
    screen, and no CSS blur is ever redrawn mid-gesture (that is what made the glow jump on iPhone).
-   - field: ambient colour light from the artwork. Seven colours are sampled round the artwork's edge (plus its overall
-     colour in the middle), each becomes a soft round blob placed on that side of the cover, with a little per-song
-     variation in size and distance, and the whole thing fades out on a round falloff. So it reads as light spilling from
-     the cover's colours, never as a blurred copy of the picture and never as a square.
+   - bloom: the artwork itself, enlarged 1.5x, saturated (1.6) and softly blurred: exactly the original glow (the live
+     CSS blur(20px) it used to be), baked once per song. (A "colour field" of stacked saturated blobs replaced it for a
+     while; it added up to a near-solid orb, so it's gone.)
    - light: the two-colour wedge that circles behind the cover (rotated by CSS), blurred once here.
-   If the artwork can't be read (another site's image without CORS), the field is made from the two light colours. */
+   If the artwork can't be read (another site's image without CORS), the bloom is softened by shrinking and re-enlarging
+   it instead (no pixel reads). */
 const coverGlow = (() => {
   const N = 128, B = [$("art-bloom"), $("xp-bloom")], L = [$("art-light"), $("xp-light")];
-  const bx = B[0].getContext("2d"), lx = L[0].getContext("2d");
+  const lx = L[0].getContext("2d");
   let src = "", req = 0, fallback = false, lastLc = "";
-  const copy = (list) => { for (let i = 1; i < list.length; i++) { const c = list[i].getContext("2d"); c.clearRect(0, 0, N, N); c.drawImage(list[0], 0, 0); } };
-  const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
-  const rnd = seed => () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822507) + 0x9e3779b9 >>> 0) % 10000) / 10000;
-  function hsl(r, g, b) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn; let h = 0, s = 0;
-    if (d) { s = d / (1 - Math.abs(2 * l - 1)); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; } return [h, s, l]; }
-  function rgb(h, s, l) { const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
-    const v = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]; return v.map(t => Math.round((t + m) * 255)); }
-  function glowColour([r, g, b]) {                                    // a colour that reads as light on the dark glass: richer, never black or white
-    const [h, s, l] = hsl(r, g, b);
-    return { c: rgb(h, Math.min(.95, s * 1.3 + .05), Math.max(.34, Math.min(.64, l * .9 + .08))), a: .55 + Math.min(1, s * 1.6) * .45 };
+  const copy = (list) => { for (let i = 1; i < list.length; i++) { const c = list[i].getContext("2d"), n = list[i].width; c.clearRect(0, 0, n, n); c.drawImage(list[0], 0, 0); } };
+  /* bloom: the artwork as the original glow drew it (CSS blur(20px) saturate(1.6) on the 66 px cover, scaled 1.5x),
+     baked once into a bitmap. Canvas = 280 units at NB px. A last soft round fade keeps the tail from ever showing the
+     canvas's square edge. */
+  const NB = 160, bb = B[0].getContext("2d");
+  B.forEach(c => { c.width = c.height = NB; });
+  function edgeFade() {
+    const C = NB / 2; bb.globalCompositeOperation = "destination-in";
+    const m = bb.createRadialGradient(C, C, 0, C, C, C);
+    for (let i = 0; i <= 10; i++) { const t = i / 10, k = t < .82 ? 1 : 1 - (t - .82) / .18; m.addColorStop(t, `rgba(0,0,0,${(k * k * (3 - 2 * k)).toFixed(3)})`); }
+    bb.fillStyle = m; bb.fillRect(0, 0, NB, NB); bb.globalCompositeOperation = "source-over";
   }
-  function blob(x, y, R, col, a) {                                    // a soft round light: gaussian-like falloff, zero at its edge
-    const g = bx.createRadialGradient(x, y, 0, x, y, R), [r, gg, b] = col.c;
-    for (let i = 0; i <= 8; i++) { const t = i / 8; g.addColorStop(t, `rgba(${r},${gg},${b},${(a * col.a * Math.exp(-3 * t * t) * (1 - t * t)).toFixed(4)})`); }
-    bx.fillStyle = g; bx.fillRect(0, 0, N, N);
+  function drawArt(ctx, im, n) {                                      // the cover, 1.5x (99 units), centred, rounded corners like the old box
+    const iw = im.naturalWidth, ih = im.naturalHeight, m = Math.min(iw, ih), S = 99 * n / 280, o = (n - S) / 2, r = 18 * n / 280;
+    ctx.save(); ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(o, o, S, S, r); else ctx.rect(o, o, S, S); ctx.clip();
+    ctx.drawImage(im, (iw - m) / 2, (ih - m) / 2, m, m, o, o, S, S); ctx.restore();
   }
-  function paint(cols, centre, seed) {                                // cols: 7 edge colours (clockwise from the right), centre: the overall colour
-    const r = rnd(seed), U = N / 194, C = N / 2, H = 33 * U, off = r() * Math.PI * 2;
-    bx.clearRect(0, 0, N, N); bx.globalCompositeOperation = "source-over";
-    blob(C, C, H * 2.5, centre, .6);
-    cols.forEach((col, k) => {
-      const th = off + k / cols.length * Math.PI * 2 + (r() - .5) * .5, d = H * (.85 + r() * .4), R = H * (1.75 + r() * .55);
-      blob(C + Math.cos(th) * d, C + Math.sin(th) * d, R, col, .62);
-    });
-    bx.globalCompositeOperation = "destination-in";                   // round falloff: fully clear well before the canvas edge
-    const m = bx.createRadialGradient(C, C, 0, C, C, C * .98);
-    for (let i = 0; i <= 10; i++) { const t = i / 10, k = t < .4 ? 1 : 1 - (t - .4) / .6, s = k * k * (3 - 2 * k); m.addColorStop(t, `rgba(0,0,0,${s.toFixed(3)})`); }
-    bx.fillStyle = m; bx.fillRect(0, 0, N, N);
-    bx.globalCompositeOperation = "source-over";
-    copy(B);
+  function bloomFrom(im) {
+    const c = document.createElement("canvas"); c.width = c.height = NB; const x = c.getContext("2d");
+    drawArt(x, im, NB);
+    const px = x.getImageData(0, 0, NB, NB).data, d = new Float32Array(px.length);   // throws if the artwork can't be read
+    for (let i = 0; i < px.length; i += 4) {
+      const al = px[i + 3] / 255; if (!al) continue;
+      const r = px[i], g = px[i + 1], b = px[i + 2];                  // saturate(1.6): the CSS filter's own matrix
+      const s = 1.6, R = (.213 + .787 * s) * r + (.715 - .715 * s) * g + (.072 - .072 * s) * b,
+            G = (.213 - .213 * s) * r + (.715 + .285 * s) * g + (.072 - .072 * s) * b,
+            Bb = (.213 - .213 * s) * r + (.715 - .715 * s) * g + (.072 + .928 * s) * b;
+      d[i] = Math.max(0, Math.min(255, R)) / 255 * al; d[i + 1] = Math.max(0, Math.min(255, G)) / 255 * al; d[i + 2] = Math.max(0, Math.min(255, Bb)) / 255 * al; d[i + 3] = al * 255;
+    }
+    blur(d, 17, NB);                                                  // sigma ~17 px = the old 20 px blur after the 1.5x scale
+    const out = bb.createImageData(NB, NB), o = out.data;
+    for (let i = 0; i < d.length; i += 4) { const a = d[i + 3]; if (a < .5) continue; const k = 65025 / a; o[i] = d[i] * k; o[i + 1] = d[i + 1] * k; o[i + 2] = d[i + 2] * k; o[i + 3] = a; }
+    bb.clearRect(0, 0, NB, NB); bb.putImageData(out, 0, 0); edgeFade(); copy(B);
   }
-  function fromLight() {                                              // artwork unreadable: the field from the two light colours
-    const [a, b] = lastLc ? lastLc.split("|").map(s => s.split(",").map(Number)) : [[200, 215, 225], [200, 215, 225]];
-    const A = { c: a, a: .9 }, Bc = { c: b, a: .9 }, mid = { c: a.map((v, i) => Math.round((v + b[i]) / 2)), a: .9 };
-    paint([A, A, Bc, Bc, A, Bc, A], mid, hash(src));
+  function bloomSoft(im) {                                            // artwork that can't be read (another site, no CORS): soften it by shrinking and re-enlarging, no pixel reads
+    const t = document.createElement("canvas"); t.width = t.height = 7; const tx = t.getContext("2d");
+    tx.imageSmoothingEnabled = true; tx.imageSmoothingQuality = "high";
+    const big = document.createElement("canvas"); big.width = big.height = NB; drawArt(big.getContext("2d"), im, NB);
+    tx.drawImage(big, 0, 0, 7, 7);
+    bb.clearRect(0, 0, NB, NB); bb.imageSmoothingEnabled = true; bb.imageSmoothingQuality = "high"; bb.drawImage(t, 0, 0, NB, NB);
+    edgeFade(); copy(B);
   }
   function field(s) {                                                 // s: the artwork URL, or "" for none
     if (s === src) return; src = s; const my = ++req; fallback = false;
-    if (!s) { [bx, ...B.slice(1).map(c => c.getContext("2d"))].forEach(c => c.clearRect(0, 0, N, N)); return; }
+    if (!s) { B.forEach(c => c.getContext("2d").clearRect(0, 0, NB, NB)); return; }
     const im = new Image(); im.crossOrigin = "anonymous";
-    im.onload = () => {
-      if (my !== req) return;
-      try {
-        const c = document.createElement("canvas"); c.width = c.height = 24; const x = c.getContext("2d");
-        const iw = im.naturalWidth, ih = im.naturalHeight, m = Math.min(iw, ih); x.drawImage(im, (iw - m) / 2, (ih - m) / 2, m, m, 0, 0, 24, 24);
-        const d = x.getImageData(0, 0, 24, 24).data, at = (px, py, rad) => {   // average colour of a small patch
-          let r = 0, g = 0, b = 0, n = 0;
-          for (let yy = Math.max(0, py - rad); yy <= Math.min(23, py + rad); yy++) for (let xx = Math.max(0, px - rad); xx <= Math.min(23, px + rad); xx++) { const i = (yy * 24 + xx) * 4; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
-          return [r / n, g / n, b / n];
-        };
-        const seed = hash(s), off = rnd(seed)() * Math.PI * 2, cols = [];
-        for (let k = 0; k < 7; k++) { const th = off + k / 7 * Math.PI * 2; cols.push(glowColour(at(Math.round(11.5 + Math.cos(th) * 8), Math.round(11.5 + Math.sin(th) * 8), 3))); }
-        paint(cols, glowColour(at(12, 12, 12)), seed);
-      } catch (e) { fallback = true; fromLight(); }
-    };
-    im.onerror = () => { if (my === req) { fallback = true; fromLight(); } };
+    im.onload = () => { if (my !== req) return; try { bloomFrom(im); } catch (e) { softLoad(s, my); } };
+    im.onerror = () => { if (my === req) softLoad(s, my); };
     im.src = s;
   }
-  function blur(d, r) {                                               // premultiplied float RGBA, 3 box passes each way (close to a gaussian of sigma r)
+  function softLoad(s, my) {                                          // load again without CORS (drawing it is still allowed, reading it isn't)
+    const im = new Image(); im.onload = () => { if (my === req) { try { bloomSoft(im); } catch (e) {} } }; im.src = s;
+  }
+  function blur(d, r, N = 128) {                                      // premultiplied float RGBA, N x N, 3 box passes each way (close to a gaussian)
     const t = new Float32Array(d.length);
     for (let pass = 0; pass < 3; pass++) for (let dir = 0; dir < 2; dir++) {
       const sr = dir ? t : d, dst = dir ? d : t, w = 2 * r + 1;
@@ -2792,7 +2788,6 @@ const coverGlow = (() => {
     const im = lx.createImageData(N, N), o = im.data;
     for (let i = 0; i < d.length; i += 4) { const a = d[i + 3]; if (a < .5) continue; const k = 65025 / a; o[i] = d[i] * k; o[i + 1] = d[i + 1] * k; o[i + 2] = d[i + 2] * k; o[i + 3] = a; }
     lx.putImageData(im, 0, 0); copy(L);
-    if (fallback) fromLight();
   }
   light("200,215,225", "200,215,225");
   return { field, light };
