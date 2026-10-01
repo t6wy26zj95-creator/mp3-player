@@ -518,9 +518,14 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-clip .g-glow{-webkit-mask-image:linear-gradient(90deg,#000,transparent calc(7px * var(--u,1)),transparent calc(100% - 7px * var(--u,1)),#000),linear-gradient(#000,transparent calc(7px * var(--u,1)),transparent calc(100% - 7px * var(--u,1)),#000);
           mask-image:linear-gradient(90deg,#000,transparent calc(7px * var(--u,1)),transparent calc(100% - 7px * var(--u,1)),#000),linear-gradient(#000,transparent calc(7px * var(--u,1)),transparent calc(100% - 7px * var(--u,1)),#000)}
 .xp-clip .g-rim{padding:calc(1px * var(--u,1))}
-.xp-meta{margin-top:22px;transform-origin:0 0;min-width:0;max-width:100%;align-self:center;text-align:center}
-.xp-title{font-size:20px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 6px rgba(0,0,0,.45)}
-.xp-sub{margin-top:5px;font-size:13.5px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+/* long names wrap instead of being cut: the title takes up to 3 lines (20 px for 1-2 lines, a bit smaller when it needs
+   a 3rd, see fitTitle), the artist · album line up to 2. Past that, "…": a protection for absurdly long names. Words
+   longer than the line (no spaces) break anywhere instead of running off. */
+.xp-meta{margin-top:22px;transform-origin:0 0;min-width:0;width:100%;align-self:center;text-align:center}
+.xp-title{font-size:var(--tfs,20px);font-weight:700;line-height:1.25;overflow:hidden;overflow-wrap:anywhere;text-wrap:balance;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;text-shadow:0 2px 6px rgba(0,0,0,.45)}
+.xp-sub{margin-top:5px;font-size:13.5px;line-height:1.3;color:rgba(255,255,255,.55);overflow:hidden;overflow-wrap:anywhere;text-wrap:balance;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .xp-artist{color:rgba(255,255,255,.85);cursor:pointer}
 .xp-scrub{margin-top:24px}
 .xp-scrub .custom-range-slider{height:4px;border-radius:3px}
@@ -561,8 +566,80 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-strip.dragging .xp-card:not(.lifted){opacity:.55}
 .xp-card.rm{background:rgba(255,99,99,.42);border-color:rgba(255,150,150,.55)}
 .xp-div{flex:0 0 1px;align-self:stretch;margin:6px 2px;background:rgba(255,255,255,.14)}
+.xp-card.past{opacity:.45;filter:grayscale(.85)}
+.xp-card.now{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.34);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 4px 14px rgba(0,0,0,.25);cursor:default}
 .xp-empty{font-size:12px;color:rgba(255,255,255,.42);padding:0 2px;white-space:nowrap}
 .gear-btn{transition:opacity .25s var(--ease)}
+/* ---- big player pages: Lyrics | Player (home) | Albums ----
+   The home page isn't clipped (the cover glow spreads past the glass); while pages slide it is clipped to the panel.
+   The other pages live in a clipped box the size of the panel. The two-blob switch sits under the panel. */
+.xp-home{position:absolute;inset:0}
+.xp-side{position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:none;visibility:hidden}
+.xp-side.on{visibility:visible}
+.player-wrapper.xp-on .xp-side.on{pointer-events:auto}
+.xp-page{position:absolute;inset:0;display:flex;flex-direction:column;will-change:transform}
+.xp-nav{position:absolute;left:50%;top:calc(100% + 14px);display:flex;gap:2px;padding:3px;border-radius:999px;transform:translateX(-50%);opacity:0;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);box-shadow:0 6px 18px rgba(0,0,0,.25);
+  backdrop-filter:blur(10px) saturate(140%);-webkit-backdrop-filter:blur(10px) saturate(140%)}
+.xp-nav button{position:relative;z-index:1;height:30px;padding:0 15px;border:0;background:none;border-radius:999px;color:rgba(255,255,255,.62);
+  font:600 12.5px -apple-system,system-ui,sans-serif;letter-spacing:.2px;cursor:pointer;transition:color .25s var(--ease)}
+.xp-nav button.on{color:#fff}
+.xp-nav-lit{position:absolute;left:0;top:3px;height:30px;border-radius:999px;pointer-events:none;opacity:0;transform-origin:0 50%;
+  background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,.12));box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 2px 8px rgba(0,0,0,.2)}
+/* lyrics */
+.lyr-head{display:flex;align-items:center;gap:12px;padding:22px 20px 10px;flex-shrink:0}
+.lyr-art{width:46px;height:46px;border-radius:10px;flex-shrink:0;background:rgba(255,255,255,.08) center/cover no-repeat;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.lyr-meta{min-width:0;flex:1}
+.lyr-title{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lyr-artist{font-size:12.5px;color:rgba(255,255,255,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.lyr-play{width:40px;height:40px;flex-shrink:0}
+.lyr-play svg{width:18px;height:18px}
+.lyr-scroll{position:relative;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain;scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(transparent 0,#000 28px,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(transparent 0,#000 28px,#000 calc(100% - 40px),transparent)}
+.lyr-scroll::-webkit-scrollbar{display:none}
+.lyr-list{padding:18px 22px 45%}
+/* lines change only in opacity and size (both drawn by the GPU). A blur and a coloured glow that changed with the
+   current line left purple streaks behind on iPhone (the edges of the glow's redrawn area). */
+.lyr-line{font-size:23px;font-weight:700;line-height:1.28;margin:0 0 14px;color:#fff;opacity:.32;transform-origin:0 50%;cursor:pointer;
+  overflow-wrap:anywhere;transition:opacity .45s var(--ease),transform .45s var(--ease)}
+.lyr-line.past{opacity:.22}
+.lyr-line.on{opacity:1;transform:scale(1.03)}
+.lyr-line.gap{font-size:20px;letter-spacing:4px}
+.lyr-plain .lyr-line{opacity:.85;cursor:default;font-size:20px}
+.lyr-note{font-size:14px;color:rgba(255,255,255,.55);line-height:1.45;padding-top:30px;text-align:center}
+.lyr-credit{font-size:10.5px;color:rgba(255,255,255,.35);margin-top:26px}
+/* albums page: a grid of your albums; one album: its songs */
+.alb-head{display:flex;align-items:center;gap:8px;padding:22px 20px 8px;flex-shrink:0;min-height:42px}
+.alb-back{width:34px;height:34px;margin-left:-8px;border:0;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.alb-back svg{width:22px;height:22px;fill:#fff}
+.alb-back[hidden],.alb-play[hidden]{display:none}
+.alb-h{min-width:0;flex:1}
+.alb-title{font-size:20px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alb-sub{font-size:12.5px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.alb-sub:empty{display:none}
+.alb-play{display:flex;align-items:center;gap:4px;height:32px;padding:0 13px 0 9px;border:0;border-radius:999px;flex-shrink:0;cursor:pointer;
+  background:rgba(255,255,255,.14);color:#fff;font:600 13px -apple-system,system-ui,sans-serif}
+.alb-play svg{width:16px;height:16px;fill:#fff}
+.alb-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain;scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(transparent 0,#000 14px,#000 calc(100% - 26px),transparent);mask-image:linear-gradient(transparent 0,#000 14px,#000 calc(100% - 26px),transparent)}
+.alb-scroll::-webkit-scrollbar{display:none}
+.alb-body{padding:8px 20px 26px}
+.alb-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 12px}
+.alb-card{min-width:0;cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform .2s var(--ease)}
+.alb-card:active{transform:scale(.95)}
+.alb-cov{position:relative;aspect-ratio:1;border-radius:11px;overflow:hidden;background:rgba(255,255,255,.07);box-shadow:0 6px 16px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center}
+.alb-cov img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
+.alb-cov svg{width:34%;height:34%;fill:rgba(255,255,255,.4)}
+.alb-card.now .alb-cov{box-shadow:0 0 0 2px rgba(255,255,255,.8),0 6px 16px rgba(0,0,0,.28)}
+.alb-name{font-size:12px;font-weight:600;line-height:1.25;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.alb-art{font-size:11px;color:rgba(255,255,255,.5);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alb-row{display:flex;align-items:center;gap:12px;min-height:46px;padding:4px 6px;margin:0 -6px;border-radius:10px;cursor:pointer;-webkit-user-select:none;user-select:none}
+.alb-row:active{background:rgba(255,255,255,.08)}
+.alb-n{width:20px;flex-shrink:0;text-align:right;font-size:13px;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
+.alb-row-t{min-width:0;flex:1;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
+.alb-row-d{font-size:12px;color:rgba(255,255,255,.45);flex-shrink:0;font-variant-numeric:tabular-nums}
+.alb-row.now .alb-row-t,.alb-row.now .alb-n{color:rgb(120,222,202);font-weight:600}
+.alb-empty{font-size:14px;color:rgba(255,255,255,.55);text-align:center;padding-top:30px}
 /* Library / Artists / Queue opened from the expanded player: the lists grow to fill the tall panel (a sheet under the
    now-playing row); closing the section brings the big player back */
 .player-wrapper.sheet :is(.playlist-container){max-height:var(--sheet-h,240px)}
@@ -651,6 +728,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
   </div></div></div>
 
   <div class="xp" id="xp" aria-hidden="true">
+    <div class="xp-home" id="xp-home">
     <div class="xp-top" id="xp-top">
       <button class="xp-handle" id="xp-handle" aria-label="Close the big player"><i></i></button>
       <div class="xp-slot" id="xp-slot">
@@ -674,9 +752,24 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
       </div>
     </div>
     <div class="xp-bottom" id="xp-bottom">
-      <div class="xp-next-h"><span id="xp-next-label">Up next</span><button id="xp-see-all">See all</button></div>
+      <div class="xp-next-h"><span id="xp-next-label">Queue</span><button id="xp-see-all">See all</button></div>
       <div class="xp-strip" id="xp-strip"></div>
     </div>
+    </div>
+    <div class="xp-side" id="xp-side">
+      <div class="xp-page" id="xp-lyrics">
+        <div class="lyr-head"><div class="lyr-art" id="lyr-art"></div><div class="lyr-meta"><div class="lyr-title" id="lyr-title"></div><div class="lyr-artist" id="lyr-artist"></div></div>
+          <button class="player-btn lyr-play" id="lyr-play" aria-label="Play"><svg viewBox="0 0 24 24"><path id="lyr-play-path" d="M8 5v14l11-7z"/></svg></button></div>
+        <div class="lyr-scroll" id="lyr-scroll"><div class="lyr-list" id="lyr-list"></div></div>
+      </div>
+      <div class="xp-page" id="xp-albums">
+        <div class="alb-head"><button class="alb-back" id="alb-back" aria-label="All albums" hidden><svg viewBox="0 0 24 24"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z"/></svg></button>
+          <div class="alb-h"><div class="alb-title" id="alb-title">Albums</div><div class="alb-sub" id="alb-sub"></div></div>
+          <button class="alb-play" id="alb-play" hidden><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Play</button></div>
+        <div class="alb-scroll" id="alb-scroll"><div class="alb-body" id="alb-body"></div></div>
+      </div>
+    </div>
+    <div class="xp-nav" id="xp-nav" role="tablist"><i class="xp-nav-lit" id="xp-nav-lit"></i><button role="tab" data-pg="0">Lyrics</button><button role="tab" data-pg="1">Player</button><button role="tab" data-pg="2">Albums</button></div>
   </div>
 </div>
 <div class="safe-probe" id="safe-probe"></div>
@@ -2723,6 +2816,7 @@ XP = (() => {
   const smBloom = $("art-bloom"), smLight = $("art-light"), glight = $("xp-light");           // the small cover's glows: handed over to the big cover's own while it's shown
   const pm = $("player-main"), cm = $("controls-main"), fm = $("footer-main"), artBox = $("album-art-box"), tText = pm.querySelector(".track-text");
   const REPEAT = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z", REPEAT_ONE = REPEAT + "m-4-2V9h-1l-2 1v1h1.5v4H13z";
+  let LYR = null, ALB = null;                                        // the lyrics and albums pages (set further down)
   const st = { p: 0, v: 0, over: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
   const clamp01 = v => Math.max(0, Math.min(1, v)), lerp = (a, b, t) => a + (b - a) * t, lin = (p, a, b) => clamp01((p - a) / (b - a));
   const fade = (p, a, b) => { const t = lin(p, a, b); return t * t * (3 - 2 * t); };   // eased in and out, so nothing pops in or stops abruptly
@@ -2736,11 +2830,11 @@ XP = (() => {
   }
   /* sizes: the cover takes about 60 % of the panel's width (COVER), smaller on short screens; the panel ends right
      under its content, so the whole player sits high and compact */
-  const COVER = .6, COVER_MAX = 260, GAP = 36;                       // GAP: space between the controls and Up next
+  const COVER = .6, COVER_MAX = 260, GAP = 36, NAV = 54;            // NAV: room under the panel for the Lyrics / Player / Albums switch                       // GAP: space between the controls and Up next
   function layout() {
     const vv = window.visualViewport, vh = vv ? vv.height : innerHeight;
     const topY = wrap.getBoundingClientRect().top, safeB = $("safe-probe").offsetHeight || 0;
-    const avail = vh - topY - safeB - 14, W = wrap.clientWidth - 40;
+    const avail = vh - topY - safeB - 14 - NAV, W = wrap.clientWidth - 40;
     xp.style.setProperty("--xs", "0px");
     const topFixed = top.offsetHeight, botH = bot.offsetHeight;
     const S = Math.round(Math.max(120, Math.min(W * COVER, COVER_MAX, avail - topFixed - botH - GAP)));
@@ -2765,19 +2859,24 @@ XP = (() => {
     [$("current-time"), $("xp-cur"), "start"], [$("total-duration"), $("xp-left"), "end"]];   // times line up on the digits they share ("0:40" / "-0:40")
   const FOLLOW = [$("xp-shuffle"), $("xp-repeat")];
   const MOVED = [...LINES.flatMap(l => l.slice(0, 2)), ...PAIRS.flatMap(p => p.slice(0, 2)), ...FOLLOW, fm];
-  function clearMoved() { if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) { el._m = ""; el.style.webkitMaskImage = el.style.maskImage = ""; } }); }
+  function clearMoved() { if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); }); }
   function box(el) { const r = rel(el); return { x: r.x, y: r.y, w: el.offsetWidth, h: el.offsetHeight }; }
-  function textBox(el) {                                             // where the text itself starts inside its line, and how wide it is
+  function textBox(el) {                                             // where the text's first line starts, and how far the text reaches
     const b = box(el), rg = document.createRange(); rg.selectNodeContents(el);
-    const er = el.getBoundingClientRect(), tr = rg.getBoundingClientRect(), k = er.width ? b.w / er.width : 1;   // rects include the glass lean: undo it
-    b.off = Math.max(0, (tr.left - er.left) * k); b.tw = Math.min(b.w - b.off, tr.width * k);
+    const er = el.getBoundingClientRect(), k = er.width ? b.w / er.width : 1;   // rects include the glass lean: undo it
+    const rs = [...rg.getClientRects()].filter(r => r.width > .5), f = rs[0] || rg.getBoundingClientRect();
+    const first = rs.filter(r => Math.abs(r.top - f.top) < 4);             // the first line (several rects when it has spans)
+    const fl = Math.min(...first.map(r => r.left)), fr = Math.max(...first.map(r => r.right));
+    b.off = Math.max(0, (fl - er.left) * k); b.tw = Math.min(b.w - b.off, (fr - fl) * k);
+    b.oy = Math.max(0, (f.top - er.top + f.height / 2) * k);           // the first line's middle
+    b.right = Math.min(b.w, (Math.max(...rs.map(r => r.right), fr) - er.left) * k);   // the widest line's end (for the edge fade)
     return b;
   }
   function measureRects() {
     clearMoved();
     const a = rel(artBox), s = rel(slot);
     st.m = { ax: a.x, ay: a.y, aw: artBox.offsetWidth || 66, sx: s.x, sy: s.y, W: wrap.clientWidth,
-      lines: LINES.map(([c, x, r]) => { const cb = textBox(c), xb = textBox(x); return { c, x, r, cb, xb, c0: [cb.x + cb.off, cb.y + cb.h / 2], x1: [xb.x + xb.off, xb.y + xb.h / 2] }; }),
+      lines: LINES.map(([c, x, r]) => { const cb = textBox(c), xb = textBox(x); return { c, x, r, cb, xb, c0: [cb.x + cb.off, cb.y + cb.oy], x1: [xb.x + xb.off, xb.y + xb.oy] }; }),
       pairs: PAIRS.map(([c, x, mode]) => { const cb = box(c), xb = box(x), T = mode === "track", f = mode === "start" ? 0 : mode === "end" ? 1 : .5;
         /* a track isn't scaled (its dot would stretch): the big one opens up from the small one's length. Times keep
            their own size (scale only for buttons) and are anchored on the side where their digits line up. */
@@ -2785,7 +2884,7 @@ XP = (() => {
         return { c, x, track: T, cw: cb.w, xw: xb.w, r, c0: [cb.x + cb.w * f, cb.y + cb.h / 2], x1: [xb.x + xb.w * f, xb.y + xb.h / 2], origin: f === .5 ? "" : `${f * 100}% 50%` }; }) };
   }
   function origins(m) {                                              // scale about the text's start / the button's centre (cleared at rest)
-    m.lines.forEach(l => { l.c.style.transformOrigin = `${l.cb.off.toFixed(1)}px 50%`; l.x.style.transformOrigin = `${l.xb.off.toFixed(1)}px 50%`; });
+    m.lines.forEach(l => { l.c.style.transformOrigin = `${l.cb.off.toFixed(1)}px ${l.cb.oy.toFixed(1)}px`; l.x.style.transformOrigin = `${l.xb.off.toFixed(1)}px ${l.xb.oy.toFixed(1)}px`; });
     m.pairs.forEach(q => { q.c.style.transformOrigin = q.x.style.transformOrigin = q.origin; });
     m.originsOn = true;
   }
@@ -2801,10 +2900,15 @@ XP = (() => {
     render(st.p);                                                    // laid out in the same frame it appears: never one frame of an unplaced layout
   }
   const setOp = (el, v) => { const s = v >= .999 ? "" : v.toFixed(3); if (el.style.opacity !== s) el.style.opacity = s; };
-  function fadeEdge(el, text, x, k, limit) {                         // a line running past the panel's right edge fades out there
-    const over = (x + text.tw * k - limit) / k, end = text.off + text.tw - over;
-    const m = over > 0 ? `linear-gradient(90deg,#000 ${Math.max(0, end - 28).toFixed(1)}px,transparent ${Math.max(1, end).toFixed(1)}px)` : "";
-    if ((el._m || "") !== m) { el._m = m; el.style.webkitMaskImage = el.style.maskImage = m; }
+  function fadeEdge(text, x, k, limit) {                             // a line running past the panel's right edge fades out there
+    const over = (x + (text.right - text.off) * k - limit) / k, end = text.right - over;
+    return over > 0 ? `linear-gradient(90deg,#000 ${Math.max(0, end - 28).toFixed(1)}px,transparent ${Math.max(1, end).toFixed(1)}px)` : "";
+  }
+  function setMask(el, a, b) {                                       // one or two soft masks (both apply where they overlap)
+    const m = a && b ? `${a},${b}` : a || b || "";
+    if ((el._m || "") === m) return; el._m = m;
+    el.style.webkitMaskImage = el.style.maskImage = m;
+    el.style.webkitMaskComposite = a && b ? "source-in" : ""; el.style.maskComposite = a && b ? "intersect" : "";
   }
   function render(p) {
     const m = st.m; if (!m) return;
@@ -2831,7 +2935,13 @@ XP = (() => {
       l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
       setOp(l.c, cOp); setOp(l.x, xOp);
-      fadeEdge(l.c, l.cb, X, k, limit); fadeEdge(l.x, l.xb, X, k / l.r, limit);
+      setMask(l.c, fadeEdge(l.cb, X, k, limit));
+      let unfold = "";
+      if (l.xb.h > l.xb.oy * 3) {                                    // a name on several lines: its further lines fade in (top down) once it's below the cover
+        const u = fade(P, .26, .66), y = l.xb.oy * 2 + (l.xb.h - l.xb.oy * 2) * u;
+        if (u < .999) unfold = `linear-gradient(180deg,#000 ${(y - 6).toFixed(1)}px,transparent ${(y + 12 - 12 * u).toFixed(1)}px)`;
+      }
+      setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit), unfold);
     }
     /* buttons, scrubber, times */
     const hc = fade(P, 0, .7), pcOp = 1 - fade(P, .14, .44), pxOp = fade(P, .04, .36);
@@ -2849,18 +2959,19 @@ XP = (() => {
     fm.style.transform = P ? `translateY(${playDy0.toFixed(2)}px)` : ""; setOp(fm, 1 - fade(P, 0, .13));   // the compact tab row leaves with the controls above it
     const bo = fade(P, .74, 1); bot.style.opacity = bo > .999 ? "" : bo.toFixed(3); bot.style.transform = bo > .999 ? "" : `translateY(${((1 - bo) * 12).toFixed(1)}px)`;
     handle.style.opacity = fade(P, .5, .9).toFixed(3);
+    nav.style.opacity = fade(P, .8, 1).toFixed(3); nav.style.transform = `translateX(-50%) translateY(${((1 - fade(P, .8, 1)) * 8).toFixed(1)}px)`;
     gear.style.opacity = ((1 - fade(P, 0, .25)) * .75).toFixed(3); gear.style.pointerEvents = P > .1 ? "none" : "";
   }
   function settle(t) {
     st.raf = 0; st.p = t; st.v = 0; st.over = 0;
     if (t === 1) {
-      render(1); st.expanded = true;
+      render(1); st.expanded = true; LYR.song(); if (!pg.raf) { pg.x = pg.page * pgW(); pgRender(); }
       clearMoved();                                                  // at rest: the big layout as laid out, the compact one hidden
       wrap.classList.remove("xp-anim"); wrap.classList.add("xp-on");
       if (stripDirty) renderStrip();
       return;
     }
-    st.expanded = false; st.m = null;
+    st.expanded = false; st.m = null; pgReset();
     xp.classList.remove("show"); xp.setAttribute("aria-hidden", "true");
     wrap.classList.remove("xp-on", "xp-anim");
     clearMoved(); [pm, cm, fm, bot].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
@@ -2910,13 +3021,14 @@ XP = (() => {
   }
   function close() {
     if (!st.expanded && !st.raf) return;
+    if (st.expanded && !st.raf && away()) { goPage(HOME, close); return; }   // on Lyrics / Albums: slide back to the player first
     if (!st.raf) prep();
     animateTo(0, 0);
   }
   function reset() { cancelAnimationFrame(st.raf); st.sheet = st.pendingOpen = false; wrap.classList.remove("sheet"); if (shown()) settle(0); wrap.style.height = ""; }
   /* Library / Artists / Queue while expanded: fold back to the compact row and let the section fill the tall panel */
   function toSheet() {
-    st.sheet = true; st.sheetAt = performance.now();
+    st.sheet = true; st.sheetAt = performance.now(); pgReset();
     cancelAnimationFrame(st.raf);
     const cur = wrap.offsetHeight;
     prep(cur); st.h1 = cur;                                          // the panel keeps its height through the fold
@@ -2958,11 +3070,22 @@ XP = (() => {
     const dx = ev.clientX - g.x0, dy = ev.clientY - g.y0;
     if (!g.started) {
       if (g.dead || Math.hypot(dx, dy) < (g.from < .5 ? INTENT : 7)) return;
+      if (g.from >= .5 && !g.any && st.expanded) {                   // open: sideways = pages, up = fold back (only from the player page)
+        if (Math.abs(dx) > Math.abs(dy) * 1.2) { cancelAnimationFrame(pg.raf); pg.raf = 0; g.started = g.pager = true; g.x0 = ev.clientX; g.px0 = pg.x; return; }
+        if (away() || pg.raf) { g.dead = true; return; }             // on Lyrics / Albums an up/down drag scrolls the page instead
+      }
       /* decided once, here: opening needs a clearly downward start (steeper than ~35 degrees from vertical); anything
          else is not an expand and never becomes one later in the same touch */
       const vert = g.from < .5 && !g.any ? dy > 0 && dy > Math.abs(dx) * STEEP : Math.abs(dy) > Math.abs(dx) * 1.1;
       if (!vert || !canExpand() || (g.from < .5 && drawerOpen())) { g.dead = true; return; }
       begin(ev); return;
+    }
+    if (g.pager) {
+      const W = pgW(), max = 2 * W; let x = g.px0 - (ev.clientX - g.x0);
+      if (x < 0) x = -rub(-x); else if (x > max) x = max + rub(x - max);
+      pg.x = x; pgRender();
+      const now = performance.now(); g.samples.push([now, x]); while (g.samples.length > 2 && now - g.samples[0][0] > 90) g.samples.shift();
+      return;
     }
     /* clamped to the two layouts: past the open end the panel only stretches a few px (strong resistance, never more
        than 8 px) and past the compact end it simply stops */
@@ -2977,6 +3100,12 @@ XP = (() => {
     if (!w.started) { if (!w.dead && ev.type === "pointerup" && performance.now() - w.t0 < 500 && w.onTap) w.onTap(); return; }
     let v = 0; const s = w.samples; if (s.length > 1) { const a = s[0], b = s[s.length - 1]; if (b[0] > a[0]) v = (b[1] - a[1]) / ((b[0] - a[0]) / 1000); }
     dragEndAt = performance.now();
+    if (w.pager) {                                                   // the page it would land on, at most one away from where it started
+      const W = pgW(), from = Math.round(w.px0 / W), proj = pg.x + Math.max(-W * .8, Math.min(W * .8, v * .18));
+      const to = Math.max(from - 1, Math.min(from + 1, Math.round(proj / W)));
+      if (to !== from) haptic("select");
+      pg.v = v; goPage(to); return;
+    }
     /* where the flick would carry it: a short, quick swipe is enough; a slow drag has to go about a third of the way */
     const proj = st.p + Math.max(-.6, Math.min(.6, v * .16));
     const t = w.any ? (proj > .5 ? 1 : 0) : w.from < .5 ? (proj > .3 ? 1 : 0) : (proj < .72 ? 0 : 1);
@@ -3016,13 +3145,18 @@ XP = (() => {
   /* open: swipe up anywhere on the player to fold it back (not on the scrubber or the Up next strip, which have their
      own gestures); the handle also closes on a tap. While it springs, a touch anywhere on the panel catches it. */
   xp.addEventListener("pointerdown", ev => {
-    if (!st.expanded || st.raf || ev.target.closest(".custom-range-slider,.xp-strip")) return;
-    gStart(ev, 1, ev.target.closest(".xp-handle") ? close : null);
+    if (!st.expanded || st.raf || ev.target.closest(".custom-range-slider,.xp-strip,.xp-nav")) return;
+    gStart(ev, 1, ev.target.closest(".xp-handle,#xp-art") ? close : null);   // the handle or the cover: one tap folds it back
   });
   wrap.addEventListener("pointerdown", ev => { if (st.raf && !st.sheet && !drawerOpen()) gStart(ev, st.target, null, true); });
   xp.addEventListener("click", ev => { if (performance.now() - dragEndAt < 350) { ev.stopPropagation(); ev.preventDefault(); } }, true);
   handle.addEventListener("click", e => { if (e.detail === 0) close(); });   // keyboard
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && st.expanded && !drawerOpen() && !settingsPanel.classList.contains("active")) close(); });
+  document.addEventListener("keydown", e => {
+    if (!st.expanded || drawerOpen() || settingsPanel.classList.contains("active")) return;
+    if (e.key === "Escape") close();
+    else if (e.key === "ArrowRight" && !e.target.closest("input")) goPage(pg.page + 1);
+    else if (e.key === "ArrowLeft" && !e.target.closest("input")) goPage(pg.page - 1);
+  });
 
   /* ---- controls ---- */
   $("xp-play").addEventListener("click", () => { audio.paused ? playTrack() : pauseTrack(); haptic("light"); });
@@ -3067,6 +3201,7 @@ XP = (() => {
     $("xp-artist").textContent = t ? t.artist : "";
     const extra = t ? [t.album !== "Unknown Album" ? t.album : "", t.year || ""].filter(Boolean).join(" · ") : "";
     $("xp-album").textContent = extra ? " · " + extra : "";
+    fitTitle();
     const sh = $("xp-shuffle"), rp = $("xp-repeat");
     sh.classList.toggle("on", shuffle); sh.setAttribute("aria-pressed", String(shuffle));
     rp.classList.toggle("on", repeatMode !== "off"); $("xp-repeat-path").setAttribute("d", repeatMode === "one" ? REPEAT_ONE : REPEAT);
@@ -3074,6 +3209,22 @@ XP = (() => {
     if (!light || stripDirty) renderStrip();
     time();
     if (!canExpand() && (st.expanded || st.raf)) reset();
+    else if (st.expanded && !st.raf && !(g && g.started)) relayout();
+    if (LYR && st.expanded) { LYR.song(); ALB.song(); }                              // lyrics are looked up once the player is open (not on every touch)
+  }
+  /* long titles: 20 px while they fit on two lines, 17 px if they need a third (the CSS stops at three with "…") */
+  function fitTitle() {
+    const el = $("xp-title"); if (!el.offsetWidth) return;
+    el.style.setProperty("--tfs", "20px");
+    if (el.scrollHeight > 20 * 1.25 * 2 + 2) el.style.setProperty("--tfs", "17px");
+  }
+  /* open, and the song changed: a longer or shorter name changes the panel's height, which follows smoothly */
+  function relayout() {
+    const h = st.h1; layout(); measureRects();
+    if (Math.abs(h - st.h1) < .5) return;
+    if (RM) { wrap.style.height = st.h1 + "px"; return; }
+    wrap.style.transition = "height .36s var(--ease)"; wrap.style.height = st.h1 + "px";
+    clearTimeout(st.shT); st.shT = setTimeout(() => { wrap.style.transition = ""; }, 380);
   }
   function onSong(dir, auto) {
     if (!shown()) { stripDirty = true; return; }
@@ -3081,31 +3232,36 @@ XP = (() => {
     if (!st.expanded || RM || !auto) return;
     meta.animate([{ opacity: 0, transform: dir ? `translateX(${dir * 26}px)` : "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 480, easing: "cubic-bezier(.22,1,.36,1)" });
     clip.animate([{ transform: "scale(.93)", filter: "brightness(.8)" }, { transform: "scale(1.015)", filter: "brightness(1.08)", offset: .55 }, { transform: "none", filter: "brightness(1)" }], { duration: 620, easing: "cubic-bezier(.22,1,.36,1)" });
-    strip.scrollTo({ left: 0, behavior: "smooth" });
+
   }
   let sDrag = null;
+  /* Queue strip: cards (cover, title, artist) in play order: played songs (greyed), the current one (lit), then your
+     queue (a teal dot) and the rest of the album. Tap a card to play it; hold and drag sideways to reorder (within your
+     queue, or within the album), pull a card up to remove it. */
   function renderStrip() {
     if (sDrag) { stripDirty = true; return; }
     stripDirty = false;
-    const keep = strip.scrollLeft; strip.innerHTML = "";
-    const all = [...queue.map((e, i) => ({ id: e.id, kind: "queue", i })), ...(ctx ? ctxUpcoming().slice(0, 40) : []).map((id, i) => ({ id, kind: "ctx", i }))].filter(x => trackById(x.id));
-    $("xp-next-label").textContent = queue.length ? `Up next · ${queue.length} queued` : ctx ? `Next from ${ctx.name}` : "Up next";
-    if (!all.length) {
-      const n = document.createElement("div"); n.className = "xp-empty";
-      n.textContent = ctx && ctxList().length && repeatMode !== "off" ? `Then ${ctx.name} starts again` : "Nothing up next";
-      strip.appendChild(n); return;
-    }
-    all.forEach((it, k) => {
-      if (k && it.kind !== all[k - 1].kind) { const d = document.createElement("div"); d.className = "xp-div"; strip.appendChild(d); }
-      const t = trackById(it.id), c = document.createElement("div"), a = t.art || albumCover(t.album);
-      c.className = "xp-card" + (it.kind === "queue" ? " q" : ""); c.dataset.kind = it.kind; c._i = it.i;
+    strip.innerHTML = "";
+    const hist = history.slice(-20), h0 = history.length - hist.length, all = [];
+    hist.forEach((h, k) => all.push({ id: h.id, kind: "hist", i: h0 + k }));
+    if (curId != null) all.push({ id: curId, kind: "now" });
+    queue.forEach((e, i) => all.push({ id: e.id, kind: "queue", i }));
+    (ctx ? ctxUpcoming().slice(0, 40) : []).forEach((id, i) => all.push({ id, kind: "ctx", i }));
+    let nowEl = null;
+    all.forEach(it => {
+      const t = trackById(it.id); if (!t) return;
+      const c = document.createElement("div"), a = t.art || albumCover(t.album);
+      c.className = "xp-card" + (it.kind === "queue" ? " q" : it.kind === "hist" ? " past" : it.kind === "now" ? " now" : ""); c.dataset.kind = it.kind; c._i = it.i;
       c.innerHTML = `<div class="xp-card-art">${a ? `<img src="${esc(a)}" alt="">` : noteSvg}</div><div class="xp-card-t"><div class="xp-card-title"></div><div class="xp-card-artist"></div></div>`;
       c.querySelector(".xp-card-title").textContent = t.title; c.querySelector(".xp-card-artist").textContent = t.artist;
-      c.addEventListener("click", () => { if (c._sup) { c._sup = false; return; } playFromQueue(it.kind, it.i); });
-      cardGestures(c);
+      if (it.kind === "now") nowEl = c;
+      else {
+        c.addEventListener("click", () => { if (c._sup) { c._sup = false; return; } playFromQueue(it.kind, it.i); });
+        if (it.kind !== "hist") cardGestures(c);
+      }
       strip.appendChild(c);
     });
-    strip.scrollLeft = keep;
+    if (nowEl) strip.scrollLeft = Math.max(0, nowEl.offsetLeft - 20 - 46);   // the current song near the left, a bit of the last played one still in view
   }
   function cardGestures(c) {
     c.addEventListener("contextmenu", e => e.preventDefault());
@@ -3205,9 +3361,215 @@ XP = (() => {
     raf = requestAnimationFrame(frame);
   }
 
-  const onResize = () => { if (!st.expanded || st.raf || g) return; layout(); wrap.style.height = st.h1 + "px"; measureRects(); };
+  /* ---- pages: Lyrics | Player | Albums ----
+     The player is the middle page and home. Swipe the open player right for Lyrics, left for Albums (or tap the switch
+     under the panel). pg.x is the slide position in px: 0 = Lyrics, W = Player, 2W = Albums. The player page slides too
+     and is clipped to the panel only while it is away (at rest its cover glow spreads freely); the other two pages sit
+     in a box clipped to the panel. The switch's light follows the finger from tab to tab. */
+  const home = $("xp-home"), side = $("xp-side"), pLyr = $("xp-lyrics"), pAlb = $("xp-albums"), nav = $("xp-nav"), lit = $("xp-nav-lit");
+  const navBtns = [...nav.querySelectorAll("button")], HOME = 1;
+  const pg = { x: 0, page: HOME, raf: 0, v: 0, after: null, init: false };   // placed on the player page by pgReset() below
+  const pgW = () => wrap.clientWidth || 1;
+  const rub = d => 34 * (1 - Math.exp(-d / 90));                      // past the first / last page: a little give
+  const away = () => Math.abs(pg.x - HOME * pgW()) > .5;               // not on the player page (or on the way)
+  function pgRender() {
+    const W = pgW(); if (!pg.init) { pg.init = true; pg.x = HOME * W; }
+    const x = pg.x, d = x - HOME * W, f = x / W;
+    home.style.transform = Math.abs(d) > .2 ? `translate3d(${(-d).toFixed(1)}px,0,0)` : "";
+    home.style.clipPath = Math.abs(d) > .2 ? `inset(-400px ${(-d).toFixed(1)}px -400px ${d.toFixed(1)}px)` : "";
+    const on = Math.abs(d) > .5; if (side.classList.contains("on") !== on) side.classList.toggle("on", on);
+    pLyr.style.transform = `translate3d(${(-x).toFixed(1)}px,0,0)`; pAlb.style.transform = `translate3d(${(2 * W - x).toFixed(1)}px,0,0)`;
+    const i0 = Math.max(0, Math.min(1, Math.floor(f))), t = clamp01(f - i0), b1 = navBtns[i0], b2 = navBtns[i0 + 1];
+    lit.style.width = lerp(b1.offsetWidth, b2.offsetWidth, t).toFixed(1) + "px";
+    lit.style.transform = `translateX(${lerp(b1.offsetLeft, b2.offsetLeft, t).toFixed(1)}px)`;
+    lit.style.opacity = "1";
+    const cur = Math.max(0, Math.min(2, Math.round(f))); navBtns.forEach((b, i) => { const o = cur === i; if (b.classList.contains("on") !== o) { b.classList.toggle("on", o); b.setAttribute("aria-selected", String(o)); } });
+    LYR.visible(st.expanded && x < W - 1);
+    ALB.visible(st.expanded && x > W + 1);
+  }
+  function goPage(i, after) {
+    i = Math.max(0, Math.min(2, i)); pg.page = i; pg.after = after || null;
+    cancelAnimationFrame(pg.raf);
+    const target = i * pgW(), K = 260, C = 2 * Math.sqrt(K); let last = 0;
+    if (RM) { pg.x = target; pg.v = 0; pgRender(); if (pg.after) pg.after(); return; }
+    const step = now => {
+      const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
+      for (let k = 0, n = Math.max(4, Math.ceil(dt / .006)), h = dt / n; k < n; k++) { pg.v += (K * (target - pg.x) - C * pg.v) * h; pg.x += pg.v * h; }
+      pgRender();
+      if (Math.abs(target - pg.x) < .4 && Math.abs(pg.v) < 8) { pg.x = target; pg.v = 0; pg.raf = 0; pgRender(); const a = pg.after; pg.after = null; if (a) a(); return; }
+      pg.raf = requestAnimationFrame(step);
+    };
+    pg.raf = requestAnimationFrame(step);
+  }
+  function pgReset() { cancelAnimationFrame(pg.raf); pg.raf = 0; pg.x = HOME * pgW(); pg.init = true; pg.v = 0; pg.page = HOME; pg.after = null; pgRender(); }
+  navBtns.forEach(b => b.addEventListener("click", () => { const i = +b.dataset.pg; if (i !== pg.page) haptic("select"); goPage(i); }));
+
+  /* ---- lyrics: synced lines from LRCLIB (a free, open lyrics database), the current line lit and kept in view ----
+     - Looked up by title + artist (remaster / live / edition tags taken off the title), picking the result whose length
+       matches the song best. Synced lyrics whose length is off by more than 8 s (another version) show as plain text.
+     - Kept on the phone (the last 60 songs), so a song's lyrics are fetched only once.
+     - While the page is on screen: the line being sung is lit (the ones before it dim), and the list glides so it stays
+       a third of the way down. Scroll yourself and it leaves the list alone for 3 s. Tap a line to play from there. */
+  LYR = (() => {
+    const list = $("lyr-list"), sc = $("lyr-scroll"), cache = new Map(), KEY = "lyrics1", MAX = 60;
+    let id = null, data = null, idx = -2, raf = 0, userAt = 0, req = 0, vis = false, els = [];
+    let disk = {}; try { disk = JSON.parse(store.get(KEY) || "{}"); } catch (e) {}
+    const clean = t => String(t || "").replace(/\s*[([][^)\]]*(remaster|live|version|mono|stereo|edit|mix|deluxe|anniversary|bonus|demo|explicit|feat\.?|ft\.)[^)\]]*[)\]]/gi, "")
+      .replace(/\s+-\s+[^-]*(remaster|live|version|mono|stereo|edit|mix)[^-]*$/i, "").trim() || String(t || "");
+    function parse(lrc) {
+      const out = [];
+      for (const ln of String(lrc).split(/\r?\n/)) {
+        const tags = [...ln.matchAll(/\[(\d+):(\d+(?:[.:]\d+)?)\]/g)]; if (!tags.length) continue;
+        const text = ln.replace(/\[[^\]]*\]/g, "").replace(/<\d+:\d+(?:\.\d+)?>/g, "").trim();
+        for (const m of tags) out.push({ t: +m[1] * 60 + parseFloat(m[2].replace(":", ".")), text });
+      }
+      out.sort((a, b) => a.t - b.t);
+      while (out.length && !out[0].text) out.shift();                 // no empty lines before the first words
+      return out;
+    }
+    async function lookup(t) {
+      const dur = songLen() || t.dur || 0;
+      const get = async p => { const r = await fetch("https://lrclib.net/api/search?" + new URLSearchParams(p)); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); };
+      let arr = await get({ track_name: clean(t.title), artist_name: t.artist });
+      if (!arr.length) arr = await get({ q: `${t.artist} ${clean(t.title)}` });
+      const score = x => (x.syncedLyrics ? 0 : 20) + (x.instrumental ? 40 : 0) + (dur && x.duration ? Math.abs(x.duration - dur) : 5);
+      const best = arr.filter(x => x.syncedLyrics || x.plainLyrics || x.instrumental).sort((a, b) => score(a) - score(b))[0];
+      if (!best) return { kind: "none" };
+      if (best.instrumental && !best.syncedLyrics && !best.plainLyrics) return { kind: "instrumental" };
+      if (best.syncedLyrics && (!dur || !best.duration || Math.abs(best.duration - dur) <= 8)) { const lines = parse(best.syncedLyrics); if (lines.length) return { kind: "synced", lines }; }
+      const plain = best.plainLyrics || String(best.syncedLyrics || "").replace(/\[[^\]]*\]/g, "");
+      return plain.trim() ? { kind: "plain", text: plain.trim() } : { kind: "none" };
+    }
+    function remember(k, v) {
+      disk[k] = { ...v, at: Date.now() };
+      const keys = Object.keys(disk); if (keys.length > MAX) keys.sort((a, b) => disk[a].at - disk[b].at).slice(0, keys.length - MAX).forEach(x => delete disk[x]);
+      store.set(KEY, JSON.stringify(disk));
+    }
+    function head() {
+      const t = trackById(curId); if (!t) return;
+      $("lyr-title").textContent = t.title; $("lyr-artist").textContent = t.artist;
+      const a = t.art || albumCover(t.album); $("lyr-art").style.backgroundImage = a ? `url("${String(a).replace(/"/g, "%22")}")` : "";
+    }
+    function note(text) { list.className = "lyr-list"; list.innerHTML = ""; const n = document.createElement("div"); n.className = "lyr-note"; n.textContent = text; list.appendChild(n); els = []; }
+    function show() {
+      head(); idx = -2; els = [];
+      if (!data) return note("Looking for lyrics…");
+      if (data.kind === "error") return note("Couldn't reach the lyrics service. Check the connection and swipe back here to try again.");
+      if (data.kind === "none") return note("No lyrics found for this song.");
+      if (data.kind === "instrumental") return note("♪  Instrumental  ♪");
+      list.innerHTML = ""; list.className = "lyr-list" + (data.kind === "plain" ? " lyr-plain" : "");
+      const rows = data.kind === "synced" ? data.lines : data.text.split(/\r?\n/).map(text => ({ text: text.trim() }));
+      rows.forEach((l, i) => {
+        const d = document.createElement("div"); d.className = "lyr-line" + (l.text ? "" : " gap"); d.textContent = l.text || (data.kind === "synced" ? "•••" : "\u00a0");
+        if (data.kind === "synced") d.addEventListener("click", () => { if (performance.now() - dragEndAt < 350) return; seekTo(l.t); if (audio.paused) playTrack(); userAt = 0; haptic("light"); });
+        list.appendChild(d); els.push(d);
+      });
+      const c = document.createElement("div"); c.className = "lyr-credit"; c.textContent = data.kind === "synced" ? "Lyrics from LRCLIB" : "Lyrics from LRCLIB · not synced"; list.appendChild(c);
+      sc.scrollTop = 0; tick(true);
+    }
+    async function load() {
+      const t = trackById(curId); if (!t) return;
+      const k = tkey(t), my = ++req;
+      if (cache.has(t.id)) { data = cache.get(t.id); show(); return; }
+      if (disk[k]) { data = disk[k]; cache.set(t.id, data); show(); return; }
+      data = null; show();
+      try { const d = await lookup(t); if (my !== req) return; data = d; cache.set(t.id, d); remember(k, d); }
+      catch (e) { if (my !== req) return; data = { kind: "error" }; }
+      show();
+    }
+    function tick(jump) {
+      if (!data || data.kind !== "synced" || !els.length) return;
+      const now = pendingSeek != null && audio.paused ? pendingSeek : audio.currentTime || 0, L = data.lines;
+      let lo = 0, hi = L.length - 1, i = -1;
+      while (lo <= hi) { const m = (lo + hi) >> 1; if (L[m].t <= now + .2) { i = m; lo = m + 1; } else hi = m - 1; }
+      if (i === idx && !jump) return;
+      if (idx >= 0 && els[idx]) els[idx].classList.remove("on");
+      const from = Math.min(idx < 0 ? 0 : idx, i < 0 ? 0 : i), to = Math.max(idx, i);
+      for (let k = Math.max(0, from - 1); k <= Math.min(els.length - 1, to + 1); k++) els[k].classList.toggle("past", k < i);
+      if (jump) els.forEach((e, k) => e.classList.toggle("past", k < i));
+      idx = i;
+      if (i >= 0) els[i].classList.add("on");
+      if (performance.now() - userAt > 3000) {
+        const el = els[Math.max(0, i)], top = i < 0 ? 0 : el.offsetTop - sc.clientHeight * .32;
+        sc.scrollTo({ top: Math.max(0, top), behavior: jump || RM ? "auto" : "smooth" });
+      }
+    }
+    const loop = () => { raf = 0; if (!vis) return; tick(false); raf = requestAnimationFrame(loop); };
+    ["pointerdown", "wheel", "touchstart"].forEach(k => sc.addEventListener(k, () => { userAt = performance.now(); }, { passive: true }));
+    audio.addEventListener("seeked", () => { if (vis) { userAt = 0; tick(true); } });
+    const playPath = () => $("lyr-play-path").setAttribute("d", audio.paused ? "M8 5v14l11-7z" : "M6 19h4V5H6v14zm8-14v14h4V5h-4z");
+    ["play", "pause", "ended"].forEach(k => audio.addEventListener(k, playPath));
+    $("lyr-play").addEventListener("click", () => { audio.paused ? playTrack() : pauseTrack(); haptic("light"); });
+    return {
+      song() { if (curId !== id) { id = curId; data = null; idx = -2; load(); } else head(); },
+      visible(v) {
+        if (v === vis) return; vis = v;
+        if (v) { if (data && data.kind === "error") load(); playPath(); tick(true); if (!raf) raf = requestAnimationFrame(loop); }
+        else { cancelAnimationFrame(raf); raf = 0; }
+      },
+      _state: () => ({ id, data, idx })
+    };
+  })();
+
+  /* ---- albums page: your albums as a grid of covers; tap one for its songs; tap a song (or Play) to play that album
+     from there, exactly like playing it from Library. The album and song that are playing are marked. ---- */
+  ALB = (() => {
+    const body = $("alb-body"), sc = $("alb-scroll"), back = $("alb-back"), play = $("alb-play");
+    let vis = false, open = null, gridTop = 0, built = "";
+    const songs = n => albumEntries(n).filter(e => e.track).map(e => e.track);
+    const tapOk = () => performance.now() - dragEndAt > 350;
+    function playIn(n, id) { albumOrigin = null; currentCat = null; currentAlbum = n; startContext(id); haptic("light"); }
+    function grid(keep) {
+      open = null; back.hidden = play.hidden = true; $("alb-title").textContent = "Albums";
+      const names = orderedAlbumNames(), cur = trackById(curId);
+      $("alb-sub").textContent = names.length ? `${names.length} album${names.length === 1 ? "" : "s"}` : "";
+      body.innerHTML = "";
+      if (!names.length) { body.innerHTML = '<div class="alb-empty">No albums yet.</div>'; return; }
+      const g = document.createElement("div"); g.className = "alb-grid";
+      names.forEach(n => {
+        const c = document.createElement("div"), cover = albumCover(n), first = songs(n)[0];
+        c.className = "alb-card" + (cur && cur.album === n ? " now" : ""); c.dataset.album = n;
+        c.innerHTML = `<div class="alb-cov">${cover ? `<img src="${esc(cover)}" alt="" loading="lazy">` : noteSvg}</div><div class="alb-name"></div><div class="alb-art"></div>`;
+        c.querySelector(".alb-name").textContent = n; c.querySelector(".alb-art").textContent = first ? first.albumArtist || first.artist : "";
+        c.addEventListener("click", () => { if (!tapOk()) return; gridTop = sc.scrollTop; show(n); haptic("light"); });
+        g.appendChild(c);
+      });
+      body.appendChild(g); sc.scrollTop = keep ? gridTop : 0; built = "grid";
+    }
+    function show(n) {
+      open = n; back.hidden = play.hidden = false;
+      const list = songs(n), first = list[0], cur = trackById(curId);
+      $("alb-title").textContent = n;
+      $("alb-sub").textContent = [first ? first.albumArtist || first.artist : "", first && first.year, `${list.length} song${list.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
+      body.innerHTML = "";
+      list.forEach((t, k) => {
+        const r = document.createElement("div"); r.className = "alb-row" + (cur && cur.id === t.id ? " now" : ""); r.dataset.id = t.id;
+        r.innerHTML = `<div class="alb-n"></div><div class="alb-row-t"></div><div class="alb-row-d"></div>`;
+        r.querySelector(".alb-n").textContent = t.num || k + 1; r.querySelector(".alb-row-t").textContent = t.title;
+        r.querySelector(".alb-row-d").textContent = t.dur ? fmt(t.dur) : "";
+        r.addEventListener("click", () => { if (tapOk()) playIn(n, t.id); });
+        body.appendChild(r);
+      });
+      sc.scrollTop = 0; built = "album";
+    }
+    back.addEventListener("click", () => { grid(true); haptic("light"); });
+    play.addEventListener("click", () => { const l = open && songs(open); if (l && l.length) playIn(open, l[0].id); });
+    function marks() {                                                 // the playing album / song, without rebuilding
+      const cur = trackById(curId);
+      body.querySelectorAll(".alb-card").forEach(c => c.classList.toggle("now", !!cur && cur.album === c.dataset.album));
+      body.querySelectorAll(".alb-row").forEach(r => r.classList.toggle("now", !!cur && String(cur.id) === r.dataset.id));
+    }
+    return {
+      visible(v) { if (v === vis) return; vis = v; if (v) { if (open && songs(open).length) show(open); else grid(true); } },
+      song() { if (built) marks(); },
+      reset() { open = null; built = ""; }
+    };
+  })();
+
+  pgReset();
+  const onResize = () => { if (!st.expanded || st.raf || g) return; layout(); wrap.style.height = st.h1 + "px"; measureRects(); if (!pg.raf) { pg.x = pg.page * pgW(); pgRender(); } };
   addEventListener("resize", onResize); if (window.visualViewport) visualViewport.addEventListener("resize", onResize);
-  return { glowLight: coverGlow.light, open, close, sync, onSong, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, _st: st };
+  return { glowLight: coverGlow.light, open, close, sync, onSong, goPage, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, _st: st, _pg: pg, _lyr: () => LYR._state() };
 })();
 
 /* ---------- LIQUID GLASS: tilt (optional) adds to the cover light; the light also moves on its own ---------- */
