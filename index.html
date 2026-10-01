@@ -806,6 +806,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
+const APP_VERSION = "v32";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 let botMode = !!TG && !!TG.initData;                   // switches off if the server can't be reached, so the phone's files still work
 function haptic(kind) {                               // "light" | "medium" | "select". Telegram's haptics also work on iPhone; navigator.vibrate is the fallback (Android browsers)
@@ -3726,10 +3727,10 @@ function libUI(state) {
   const dz = $("drop-zone"), small = s => `<br><span style="font-size:11px;opacity:.7;">${s}</span>`;
   dz.style.display = ""; ["player-main", "controls-main", "footer-main"].forEach(i => { $(i).style.display = "none"; });
   if (XP) XP.sync();                                                 // no songs left: the big player folds away
-  dz.innerHTML = state === "loading" ? "Loading your library…"
+  dz.innerHTML = state === "loading" ? "Loading your library…" + small("player " + APP_VERSION)
     : state === "empty" ? "Send me some songs" + small("Upload or forward audio files in this chat. They show up here straight away.")
     : /invite|\/start/.test(state) ? "No access yet" + small("This player is private: " + esc(state) + ". You can still play songs from your phone: tap here.")
-    : "Couldn't reach your library" + small(esc(state) + ". Tap to play songs from your phone instead.");
+    : "Couldn't reach your music server" + small(esc(state) + ". Your phone couldn't connect to it: check the internet connection or VPN and reopen the player. Or tap here to play songs from your phone.");
 }
 /* A request that never answers used to leave the app on "Loading your library…" for good (and, since a sync was still
    "busy", every later attempt was skipped too). Now each request gives up after 12 s; the first load is retried a few
@@ -3738,14 +3739,42 @@ function fetchT(url, opts = {}, ms = 12000) {
   const ac = window.AbortController ? new AbortController() : null, t = ac && setTimeout(() => ac.abort(), ms);
   return fetch(url, ac ? { ...opts, signal: ac.signal } : opts).finally(() => clearTimeout(t));
 }
+/* The last library the server sent is kept on the phone (per Telegram account). The player opens straight away with it,
+   then asks the server for changes in the background. If the server can't be reached (no connection, a VPN or a
+   network that blocks or throttles it), you still see your library, and songs saved on the phone still play. */
+const libKey = () => { let u = ""; try { u = TG.initDataUnsafe.user.id; } catch (e) {} return "libCache1:" + u; };
+function applyLibrary(j, first, quiet, relink) {
+  if (j.token) lib.token = j.token;
+  lib.version = j.version;
+  const seen = new Set(), added = [];
+  for (const x of j.tracks) {
+    seen.add(x.id);
+    const t = lib.byRid.get(x.id);
+    if (!t) {
+      const tr = { id: ++uid, file: null, remote: { id: x.id, rev: x.rev }, ...libFields(x) };
+      lib.byRid.set(x.id, tr); tracks.push(tr); added.push(tr); scheduleAlbumWork(tr); delete albumRelease[tr.album];
+    } else if (t.remote.rev !== x.rev || relink) {                     // tags read since (album, cover...), or a fresh link token after an old saved copy
+      delete albumRelease[t.album]; Object.assign(t, libFields(x)); t.remote.rev = x.rev; scheduleAlbumWork(t); delete albumRelease[t.album];
+      if (t.id === curId) { refreshNowPlaying(); $("track-title").innerText = t.title; $("track-artist").innerText = t.artist; if (XP) XP.sync(); }
+    }
+  }
+  for (const [rid, t] of lib.byRid) if (!seen.has(rid)) { lib.byRid.delete(rid); tracks = tracks.filter(x => x !== t); queue = queue.filter(e => e.id !== t.id); history = history.filter(h => h.id !== t.id); }
+  tracks.sort(cmpTracks); scheduleResolve();
+  if (!first && !quiet && added.length) toast(added.length === 1 ? `Added “${added[0].title}”` : `Added ${added.length} songs`);
+  if (first && tracks.length) { showPlayerUI(); restoreState(); }
+  libUI("empty");
+  if (queueShown()) renderQueue();
+  if (XP) XP.sync();
+}
 async function syncLibrary() {
   if (!botMode || syncLibrary.busy) return;
   syncLibrary.busy = true;
   const first = lib.version < 0;
   try {
     let r;
+    const since = lib.full ? -1 : lib.version;                      // full: the saved copy is old, its links need a fresh token
     for (let k = 0; ; k++) {
-      try { r = await fetchT(`${API_BASE}/api/library?since=${lib.version}`, { headers: { "X-Init-Data": TG.initData } }); break; }
+      try { r = await fetchT(`${API_BASE}/api/library?since=${since}`, { headers: { "X-Init-Data": TG.initData } }); break; }
       catch (e) {
         if (!first || k >= 2) throw new Error(e && e.name === "AbortError" ? "the server didn't answer in time" : "no connection");
         $("drop-zone").innerHTML = "Still loading your library…<br><span style=\"font-size:11px;opacity:.7;\">The server is slow to answer, trying again.</span>";
@@ -3753,32 +3782,19 @@ async function syncLibrary() {
     }
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    lib.offline = false;
     if (j.same) return;
-    lib.token = j.token; lib.version = j.version;
-    const seen = new Set(), added = [];
-    for (const x of j.tracks) {
-      seen.add(x.id);
-      const t = lib.byRid.get(x.id);
-      if (!t) {
-        const tr = { id: ++uid, file: null, remote: { id: x.id, rev: x.rev }, ...libFields(x) };
-        lib.byRid.set(x.id, tr); tracks.push(tr); added.push(tr); scheduleAlbumWork(tr); delete albumRelease[tr.album];
-      } else if (t.remote.rev !== x.rev) {                           // the server finished reading the file's tags (album, cover...)
-        delete albumRelease[t.album]; Object.assign(t, libFields(x)); t.remote.rev = x.rev; scheduleAlbumWork(t); delete albumRelease[t.album];
-        if (t.id === curId) { refreshNowPlaying(); $("track-title").innerText = t.title; $("track-artist").innerText = t.artist; if (XP) XP.sync(); }
-      }
-    }
-    for (const [rid, t] of lib.byRid) if (!seen.has(rid)) { lib.byRid.delete(rid); tracks = tracks.filter(x => x !== t); queue = queue.filter(e => e.id !== t.id); history = history.filter(h => h.id !== t.id); }
-    tracks.sort(cmpTracks); scheduleResolve();
-    if (!first && added.length) toast(added.length === 1 ? `Added “${added[0].title}”` : `Added ${added.length} songs`);
-    if (first && tracks.length) { showPlayerUI(); restoreState(); }
-    libUI("empty");
-    if (queueShown()) renderQueue();
-    if (XP) XP.sync();
+    const relink = lib.full; lib.full = false;
+    applyLibrary(j, first, false, relink);
+    try { store.set(libKey(), JSON.stringify({ version: j.version, token: j.token, at: Date.now(), tracks: j.tracks })); } catch (e) {}
   } catch (e) {
     if (first) {
       console.error(e);
       if (tracks.length) { bootError(e); return; }                    // the songs arrived but setting them up failed: say what, offer a retry
       botMode = false; try { libUI(e.message || "no connection"); } catch (e2) { bootError(e2); }   // fall back to the phone's own files for this session
+    } else if (lib.cached && !lib.offline) {                         // showing the saved library: say so once, keep trying quietly
+      lib.offline = true;
+      toast("Can't reach your music server right now. Showing your saved library; songs saved on this phone still play.");
     }
   } finally { syncLibrary.busy = false; }
 }
@@ -3796,7 +3812,11 @@ addEventListener("error", e => bootError(e.error ? Object.assign(e.error, { line
 addEventListener("unhandledrejection", e => bootError(e.reason || e));
 $("drop-zone").addEventListener("click", () => { if ($("drop-zone").dataset.retry) location.reload(); }, true);
 if (botMode) {
-  libUI("loading"); syncLibrary();
+  let saved = null; try { saved = JSON.parse(store.get(libKey()) || "null"); } catch (e) {}
+  if (saved && saved.tracks && saved.tracks.length) {                  // open with the saved library at once (once the whole script has set up), then ask the server
+    lib.cached = true; lib.version = saved.version; lib.full = Date.now() - (saved.at || 0) > 6 * 864e5;
+    setTimeout(() => { try { lib.version = -1; applyLibrary(saved, true, true); } catch (e) { console.error(e); $("player-main").style.display = "none"; bootError(e); } syncLibrary(); }, 0);
+  } else { libUI("loading"); syncLibrary(); }
   setInterval(() => { if (!document.hidden) syncLibrary(); }, 15000);     // songs you send while the player is open appear within seconds
   document.addEventListener("visibilitychange", () => { if (!document.hidden) syncLibrary(); });
   try { TG.onEvent("activated", syncLibrary); } catch (e) {}
