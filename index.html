@@ -475,7 +475,9 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .album-art,.xp-art,.xp-handle,.xp{touch-action:none}
 .xp .xp-strip{touch-action:pan-x}
 .album-art{cursor:pointer}
-.xp{position:absolute;inset:0;z-index:3;display:none;border-radius:inherit;overflow:hidden;pointer-events:none}
+/* not clipped to the panel: the cover's glow spreads past the glass edge, exactly like the small cover's does (clipping it
+   cut the glow off in a straight line the moment the big cover took over) */
+.xp{position:absolute;inset:0;z-index:3;display:none;border-radius:inherit;pointer-events:none}
 .xp.show{display:block}
 .player-wrapper.xp-on .xp{pointer-events:auto}
 .player-wrapper.xp-on>#player-main,.player-wrapper.xp-on>#controls-main,.player-wrapper.xp-on>#footer-main{visibility:hidden}
@@ -494,11 +496,21 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
    66 px cover at p = 0, so sizes are written in the small cover's px times a factor:
    --k = S / 66 (glows: they stay in proportion to the cover), --u = set per frame by the expansion (fine details: at
    p = 0 it equals --k, so both covers match to the pixel; open, the rim and edge bands are 1.6x the small cover's). */
-/* the two glows are pre-blurred bitmaps (drawn once per song, see glowArt below): a CSS blur this big would be redone by
-   the browser on every frame while the cover grows. Each canvas covers the glow plus its soft tail, centred on the cover. */
-.xp-art .art-bloom{left:-75.758%;top:-75.758%;width:251.515%;height:251.515%;border-radius:0;filter:none;background:none;
-  transform:translate3d(calc(var(--tx,0) * 12px * var(--k,3)),calc(var(--ty,0) * 12px * var(--k,3)),0) scale(calc(1.5 + var(--pulse,0) * .12 + var(--br,.5) * .05 + var(--fl,0) * .22))}
+/* The cover glow (both covers): bitmaps drawn once per song (coverGlow, in the script), never a CSS blur, so nothing is
+   re-blurred while the cover grows and the small and big covers show the very same image.
+   - bloom: a soft colour field from the artwork's colours (blobs sampled round its edge, on a round falloff): ambient
+     light, not a blurred copy of the picture. Canvas = 194 units: the 66 px cover plus 64 each side, centred on it.
+   - light: the two-colour wedge circling behind the cover. Canvas = 180 units (a 110 circle + 35 each side). */
+#art-bloom,#art-light{filter:none;background:none;border-radius:0}
+#art-bloom{left:calc(var(--inset) + var(--art-x) - 64px);top:-62px;width:194px;height:194px}
+#art-light{left:calc(var(--inset) + var(--art-x) - 57px);top:-55px;width:180px;height:180px}
+/* text and controls paint above the glow (it's an absolutely placed layer, which would otherwise draw over them) */
+.track-text:not(.tt-ghost),.progress-container,.player-footer,.xp-meta,.xp-scrub,.xp-ctrls{position:relative;z-index:2}
+.xp-art .art-bloom{left:-96.97%;top:-96.97%;width:293.94%;height:293.94%;border-radius:0;filter:none;background:none}
 .xp-art .art-light{left:-86.364%;top:-86.364%;width:272.727%;height:272.727%;border-radius:0;filter:none;background:none}
+#art-bloom,.xp-art .art-bloom{
+  opacity:calc((.5 + var(--en,0) * .1 + var(--pulse,0) * .25 + var(--br,.5) * .08 + var(--fl,0) * .2) * var(--hm,1));
+  transform:translate3d(calc(var(--tx,0) * 10px * var(--k,1)),calc(var(--ty,0) * 10px * var(--k,1)),0) scale(calc(1 + var(--pulse,0) * .07 + var(--br,.5) * .04 + var(--fl,0) * .1))}
 .xp-clip .g-refr{background-position:calc(50% + var(--rx,0px) * var(--u,1)) calc(50% + var(--ry,0px) * var(--u,1));filter:saturate(1.35) brightness(1.14) blur(calc(.4px * var(--u,1)));
   -webkit-mask-image:linear-gradient(90deg,#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000),linear-gradient(#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000);
           mask-image:linear-gradient(90deg,#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000),linear-gradient(#000,transparent calc(4px * var(--u,1)),transparent calc(100% - 4px * var(--u,1)),#000)}
@@ -578,8 +590,8 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
   <input type="file" id="photo-input" accept="image/*" style="display:none;">
 
   <div class="track-info-container" id="player-main" style="display:none;">
-    <div class="art-bloom" id="art-bloom"></div>
-    <div class="art-light" id="art-light"></div>
+    <canvas class="art-bloom" id="art-bloom" width="128" height="128"></canvas>
+    <canvas class="art-light" id="art-light" width="128" height="128"></canvas>
     <div class="album-art" id="album-art-box"><div class="art-clip">
       <svg id="fallback-art" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
       <img id="track-art-img" style="display:none;">
@@ -1706,13 +1718,21 @@ function restoreState() {                                             // once, w
   saveState();
   if (XP) XP.sync();
 }
-function applyPendingSeek() {
-  if (pendingSeek == null || !isFinite(audio.duration)) return;
-  const p = Math.min(pendingSeek, audio.duration - 1); pendingSeek = null;
+/* The jump back to the saved position waits for the song's length. iPhones load nothing before Play and often report the
+   length a moment later (loadedmetadata with no finite duration yet), so it is tried again whenever the length or the
+   playback state changes. Once the song is actually playing it never waits any longer: it jumps without knowing the
+   length, and the timers follow the real position from then on (before, the big player kept showing the saved
+   position and never moved, and that same stale position was saved again). */
+function applyPendingSeek(ev) {
+  if (pendingSeek == null) return;
+  const known = isFinite(audio.duration) && audio.duration > 0, playing = ev && (ev.type === "playing" || ev.type === "timeupdate") && !audio.paused;
+  if (!known && !playing) return;
+  const p = known ? Math.min(pendingSeek, audio.duration - 1) : pendingSeek; pendingSeek = null;
   try { audio.currentTime = p; } catch (e) {}
-  progressCtrl.setValue(p / audio.duration); $("current-time").innerText = fmt(p);
+  if (known) progressCtrl.setValue(p / audio.duration);
+  $("current-time").innerText = fmt(p);
 }
-audio.addEventListener("loadedmetadata", applyPendingSeek);
+["loadedmetadata", "durationchange", "canplay", "playing", "timeupdate"].forEach(k => audio.addEventListener(k, applyPendingSeek));
 audio.addEventListener("pause", () => { saveStateNow(); if (tgStore) mirrorSend("playPos"); });
 addEventListener("pagehide", () => { saveStateNow(); if (tgStore) mirrorFlush(); });
 document.addEventListener("visibilitychange", () => { if (document.hidden) { saveStateNow(); if (tgStore) mirrorFlush(); } });
@@ -1813,13 +1833,14 @@ function playPrev() {
 }
 const fmt = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
 audio.addEventListener("timeupdate", () => {
-  if (!isFinite(audio.duration)) return;
+  if (pendingSeek != null) return;                                     // still waiting to jump back to the saved position
+  const d = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (saveStateNow.dur || 0);   // length not known yet: the saved one
   if (!audio.paused && Date.now() - lastSave > 5000) savePos();          // position survives the app being closed (just the position: cheap)
-  progressCtrl.setValue(audio.currentTime / audio.duration);
+  if (d) progressCtrl.setValue(Math.min(1, audio.currentTime / d));
   if (!progressCtrl.dragging) $("current-time").innerText = fmt(audio.currentTime);
 });
 function syncPos() { const m = navigator.mediaSession; if (m && m.setPositionState && isFinite(audio.duration)) { try { m.setPositionState({ duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime, audio.duration) }); } catch (e) {} } }
-audio.addEventListener("loadedmetadata", () => { $("total-duration").innerText = fmt(audio.duration); syncPos(); });
+["loadedmetadata", "durationchange"].forEach(k => audio.addEventListener(k, () => { if (isFinite(audio.duration)) $("total-duration").innerText = fmt(audio.duration); syncPos(); }));
 audio.addEventListener("play", () => { curPlayed = true; startPulse(); setPlayIcon(true); if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; syncPos(); });
 audio.addEventListener("pause", () => { if (audio.ended) return; setTimeout(() => { if (audio.paused) setPlayIcon(false); }, 150); if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; syncPos(); });
 audio.addEventListener("seeked", syncPos);
@@ -2286,8 +2307,8 @@ const tabPill = (() => {
    - Press: it sinks in by about 1 % while your finger is down.
    - Let go: it glides back on a smooth, well-damped spring; no wobble, no bounce.
    - Switching the theme on: the panel settles into place once.
-   - A pull that keeps going down (or up, in the big player) past a short distance hands over to the expanded player:
-     the lean lets go and the panel starts to open (or close) under the finger.
+   - A pull that starts on the now-playing row and goes clearly down from its first few px opens the expanded player
+     instead (decided once per touch, see xpPullHook); every other pull only ever stretches.
    Reduced motion: the same, just fully damped. */
 let xpPullHook = null;                                               // set by the expanded player: (drag, event) => true when it takes the pull over
 const bubble = (() => {
@@ -2518,7 +2539,7 @@ const bubble = (() => {
     if (ev.target.closest && ev.target.closest(NO_PULL)) return;
     const r = wrap.getBoundingClientRect();
     if (ev.clientX < r.left - GRAB || ev.clientX > r.right + GRAB || ev.clientY < r.top - GRAB || ev.clientY > r.bottom + GRAB) return;
-    drag = { id: ev.pointerId, sx: ev.clientX, sy: ev.clientY, cx: ev.clientX, cy: ev.clientY, moved: false };
+    drag = { id: ev.pointerId, sx: ev.clientX, sy: ev.clientY, cx: ev.clientX, cy: ev.clientY, moved: false, row: !!ev.target.closest("#player-main") };
     const sel = getSelection && getSelection(); if (sel && sel.removeAllRanges) sel.removeAllRanges();
     go();
   });
@@ -2560,6 +2581,113 @@ bubble.set(store.get("oldPanel") !== "1", false);
   show();
 })();
 
+/* ---------- COVER GLOW ----------
+   One image per song, drawn once into canvases and then only moved, scaled and faded by the GPU. The small cover and the
+   big cover get the very same bitmaps (copied), so when the big cover takes over from the small one nothing changes on
+   screen, and no CSS blur is ever redrawn mid-gesture (that is what made the glow jump on iPhone).
+   - field: ambient colour light from the artwork. Seven colours are sampled round the artwork's edge (plus its overall
+     colour in the middle), each becomes a soft round blob placed on that side of the cover, with a little per-song
+     variation in size and distance, and the whole thing fades out on a round falloff. So it reads as light spilling from
+     the cover's colours, never as a blurred copy of the picture and never as a square.
+   - light: the two-colour wedge that circles behind the cover (rotated by CSS), blurred once here.
+   If the artwork can't be read (another site's image without CORS), the field is made from the two light colours. */
+const coverGlow = (() => {
+  const N = 128, B = [$("art-bloom"), $("xp-bloom")], L = [$("art-light"), $("xp-light")];
+  const bx = B[0].getContext("2d"), lx = L[0].getContext("2d");
+  let src = "", req = 0, fallback = false, lastLc = "";
+  const copy = (list) => { for (let i = 1; i < list.length; i++) { const c = list[i].getContext("2d"); c.clearRect(0, 0, N, N); c.drawImage(list[0], 0, 0); } };
+  const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+  const rnd = seed => () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822507) + 0x9e3779b9 >>> 0) % 10000) / 10000;
+  function hsl(r, g, b) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn; let h = 0, s = 0;
+    if (d) { s = d / (1 - Math.abs(2 * l - 1)); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; } return [h, s, l]; }
+  function rgb(h, s, l) { const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+    const v = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]; return v.map(t => Math.round((t + m) * 255)); }
+  function glowColour([r, g, b]) {                                    // a colour that reads as light on the dark glass: richer, never black or white
+    const [h, s, l] = hsl(r, g, b);
+    return { c: rgb(h, Math.min(.95, s * 1.3 + .05), Math.max(.34, Math.min(.64, l * .9 + .08))), a: .55 + Math.min(1, s * 1.6) * .45 };
+  }
+  function blob(x, y, R, col, a) {                                    // a soft round light: gaussian-like falloff, zero at its edge
+    const g = bx.createRadialGradient(x, y, 0, x, y, R), [r, gg, b] = col.c;
+    for (let i = 0; i <= 8; i++) { const t = i / 8; g.addColorStop(t, `rgba(${r},${gg},${b},${(a * col.a * Math.exp(-3 * t * t) * (1 - t * t)).toFixed(4)})`); }
+    bx.fillStyle = g; bx.fillRect(0, 0, N, N);
+  }
+  function paint(cols, centre, seed) {                                // cols: 7 edge colours (clockwise from the right), centre: the overall colour
+    const r = rnd(seed), U = N / 194, C = N / 2, H = 33 * U, off = r() * Math.PI * 2;
+    bx.clearRect(0, 0, N, N); bx.globalCompositeOperation = "source-over";
+    blob(C, C, H * 2.5, centre, .6);
+    cols.forEach((col, k) => {
+      const th = off + k / cols.length * Math.PI * 2 + (r() - .5) * .5, d = H * (.85 + r() * .4), R = H * (1.75 + r() * .55);
+      blob(C + Math.cos(th) * d, C + Math.sin(th) * d, R, col, .62);
+    });
+    bx.globalCompositeOperation = "destination-in";                   // round falloff: fully clear well before the canvas edge
+    const m = bx.createRadialGradient(C, C, 0, C, C, C * .98);
+    for (let i = 0; i <= 10; i++) { const t = i / 10, k = t < .4 ? 1 : 1 - (t - .4) / .6, s = k * k * (3 - 2 * k); m.addColorStop(t, `rgba(0,0,0,${s.toFixed(3)})`); }
+    bx.fillStyle = m; bx.fillRect(0, 0, N, N);
+    bx.globalCompositeOperation = "source-over";
+    copy(B);
+  }
+  function fromLight() {                                              // artwork unreadable: the field from the two light colours
+    const [a, b] = lastLc ? lastLc.split("|").map(s => s.split(",").map(Number)) : [[200, 215, 225], [200, 215, 225]];
+    const A = { c: a, a: .9 }, Bc = { c: b, a: .9 }, mid = { c: a.map((v, i) => Math.round((v + b[i]) / 2)), a: .9 };
+    paint([A, A, Bc, Bc, A, Bc, A], mid, hash(src));
+  }
+  function field(s) {                                                 // s: the artwork URL, or "" for none
+    if (s === src) return; src = s; const my = ++req; fallback = false;
+    if (!s) { [bx, ...B.slice(1).map(c => c.getContext("2d"))].forEach(c => c.clearRect(0, 0, N, N)); return; }
+    const im = new Image(); im.crossOrigin = "anonymous";
+    im.onload = () => {
+      if (my !== req) return;
+      try {
+        const c = document.createElement("canvas"); c.width = c.height = 24; const x = c.getContext("2d");
+        const iw = im.naturalWidth, ih = im.naturalHeight, m = Math.min(iw, ih); x.drawImage(im, (iw - m) / 2, (ih - m) / 2, m, m, 0, 0, 24, 24);
+        const d = x.getImageData(0, 0, 24, 24).data, at = (px, py, rad) => {   // average colour of a small patch
+          let r = 0, g = 0, b = 0, n = 0;
+          for (let yy = Math.max(0, py - rad); yy <= Math.min(23, py + rad); yy++) for (let xx = Math.max(0, px - rad); xx <= Math.min(23, px + rad); xx++) { const i = (yy * 24 + xx) * 4; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+          return [r / n, g / n, b / n];
+        };
+        const seed = hash(s), off = rnd(seed)() * Math.PI * 2, cols = [];
+        for (let k = 0; k < 7; k++) { const th = off + k / 7 * Math.PI * 2; cols.push(glowColour(at(Math.round(11.5 + Math.cos(th) * 8), Math.round(11.5 + Math.sin(th) * 8), 3))); }
+        paint(cols, glowColour(at(12, 12, 12)), seed);
+      } catch (e) { fallback = true; fromLight(); }
+    };
+    im.onerror = () => { if (my === req) { fallback = true; fromLight(); } };
+    im.src = s;
+  }
+  function blur(d, r) {                                               // premultiplied float RGBA, 3 box passes each way (close to a gaussian of sigma r)
+    const t = new Float32Array(d.length);
+    for (let pass = 0; pass < 3; pass++) for (let dir = 0; dir < 2; dir++) {
+      const sr = dir ? t : d, dst = dir ? d : t, w = 2 * r + 1;
+      for (let a = 0; a < N; a++) for (let ch = 0; ch < 4; ch++) {
+        let acc = 0; const at = i => { const j = Math.max(0, Math.min(N - 1, i)); return (dir ? j * N + a : a * N + j) * 4 + ch; };
+        for (let i = -r; i <= r; i++) acc += sr[at(i)];
+        for (let i = 0; i < N; i++) { dst[(dir ? i * N + a : a * N + i) * 4 + ch] = acc / w; acc += sr[at(i + r + 1)] - sr[at(i - r)]; }
+      }
+    }
+  }
+  function light(c1, c2) {                                            // canvas = 180 units (circle of 110 + 35 each side)
+    const key = c1 + "|" + c2; if (key === lastLc) return; lastLc = key;
+    const A = c1.split(",").map(Number), Bc = c2.split(",").map(Number), u = N / 180, R0 = 55 * u, c = N / 2, d = new Float32Array(N * N * 4);
+    const stops = [[0, A, 0], [50, A, .9], [135, A, 0], [190, Bc, 0], [245, Bc, .55], [320, Bc, 0], [360, Bc, 0]];
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const dx = x + .5 - c, dy = y + .5 - c, rr = Math.hypot(dx, dy); if (rr > R0 + .5) continue;
+      const edge = Math.min(1, R0 + .5 - rr);
+      let ang = Math.atan2(dx, -dy) * 180 / Math.PI; if (ang < 0) ang += 360;
+      let k = 0; while (k < stops.length - 2 && ang > stops[k + 1][0]) k++;
+      const [a0, C0, al0] = stops[k], [a1, C1, al1] = stops[k + 1], t = (ang - a0) / (a1 - a0);
+      const al = (al0 + (al1 - al0) * t) * edge, i = (y * N + x) * 4;
+      for (let ch = 0; ch < 3; ch++) d[i + ch] = (C0[ch] + (C1[ch] - C0[ch]) * t) / 255 * al;
+      d[i + 3] = al * 255;
+    }
+    blur(d, Math.round(15 * u));
+    const im = lx.createImageData(N, N), o = im.data;
+    for (let i = 0; i < d.length; i += 4) { const a = d[i + 3]; if (a < .5) continue; const k = 65025 / a; o[i] = d[i] * k; o[i + 1] = d[i + 1] * k; o[i + 2] = d[i + 2] * k; o[i + 3] = a; }
+    lx.putImageData(im, 0, 0); copy(L);
+    if (fallback) fromLight();
+  }
+  light("200,215,225", "200,215,225");
+  return { field, light };
+})();
+
 /* ---------- EXPANDED PLAYER ----------
    The same panel, unfolded. Open it by tapping the cover, dragging the cover down, or pulling the glass down (a short
    pull still leans like before, a longer one hands over to this). Close it by dragging the big cover or the handle back
@@ -2579,7 +2707,7 @@ XP = (() => {
   const smBloom = $("art-bloom"), smLight = $("art-light"), glight = $("xp-light");           // the small cover's glows: handed over to the big cover's own while it's shown
   const pm = $("player-main"), cm = $("controls-main"), fm = $("footer-main"), artBox = $("album-art-box"), tText = pm.querySelector(".track-text");
   const REPEAT = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z", REPEAT_ONE = REPEAT + "m-4-2V9h-1l-2 1v1h1.5v4H13z";
-  const st = { p: 0, v: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
+  const st = { p: 0, v: 0, over: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
   const clamp01 = v => Math.max(0, Math.min(1, v)), lerp = (a, b, t) => a + (b - a) * t, lin = (p, a, b) => clamp01((p - a) / (b - a));
   const fade = (p, a, b) => { const t = lin(p, a, b); return t * t * (3 - 2 * t); };   // eased in and out, so nothing pops in or stops abruptly
   const canExpand = () => pm.style.display !== "none" && curId != null;
@@ -2604,9 +2732,46 @@ XP = (() => {
     st.S = S; st.h1 = Math.round(topFixed + S + botH + GAP);
     art.style.setProperty("--k", (S / (artBox.offsetWidth || 66)).toFixed(4));
   }
+  /* ---- one continuous motion for everything that moves ----
+     Each moving thing exists twice: in the compact layout and in the big one. While the panel opens, both copies travel
+     the SAME path, so they sit exactly on top of each other and cross-fade: it reads as one title (one Play button, one
+     scrubber...) moving and growing, never as two, never a jump.
+     - Vertically every path is tied to the growing cover: y = cover bottom + an offset that eases (over the first third)
+       from the compact layout's offset to the big layout's. All rows use the same easing, so they keep their order and
+       can never run into the cover or into each other.
+     - The title and artist start beside the cover: until they are below it they ride along its right edge (they can't
+       touch it), then they glide to their centred place. A line that would run past the panel's right edge on the way
+       fades out there instead of spilling over.
+     - The rest (buttons, scrubber, times) starts under the cover and simply moves and grows to its big place. */
+  const cTitle = pm.querySelector(".title-box"), cArtist = pm.querySelector(".artist-row"), xTitle = $("xp-title"), xSub = meta.querySelector(".xp-sub");
+  const LINES = [[cTitle, xTitle, 20 / 17], [cArtist, xSub, 13.5 / 13]];
+  const PAIRS = [[$("prev-btn"), $("xp-prev")], [playBtn, $("xp-play")], [$("skip-btn"), $("xp-next")], [$("progress-slider"), $("xp-progress"), "track"],
+    [$("current-time"), $("xp-cur"), "start"], [$("total-duration"), $("xp-left"), "end"]];   // times line up on the digits they share ("0:40" / "-0:40")
+  const FOLLOW = [$("xp-shuffle"), $("xp-repeat")];
+  const MOVED = [...LINES.flatMap(l => l.slice(0, 2)), ...PAIRS.flatMap(p => p.slice(0, 2)), ...FOLLOW, fm];
+  function clearMoved() { if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) { el._m = ""; el.style.webkitMaskImage = el.style.maskImage = ""; } }); }
+  function box(el) { const r = rel(el); return { x: r.x, y: r.y, w: el.offsetWidth, h: el.offsetHeight }; }
+  function textBox(el) {                                             // where the text itself starts inside its line, and how wide it is
+    const b = box(el), rg = document.createRange(); rg.selectNodeContents(el);
+    const er = el.getBoundingClientRect(), tr = rg.getBoundingClientRect(), k = er.width ? b.w / er.width : 1;   // rects include the glass lean: undo it
+    b.off = Math.max(0, (tr.left - er.left) * k); b.tw = Math.min(b.w - b.off, tr.width * k);
+    return b;
+  }
   function measureRects() {
-    const a = rel(artBox), s = rel(slot), ct = rel($("track-title")), xt = rel($("xp-title"));
-    st.m = { ax: a.x, ay: a.y, aw: artBox.offsetWidth || 66, sx: s.x, sy: s.y, ctx: ct.x, cty: ct.y, xtx: xt.x, xty: xt.y };
+    clearMoved();
+    const a = rel(artBox), s = rel(slot);
+    st.m = { ax: a.x, ay: a.y, aw: artBox.offsetWidth || 66, sx: s.x, sy: s.y, W: wrap.clientWidth,
+      lines: LINES.map(([c, x, r]) => { const cb = textBox(c), xb = textBox(x); return { c, x, r, cb, xb, c0: [cb.x + cb.off, cb.y + cb.h / 2], x1: [xb.x + xb.off, xb.y + xb.h / 2] }; }),
+      pairs: PAIRS.map(([c, x, mode]) => { const cb = box(c), xb = box(x), T = mode === "track", f = mode === "start" ? 0 : mode === "end" ? 1 : .5;
+        /* a track isn't scaled (its dot would stretch): the big one opens up from the small one's length. Times keep
+           their own size (scale only for buttons) and are anchored on the side where their digits line up. */
+        const r = T || f !== .5 ? 1 : xb.w / (cb.w || 1);
+        return { c, x, track: T, cw: cb.w, xw: xb.w, r, c0: [cb.x + cb.w * f, cb.y + cb.h / 2], x1: [xb.x + xb.w * f, xb.y + xb.h / 2], origin: f === .5 ? "" : `${f * 100}% 50%` }; }) };
+  }
+  function origins(m) {                                              // scale about the text's start / the button's centre (cleared at rest)
+    m.lines.forEach(l => { l.c.style.transformOrigin = `${l.cb.off.toFixed(1)}px 50%`; l.x.style.transformOrigin = `${l.xb.off.toFixed(1)}px 50%`; });
+    m.pairs.forEach(q => { q.c.style.transformOrigin = q.x.style.transformOrigin = q.origin; });
+    m.originsOn = true;
   }
   function prep(h0) {                                                // before any move: show the layer, size it, measure both layouts
     clearTimeout(st.shT); wrap.style.transition = "";
@@ -2618,41 +2783,62 @@ XP = (() => {
     st.h0 = h0 != null ? h0 : st.compactH;
     measureRects();
   }
+  const setOp = (el, v) => { const s = v >= .999 ? "" : v.toFixed(3); if (el.style.opacity !== s) el.style.opacity = s; };
+  function fadeEdge(el, text, x, k, limit) {                         // a line running past the panel's right edge fades out there
+    const over = (x + text.tw * k - limit) / k, end = text.off + text.tw - over;
+    const m = over > 0 ? `linear-gradient(90deg,#000 ${Math.max(0, end - 28).toFixed(1)}px,transparent ${Math.max(1, end).toFixed(1)}px)` : "";
+    if ((el._m || "") !== m) { el._m = m; el.style.webkitMaskImage = el.style.maskImage = m; }
+  }
   function render(p) {
     const m = st.m; if (!m) return;
-    const P = Math.max(0, p), c = Math.min(1, P), sc = 20 / 17;
-    wrap.style.height = lerp(st.h0, st.h1, p).toFixed(1) + "px";   // may overshoot a hair while it springs open
-    const cf = (1 - fade(P, 0, .3)).toFixed(3);
-    pm.style.opacity = cm.style.opacity = fm.style.opacity = cf;
-    cm.style.transform = fm.style.transform = c ? `translateY(${(c * 28).toFixed(1)}px)` : "";
+    if (!m.originsOn) origins(m);
+    const P = clamp01(p);                                            // never laid out past either end (the panel only gives a few px, below)
+    wrap.style.height = (lerp(st.h0, st.h1, P) + st.over).toFixed(1) + "px";
     artBox.style.visibility = P > .0005 ? "hidden" : "";
     /* the big cover, scaled down onto the small one at p = 0 */
     const size = lerp(m.aw, st.S, P), s = size / st.S, curX = lerp(m.ax, m.sx, P), curY = lerp(m.ay, m.sy, P);
     art.style.transform = `translate(${(curX - m.sx).toFixed(2)}px,${(curY - m.sy).toFixed(2)}px) scale(${s.toFixed(4)})`;
-    art.style.borderRadius = (lerp(12, 18, c) / s).toFixed(2) + "px";
-    art.style.setProperty("--u", (lerp(1, 1.6, c) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
-    /* the two covers' glows sit exactly on top of each other near p = 0: cross-fade them over the last stretch instead
-       of switching at one instant (a hidden CSS blur shown again gets redrawn, which showed as a jump on iPhone) */
-    const hm = fade(P, 0, .12), hs = hm.toFixed(3), hr = (1 - hm).toFixed(3);
+    art.style.borderRadius = (lerp(12, 18, P) / s).toFixed(2) + "px";
+    art.style.setProperty("--u", (lerp(1, 1.6, P) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
+    /* glows: both covers show the same bitmaps at the same place at p = 0, so the hand-over is a quick, invisible swap */
+    const hm = fade(P, 0, .04), hs = hm.toFixed(3), hr = (1 - hm).toFixed(3);
     if (st.hm !== hs) { st.hm = hs; bloom.style.setProperty("--hm", hs); glight.style.setProperty("--hm", hs); smBloom.style.setProperty("--hm", hr); smLight.style.setProperty("--hm", hr); }
-    /* the title glides from beside the cover to under it; once the growing cover reaches it, the cover pushes it down
-       instead of sliding over it. Both titles (the leaving small one and the arriving big one) travel together. */
-    const lx = lerp(m.ctx, m.xtx, c), ly0 = lerp(m.cty, m.xty, c), ov = clamp01((curX + size + 10 - lx) / 40);
-    const ly = lerp(ly0, Math.max(ly0, curY + size + 14), ov);
-    tText.style.transformOrigin = "0 0";
-    tText.style.transform = c ? `translate(${(lx - m.ctx).toFixed(1)}px,${(ly - m.cty).toFixed(1)}px) scale(${lerp(1, sc, c).toFixed(3)})` : "";
-    meta.style.opacity = fade(P, .12, .45).toFixed(3);
-    meta.style.transform = `translate(${(lx - m.xtx).toFixed(1)}px,${(ly - m.xty).toFixed(1)}px) scale(${lerp(1 / sc, 1, c).toFixed(3)})`;
-    const co = fade(P, .35, .85); scrub.style.opacity = ctrls.style.opacity = co.toFixed(3);
-    scrub.style.transform = ctrls.style.transform = `translateY(${((1 - co) * 12).toFixed(1)}px)`;
-    const bo = fade(P, .74, 1); bot.style.opacity = bo.toFixed(3); bot.style.transform = `translateY(${((1 - bo) * 12).toFixed(1)}px)`;
+    const v = fade(P, 0, .28), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
+    const rowY = (y0, y1) => bottom + lerp(y0 - bottom0, y1 - bottom1, v);
+    /* title + artist line */
+    const Pr = Math.min(P, .28), ride = lerp(m.ax, m.sx, Pr) + lerp(m.aw, st.S, Pr) - (m.ax + m.aw);   // rides the cover's right edge only until it is below it
+    const h = fade(P, .2, .72), hsc = fade(P, .1, .9), limit = m.W - 14;
+    const cOp = 1 - fade(P, .12, .42), xOp = fade(P, .04, .34);
+    for (const l of m.lines) {
+      const X = lerp(l.c0[0] + ride, l.x1[0], h), Y = rowY(l.c0[1], l.x1[1]), k = lerp(1, l.r, hsc);
+      l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
+      l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
+      setOp(l.c, cOp); setOp(l.x, xOp);
+      fadeEdge(l.c, l.cb, X, k, limit); fadeEdge(l.x, l.xb, X, k / l.r, limit);
+    }
+    /* buttons, scrubber, times */
+    const hc = fade(P, 0, .7), pcOp = 1 - fade(P, .14, .44), pxOp = fade(P, .04, .36);
+    let playDy = 0, playDy0 = 0;
+    for (const q of m.pairs) {
+      const X = lerp(q.c0[0], q.x1[0], hc), Y = rowY(q.c0[1], q.x1[1]), k = lerp(1, q.r, hc);
+      q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
+      q.x.style.transform = `translate(${(X - q.x1[0]).toFixed(2)}px,${(Y - q.x1[1]).toFixed(2)}px) scale(${(k / q.r).toFixed(4)})`;
+      setOp(q.c, pcOp); setOp(q.x, pxOp);
+      if (q.track) { const cut = Math.max(0, (q.xw - lerp(q.cw, q.xw, hc)) / 2 - 1), cp = cut > .5 ? `inset(-12px ${cut.toFixed(1)}px)` : ""; if (q.x.style.clipPath !== cp) q.x.style.clipPath = cp; }
+      if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; }
+    }
+    const fo = fade(P, .25, .7);                                      // shuffle / repeat: ride with the big controls' row
+    FOLLOW.forEach(el => { el.style.transform = `translateY(${playDy.toFixed(2)}px)`; setOp(el, fo); });
+    fm.style.transform = P ? `translateY(${playDy0.toFixed(2)}px)` : ""; setOp(fm, 1 - fade(P, 0, .13));   // the compact tab row leaves with the controls above it
+    const bo = fade(P, .74, 1); bot.style.opacity = bo > .999 ? "" : bo.toFixed(3); bot.style.transform = bo > .999 ? "" : `translateY(${((1 - bo) * 12).toFixed(1)}px)`;
     handle.style.opacity = fade(P, .5, .9).toFixed(3);
     gear.style.opacity = ((1 - fade(P, 0, .25)) * .75).toFixed(3); gear.style.pointerEvents = P > .1 ? "none" : "";
   }
   function settle(t) {
-    st.raf = 0; st.p = t; st.v = 0;
+    st.raf = 0; st.p = t; st.v = 0; st.over = 0;
     if (t === 1) {
       render(1); st.expanded = true;
+      clearMoved();                                                  // at rest: the big layout as laid out, the compact one hidden
       wrap.classList.remove("xp-anim"); wrap.classList.add("xp-on");
       if (stripDirty) renderStrip();
       return;
@@ -2660,7 +2846,7 @@ XP = (() => {
     st.expanded = false; st.m = null;
     xp.classList.remove("show"); xp.setAttribute("aria-hidden", "true");
     wrap.classList.remove("xp-on", "xp-anim");
-    [pm, cm, fm].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
+    clearMoved(); [pm, cm, fm, bot].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
     tText.style.transform = ""; artBox.style.visibility = ""; st.hm = null; smBloom.style.removeProperty("--hm"); smLight.style.removeProperty("--hm"); gear.style.opacity = ""; gear.style.pointerEvents = "";
     if (st.sheet) { st.shT = setTimeout(settleHeight, Math.max(0, 440 - (performance.now() - st.sheetAt))); }   // let the drawer finish opening first
     else wrap.style.height = "";
@@ -2675,15 +2861,20 @@ XP = (() => {
   function animateTo(target, v0) {
     cancelAnimationFrame(st.raf); st.target = target; st.v = v0 || 0;
     if (RM) { render(target); settle(target); return; }
-    const K = target ? 170 : 200, Z = target ? .88 : 1, C = 2 * Math.sqrt(K) * Z;   // opening leans past by a hair; closing lands without any bounce
+    /* critically damped both ways: it lands on the open / compact layout and never swings past it. p is kept inside
+       0..1; the only "give" is st.over, a few px of panel stretch from a pull past the open end, which melts away. */
+    const K = target ? 190 : 200, C = 2 * Math.sqrt(K);
     let last = 0;
     const step = now => {
       const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;   // a slow frame moves it further (up to 50 ms), so it doesn't turn to slow motion
       PERF.frame(now);
-      for (let i = 0, n = Math.max(4, Math.ceil(dt / .006)), h = dt / n; i < n; i++) { st.v += (K * (target - st.p) - C * st.v) * h; st.p += st.v * h; }
-      if (!target && st.p < 0) { st.p = 0; st.v = 0; }
+      for (let i = 0, n = Math.max(4, Math.ceil(dt / .006)), h = dt / n; i < n; i++) {
+        st.v += (K * (target - st.p) - C * st.v) * h; st.p += st.v * h;
+        if (st.p > 1) { st.p = 1; st.v = Math.min(0, st.v); } else if (st.p < 0) { st.p = 0; st.v = Math.max(0, st.v); }
+      }
+      st.over *= Math.exp(-dt / .07); if (st.over < .2) st.over = 0;
       render(st.p);
-      if (Math.abs(target - st.p) < .001 && Math.abs(st.v) < .02) { settle(target); return; }
+      if (Math.abs(target - st.p) < .001 && Math.abs(st.v) < .02 && !st.over) { settle(target); return; }
       st.raf = requestAnimationFrame(step);
     };
     st.raf = requestAnimationFrame(step);
@@ -2729,6 +2920,7 @@ XP = (() => {
 
   /* ---- gestures: the cover, the handle, and pulls handed over by the bubble ---- */
   let g = null;
+  const INTENT = 9, STEEP = 1.4;                                     // px before a touch's intent is decided; how vertical "down" must be
   let dragEndAt = 0;                                                 // a drag that ended on a button must not also press it
   function gStart(ev, from, onTap, any) {
     if (g || (ev.pointerType === "mouse" && ev.button)) return;
@@ -2745,13 +2937,17 @@ XP = (() => {
     if (!g || ev.pointerId !== g.id) return;
     const dx = ev.clientX - g.x0, dy = ev.clientY - g.y0;
     if (!g.started) {
-      if (g.dead || Math.hypot(dx, dy) < 7) return;
-      const vert = Math.abs(dy) > Math.abs(dx) * 1.1, ok = g.any || (g.from < .5 ? dy > 0 : true);   // open: down only; open or mid-spring: either way (down just gives a little)
-      if (!vert || !ok || !canExpand() || (g.from < .5 && drawerOpen())) { g.dead = true; return; }
+      if (g.dead || Math.hypot(dx, dy) < (g.from < .5 ? INTENT : 7)) return;
+      /* decided once, here: opening needs a clearly downward start (steeper than ~35 degrees from vertical); anything
+         else is not an expand and never becomes one later in the same touch */
+      const vert = g.from < .5 && !g.any ? dy > 0 && dy > Math.abs(dx) * STEEP : Math.abs(dy) > Math.abs(dx) * 1.1;
+      if (!vert || !canExpand() || (g.from < .5 && drawerOpen())) { g.dead = true; return; }
       begin(ev); return;
     }
-    let p = g.p0 + (ev.clientY - g.y0) / g.travel;
-    if (p > 1) p = 1 + (p - 1) * .2; else if (p < 0) p *= .2;        // a little give past either end
+    /* clamped to the two layouts: past the open end the panel only stretches a few px (strong resistance, never more
+       than 8 px) and past the compact end it simply stops */
+    const raw = g.p0 + (ev.clientY - g.y0) / g.travel, p = clamp01(raw);
+    st.over = raw > 1 ? 8 * (1 - Math.exp(-(raw - 1) * g.travel / 60)) : 0;
     st.p = p; render(p);
     const now = performance.now(); g.samples.push([now, p]); while (g.samples.length > 2 && now - g.samples[0][0] > 90) g.samples.shift();
   });
@@ -2769,15 +2965,27 @@ XP = (() => {
   };
   document.addEventListener("pointerup", gEnd); document.addEventListener("pointercancel", gEnd);
   document.addEventListener("touchmove", ev => { if (g && g.started) ev.preventDefault(); }, { passive: false });
-  xpPullHook = (d, ev) => {                                          // a pull on the glass that clearly goes down (or up, when expanded)
-    if (g || st.raf || !canExpand() || drawerOpen()) return false;
+  /* Expanding vs. stretching the glass: two separate gestures, told apart at the very start of the touch.
+     - Expand: a touch that starts on the now-playing row (cover, title, artist) and whose first INTENT px go clearly
+       down. The panel then opens under the finger from that point (the glass lean, under a px by then, lets go).
+     - Stretch: everything else: a touch anywhere else on the panel, or one on the row that starts sideways or up. It
+       stays a stretch for the whole touch: pulling further down later never turns it into an expand.
+     So an ordinary drag on the glass can't open the player by accident, and a deliberate pull down on the song opens it
+     straight away, without the old "lean first, then switch over after 26 px" hand-over. */
+  xpPullHook = (d, ev) => {
+    if (d.dec) return false;                                         // already decided: a stretch
     const dx = d.cx - d.sx, dy = d.cy - d.sy;
-    const down = !st.expanded && dy > 26 && dy > Math.abs(dx) * 1.2, upw = st.expanded && dy < -26 && -dy > Math.abs(dx) * 1.2;
-    if (!down && !upw) return false;
+    if (Math.hypot(dx, dy) < INTENT) return false;
+    d.dec = true;
+    if (!d.row || g || st.raf || st.expanded || !canExpand() || drawerOpen()) return false;
+    if (!(dy > 0 && dy > Math.abs(dx) * STEEP)) return false;
     g = { id: d.id, x0: ev.clientX, y0: ev.clientY, t0: performance.now(), from: st.expanded ? 1 : 0, started: false, dead: false, samples: [] };
     begin(ev); return true;
   };
   artBox.addEventListener("pointerdown", ev => gStart(ev, 0, open));
+  /* the rest of the row: the bubble reports pulls that start here (see xpPullHook); without the bubble (Old panel), and on
+     the artist name (a link, so the bubble leaves it alone), the row starts the expand gesture itself */
+  pm.addEventListener("pointerdown", ev => { if (!ev._xp && (!bubble.on || ev.target.closest(".track-artist"))) gStart(ev, 0, null); });
   /* open: swipe up anywhere on the player to fold it back (not on the scrubber or the Up next strip, which have their
      own gestures); the handle also closes on a tap. While it springs, a touch anywhere on the panel catches it. */
   xp.addEventListener("pointerdown", ev => {
@@ -2803,75 +3011,11 @@ XP = (() => {
   function showTime(c, d) { $("xp-cur").textContent = fmt(c); $("xp-left").textContent = "-" + fmt(Math.max(0, d - c)); }
   function time() {
     if (!shown()) return;
-    const d = isFinite(audio.duration) ? audio.duration : (saveStateNow.dur || 0), c = pendingSeek != null ? pendingSeek : audio.currentTime || 0;
+    const d = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (saveStateNow.dur || 0);
+    const c = pendingSeek != null && audio.paused ? pendingSeek : audio.currentTime || 0;   // the saved position only while nothing plays
     xpCtrl.setValue(d ? Math.min(1, c / d) : 0); if (!xpCtrl.dragging) showTime(c, d);
   }
-  ["timeupdate", "loadedmetadata", "seeked", "emptied"].forEach(k => audio.addEventListener(k, time));
-
-  /* ---- the big cover's glows, pre-blurred ----
-     Same look as the small cover's CSS glows (bloom: the artwork blurred 20 px and saturated 1.6x, 1.5x the cover;
-     light: a two-colour wedge in a 110 px circle blurred 15 px), in the small cover's units, drawn into 128 px canvases.
-     The blur is three box passes (close to a gaussian). If the artwork can't be read (another site's image), the bloom
-     falls back to shrinking and re-enlarging it, which blurs it just as softly without reading pixels. */
-  const glowArt = (() => {
-    const N = 128, bl = $("xp-bloom"), li = $("xp-light"), bx = bl.getContext("2d"), lx = li.getContext("2d");
-    function blur(d, r) {                                              // premultiplied float RGBA, 3 box passes each way
-      const t = new Float32Array(d.length);
-      for (let pass = 0; pass < 3; pass++) for (let dir = 0; dir < 2; dir++) {
-        const src = dir ? t : d, dst = dir ? d : t, w = 2 * r + 1;
-        for (let a = 0; a < N; a++) for (let ch = 0; ch < 4; ch++) {
-          let acc = 0; const at = i => { const j = Math.max(0, Math.min(N - 1, i)); return (dir ? j * N + a : a * N + j) * 4 + ch; };
-          for (let i = -r; i <= r; i++) acc += src[at(i)];
-          for (let i = 0; i < N; i++) { dst[(dir ? i * N + a : a * N + i) * 4 + ch] = acc / w; acc += src[at(i + r + 1)] - src[at(i - r)]; }
-        }
-      }
-    }
-    function put(ctx, d, sat) {
-      const im = ctx.createImageData(N, N), o = im.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const a = d[i + 3]; if (a < .5) { o[i + 3] = 0; continue; }
-        const k = 65025 / a; let r = d[i] * k, g = d[i + 1] * k, b = d[i + 2] * k;   // colour is stored premultiplied as 0..1, alpha as 0..255
-        if (sat !== 1) { const l = .2126 * r + .7152 * g + .0722 * b; r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat; }
-        o[i] = r; o[i + 1] = g; o[i + 2] = b; o[i + 3] = a;
-      }
-      ctx.putImageData(im, 0, 0);
-    }
-    function bloom(img) {                                              // canvas = 166 units (cover 66 + 50 each side)
-      bx.clearRect(0, 0, N, N);
-      if (!img || !img.naturalWidth) return;
-      const u = N / 166, iw = img.naturalWidth, ih = img.naturalHeight, m = Math.min(iw, ih);
-      const draw = (ctx, x, y, w) => ctx.drawImage(img, (iw - m) / 2, (ih - m) / 2, m, m, x, y, w, w);
-      try {
-        draw(bx, 50 * u, 50 * u, 66 * u);
-        const src = bx.getImageData(0, 0, N, N).data, d = new Float32Array(src.length);
-        for (let i = 0; i < src.length; i += 4) { const a = src[i + 3] / 255; d[i] = src[i] * a / 255; d[i + 1] = src[i + 1] * a / 255; d[i + 2] = src[i + 2] * a / 255; d[i + 3] = src[i + 3]; }
-        blur(d, Math.round(20 * u)); put(bx, d, 1.6);   // 3 box passes of radius r ≈ a gaussian of σ = r
-      } catch (e) {                                                    // tainted: shrink to a few pixels, then enlarge smoothly
-        bx.clearRect(0, 0, N, N);
-        const t = document.createElement("canvas"); t.width = t.height = 12; const tc = t.getContext("2d");
-        draw(tc, 3.6, 3.6, 4.8);
-        bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = "high"; bx.drawImage(t, 0, 0, N, N);
-      }
-    }
-    let lastLc = "";
-    function light(c1, c2) {                                           // canvas = 180 units (circle of 110 + 35 each side)
-      const key = c1 + "|" + c2; if (key === lastLc) return; lastLc = key;
-      const A = c1.split(",").map(Number), B = c2.split(",").map(Number), u = N / 180, R0 = 55 * u, c = N / 2, d = new Float32Array(N * N * 4);
-      const stops = [[0, A, 0], [50, A, .9], [135, A, 0], [190, B, 0], [245, B, .55], [320, B, 0], [360, B, 0]];
-      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-        const dx = x + .5 - c, dy = y + .5 - c, rr = Math.hypot(dx, dy); if (rr > R0 + .5) continue;
-        const edge = Math.min(1, R0 + .5 - rr);
-        let ang = Math.atan2(dx, -dy) * 180 / Math.PI; if (ang < 0) ang += 360;
-        let k = 0; while (k < stops.length - 2 && ang > stops[k + 1][0]) k++;
-        const [a0, C0, al0] = stops[k], [a1, C1, al1] = stops[k + 1], t = (ang - a0) / (a1 - a0);
-        const al = (al0 + (al1 - al0) * t) * edge, i = (y * N + x) * 4;
-        for (let ch = 0; ch < 3; ch++) d[i + ch] = (C0[ch] + (C1[ch] - C0[ch]) * t) / 255 * al;
-        d[i + 3] = al * 255;
-      }
-      blur(d, Math.round(15 * u)); put(lx, d, 1);
-    }
-    return { bloom, light };
-  })();
+  ["timeupdate", "loadedmetadata", "durationchange", "playing", "seeked", "emptied"].forEach(k => audio.addEventListener(k, time));
 
   /* ---- the big cover mirrors the small one (same artwork, same moment) ---- */
   const srcImg = $("track-art-img"), xImg = $("xp-art-img"), xFb = $("xp-fallback");
@@ -2880,14 +3024,12 @@ XP = (() => {
     const u = src ? `url("${String(src).replace(/"/g, "%22")}")` : "";
     if (src) { if (xImg.getAttribute("src") !== src) xImg.src = src; xImg.style.display = "block"; xFb.style.display = "none"; }
     else { xImg.style.display = "none"; xFb.style.display = "block"; }
-    if (!src) glowArt.bloom(null);
     const on = artBox.style.getPropertyValue("--art-on") || (src ? "1" : "0");   // written only when changed (this also runs as the small cover is hidden/shown)
     if (art._u !== u) { art._u = u; art.style.setProperty("--art", u || "none"); }
     if (art._on !== on) { art._on = on; art.style.setProperty("--art-on", on); }
   }
   new MutationObserver(mirrorArt).observe(srcImg, { attributes: true, attributeFilter: ["src", "style"] });
   new MutationObserver(mirrorArt).observe(artBox, { attributes: true, attributeFilter: ["style"] }); mirrorArt();
-  xImg.addEventListener("load", () => glowArt.bloom(xImg)); if (xImg.complete) glowArt.bloom(xImg);
 
   /* ---- text, buttons, strip ---- */
   let stripDirty = true;
@@ -3038,7 +3180,7 @@ XP = (() => {
 
   const onResize = () => { if (!st.expanded || st.raf || g) return; layout(); wrap.style.height = st.h1 + "px"; measureRects(); };
   addEventListener("resize", onResize); if (window.visualViewport) visualViewport.addEventListener("resize", onResize);
-  return { glowLight: glowArt.light, open, close, sync, onSong, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, _st: st };
+  return { glowLight: coverGlow.light, open, close, sync, onSong, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, _st: st };
 })();
 
 /* ---------- LIQUID GLASS: tilt (optional) adds to the cover light; the light also moves on its own ---------- */
@@ -3104,10 +3246,10 @@ let tiltAt = 0;                                                      // last tim
 
 /* bloom + glass refraction follow whatever cover is showing */
 (function () {
-  const bloom = $("art-bloom"), img = $("track-art-img"), box = $("album-art-box");
+  const img = $("track-art-img"), box = $("album-art-box");
   function sync() {
     const src = img.style.display !== "none" && img.getAttribute("src");
-    bloom.style.backgroundImage = src ? `url("${src}")` : ""; bloom.style.opacity = src ? "" : "0";
+    coverGlow.field(src || "");
     box.style.setProperty("--art", src ? `url("${String(src).replace(/"/g, "%22")}")` : "none");
     box.style.setProperty("--art-on", src && img.style.opacity !== "0" ? "1" : "0");       // refraction fades in with the new cover, never ahead of it
   }
@@ -3461,7 +3603,7 @@ function pulseLoop(now) {
   /* the cover light goes to whichever cover is on screen: the small one, the big one, or both while it expands */
   const covers = []; if (pmOn && !big) covers.push(pEls.pm); if (xpOn) covers.push(pEls.xa);
   if (xpOn) { const xa = pEls.xa, ps = pEls.pm.style; pset(xa, "--lk", ps.getPropertyValue("--lk") || "1");
-    XP.glowLight((ps.getPropertyValue("--lc") || "200,215,225").trim(), (ps.getPropertyValue("--lc2") || "200,215,225").trim()); pset(xa, "--tx", tx.toFixed(3)); pset(xa, "--ty", ty.toFixed(3)); }
+    pset(xa, "--tx", tx.toFixed(3)); pset(xa, "--ty", ty.toFixed(3)); }
   for (const pm of covers) {
     /* glass light: one direction shared by the halo behind, the rim, the edge glow and the surface hotspot */
     const la = rimA + 50 + tx * 40 - ty * 12, th = la * Math.PI / 180, rr = 30 + 6 * Math.sin(s / 7.3);
@@ -3674,7 +3816,7 @@ var glowKick = () => {};
   function sync() {
     const src = img.style.display !== "none" && img.getAttribute("src"); if (!src) return;
     pal(src).then(o => { if (img.getAttribute("src") !== src) return;
-      pm.style.setProperty("--lc", o.c1); pm.style.setProperty("--lc2", o.c2); pm.style.setProperty("--lk", o.k);
+      pm.style.setProperty("--lc", o.c1); pm.style.setProperty("--lc2", o.c2); pm.style.setProperty("--lk", o.k); coverGlow.light(o.c1, o.c2);
       const wr = document.querySelector(".player-wrapper").style; wr.setProperty("--lc", o.c1); wr.setProperty("--lc2", o.c2);
       pm.style.setProperty("--gl", (1.25 - .6 * (o.lum != null ? o.lum : .5)).toFixed(2)); });   // dark covers get a clearer reflection, bright ones a softer one
   }
