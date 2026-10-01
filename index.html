@@ -3731,12 +3731,26 @@ function libUI(state) {
     : /invite|\/start/.test(state) ? "No access yet" + small("This player is private: " + esc(state) + ". You can still play songs from your phone: tap here.")
     : "Couldn't reach your library" + small(esc(state) + ". Tap to play songs from your phone instead.");
 }
+/* A request that never answers used to leave the app on "Loading your library…" for good (and, since a sync was still
+   "busy", every later attempt was skipped too). Now each request gives up after 12 s; the first load is retried a few
+   times, and anything that still goes wrong is shown on the panel with a way to try again. */
+function fetchT(url, opts = {}, ms = 12000) {
+  const ac = window.AbortController ? new AbortController() : null, t = ac && setTimeout(() => ac.abort(), ms);
+  return fetch(url, ac ? { ...opts, signal: ac.signal } : opts).finally(() => clearTimeout(t));
+}
 async function syncLibrary() {
   if (!botMode || syncLibrary.busy) return;
   syncLibrary.busy = true;
   const first = lib.version < 0;
   try {
-    const r = await fetch(`${API_BASE}/api/library?since=${lib.version}`, { headers: { "X-Init-Data": TG.initData } });
+    let r;
+    for (let k = 0; ; k++) {
+      try { r = await fetchT(`${API_BASE}/api/library?since=${lib.version}`, { headers: { "X-Init-Data": TG.initData } }); break; }
+      catch (e) {
+        if (!first || k >= 2) throw new Error(e && e.name === "AbortError" ? "the server didn't answer in time" : "no connection");
+        $("drop-zone").innerHTML = "Still loading your library…<br><span style=\"font-size:11px;opacity:.7;\">The server is slow to answer, trying again.</span>";
+      }
+    }
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
     if (j.same) return;
@@ -3761,9 +3775,26 @@ async function syncLibrary() {
     if (queueShown()) renderQueue();
     if (XP) XP.sync();
   } catch (e) {
-    if (first) { botMode = false; libUI(e.message || "no connection"); }   // fall back to the phone's own files for this session
+    if (first) {
+      console.error(e);
+      if (tracks.length) { bootError(e); return; }                    // the songs arrived but setting them up failed: say what, offer a retry
+      botMode = false; try { libUI(e.message || "no connection"); } catch (e2) { bootError(e2); }   // fall back to the phone's own files for this session
+    }
   } finally { syncLibrary.busy = false; }
 }
+/* Start-up problems are shown on the panel (with the message and where it happened) instead of a panel stuck on
+   "Loading…", so a screenshot says what went wrong. Tapping the panel tries again. */
+function bootError(e) {
+  if ($("player-main").style.display === "flex") return;              // the player is up: nothing to show here
+  const dz = $("drop-zone"), m = e && (e.message || e.reason && e.reason.message || String(e.reason || e)) || "unknown error";
+  const where = e && (e.lineno ? "line " + e.lineno : e.stack ? String(e.stack).split("\n").slice(0, 2).join(" ").slice(0, 160) : "");
+  dz.style.display = ""; dz.dataset.retry = "1";
+  dz.innerHTML = "Something went wrong while loading" + `<br><span style="font-size:11px;opacity:.75;">${esc(String(m).slice(0, 200))}${where ? "<br>" + esc(where) : ""}</span>` +
+    `<br><span style="font-size:12px;opacity:.9;text-decoration:underline;">Tap to try again</span>`;
+}
+addEventListener("error", e => bootError(e.error ? Object.assign(e.error, { lineno: e.lineno }) : e));
+addEventListener("unhandledrejection", e => bootError(e.reason || e));
+$("drop-zone").addEventListener("click", () => { if ($("drop-zone").dataset.retry) location.reload(); }, true);
 if (botMode) {
   libUI("loading"); syncLibrary();
   setInterval(() => { if (!document.hidden) syncLibrary(); }, 15000);     // songs you send while the player is open appear within seconds
