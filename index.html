@@ -571,22 +571,34 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-card.now{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.34);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 4px 14px rgba(0,0,0,.25);cursor:default}
 .xp-empty{font-size:12px;color:rgba(255,255,255,.42);padding:0 2px;white-space:nowrap}
 .gear-btn{transition:opacity .25s var(--ease)}
-/* ---- big player pages: Lyrics | Player (home) | Albums ----
-   The home page isn't clipped (the cover glow spreads past the glass); while pages slide it is clipped to the panel.
-   The other pages live in a clipped box the size of the panel. The two-blob switch sits under the panel. */
-.xp-home{position:absolute;inset:0}
+/* ---- the open player scrolls: under the queue sits the lyrics bubble; tapping it opens the full lyrics ----
+   The home layer isn't clipped at rest (the cover glow spreads past the glass); while it is scrolled it is clipped to
+   the panel (set by JS). The full lyrics live in a box clipped to the panel, over the home layer, which fades out. */
+.xp-home{position:absolute;inset:0;transition:opacity .3s var(--ease)}
+.xp.lyr-open .xp-home{opacity:0;pointer-events:none}
 .xp-side{position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:none;visibility:hidden}
 .xp-side.on{visibility:visible}
 .player-wrapper.xp-on .xp-side.on{pointer-events:auto}
-.xp-page{position:absolute;inset:0;display:flex;flex-direction:column;will-change:transform}
-.xp-nav{position:absolute;left:50%;top:calc(100% + 14px);display:flex;gap:2px;padding:3px;border-radius:999px;transform:translateX(-50%);opacity:0;
-  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);box-shadow:0 6px 18px rgba(0,0,0,.25);
-  backdrop-filter:blur(10px) saturate(140%);-webkit-backdrop-filter:blur(10px) saturate(140%)}
-.xp-nav button{position:relative;z-index:1;height:30px;padding:0 15px;border:0;background:none;border-radius:999px;color:rgba(255,255,255,.62);
-  font:600 12.5px -apple-system,system-ui,sans-serif;letter-spacing:.2px;cursor:pointer;transition:color .25s var(--ease)}
-.xp-nav button.on{color:#fff}
-.xp-nav-lit{position:absolute;left:0;top:3px;height:30px;border-radius:999px;pointer-events:none;opacity:0;transform-origin:0 50%;
-  background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,.12));box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 2px 8px rgba(0,0,0,.2)}
+.xp-page{position:absolute;inset:0;display:flex;flex-direction:column;border-radius:inherit}
+/* the bubble: below the panel's bottom edge until the player is scrolled; three lines (before / now / next) */
+.xp-lyr{position:absolute;left:16px;right:16px;top:calc(100% + 4px);z-index:2;box-sizing:border-box;padding:11px 16px 13px;border-radius:22px;cursor:pointer;visibility:hidden;
+  background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.13);border-top-color:rgba(255,255,255,.26);
+  box-shadow:0 10px 26px rgba(0,0,0,.22),inset 0 0 2px rgba(255,255,255,.18);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  transition:opacity .2s ease .18s,transform .2s var(--ease),background .2s var(--ease)}
+.xp-lyr:active{transform:scale(.985);background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,.08))}
+.xp.lyr-open .xp-lyr{opacity:0;transition-delay:0s}
+.xl-head{display:flex;align-items:center;justify-content:space-between;font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5)}
+.xl-head svg{width:18px;height:18px;margin-right:-6px;fill:rgba(255,255,255,.45)}
+.xl-lines{margin-top:7px;display:flex;flex-direction:column;gap:3px}
+.xl-l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;line-height:1.3;min-height:1.3em}
+.xl-prev{font-size:14px;opacity:.36}
+.xl-now{font-size:17px;font-weight:700;text-shadow:0 1px 6px rgba(0,0,0,.25)}
+.xl-next{font-size:14px;opacity:.55}
+.xl-lines.plain .xl-l{font-size:15px;font-weight:600;opacity:.8}
+.xl-lines.note .xl-now{font-size:15px;font-weight:500;opacity:.62}
+.lyr-close{width:34px;height:34px;margin:0 -4px 0 -8px;border:0;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0}
+.lyr-close svg{width:24px;height:24px;fill:#fff}
+.lyr-close:active{background:rgba(255,255,255,.18)}
 /* lyrics */
 .lyr-head{display:flex;align-items:center;gap:12px;padding:22px 20px 10px;flex-shrink:0}
 .lyr-art{width:46px;height:46px;border-radius:10px;flex-shrink:0;background:rgba(255,255,255,.08) center/cover no-repeat;box-shadow:0 4px 12px rgba(0,0,0,.3)}
@@ -609,38 +621,6 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .lyr-plain .lyr-line{opacity:.85;cursor:default;font-size:20px}
 .lyr-note{font-size:14px;color:rgba(255,255,255,.55);line-height:1.45;padding-top:30px;text-align:center}
 .lyr-credit{font-size:10.5px;color:rgba(255,255,255,.35);margin-top:26px}
-/* albums page: a grid of your albums; one album: its songs */
-.alb-head{display:flex;align-items:center;gap:8px;padding:22px 20px 8px;flex-shrink:0;min-height:42px}
-.alb-back{width:34px;height:34px;margin-left:-8px;border:0;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-.alb-back svg{width:22px;height:22px;fill:#fff}
-.alb-back[hidden],.alb-play[hidden]{display:none}
-.alb-h{min-width:0;flex:1}
-.alb-title{font-size:20px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.alb-sub{font-size:12.5px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
-.alb-sub:empty{display:none}
-.alb-play{display:flex;align-items:center;gap:4px;height:32px;padding:0 13px 0 9px;border:0;border-radius:999px;flex-shrink:0;cursor:pointer;
-  background:rgba(255,255,255,.14);color:#fff;font:600 13px -apple-system,system-ui,sans-serif}
-.alb-play svg{width:16px;height:16px;fill:#fff}
-.alb-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain;scrollbar-width:none;
-  -webkit-mask-image:linear-gradient(transparent 0,#000 14px,#000 calc(100% - 26px),transparent);mask-image:linear-gradient(transparent 0,#000 14px,#000 calc(100% - 26px),transparent)}
-.alb-scroll::-webkit-scrollbar{display:none}
-.alb-body{padding:8px 20px 26px}
-.alb-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 12px}
-.alb-card{min-width:0;cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform .2s var(--ease)}
-.alb-card:active{transform:scale(.95)}
-.alb-cov{position:relative;aspect-ratio:1;border-radius:11px;overflow:hidden;background:rgba(255,255,255,.07);box-shadow:0 6px 16px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center}
-.alb-cov img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
-.alb-cov svg{width:34%;height:34%;fill:rgba(255,255,255,.4)}
-.alb-card.now .alb-cov{box-shadow:0 0 0 2px rgba(255,255,255,.8),0 6px 16px rgba(0,0,0,.28)}
-.alb-name{font-size:12px;font-weight:600;line-height:1.25;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
-.alb-art{font-size:11px;color:rgba(255,255,255,.5);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.alb-row{display:flex;align-items:center;gap:12px;min-height:46px;padding:4px 6px;margin:0 -6px;border-radius:10px;cursor:pointer;-webkit-user-select:none;user-select:none}
-.alb-row:active{background:rgba(255,255,255,.08)}
-.alb-n{width:20px;flex-shrink:0;text-align:right;font-size:13px;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
-.alb-row-t{min-width:0;flex:1;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
-.alb-row-d{font-size:12px;color:rgba(255,255,255,.45);flex-shrink:0;font-variant-numeric:tabular-nums}
-.alb-row.now .alb-row-t,.alb-row.now .alb-n{color:rgb(120,222,202);font-weight:600}
-.alb-empty{font-size:14px;color:rgba(255,255,255,.55);text-align:center;padding-top:30px}
 /* Library / Artists / Queue opened from the expanded player: the lists grow to fill the tall panel (a sheet under the
    now-playing row); closing the section brings the big player back */
 .player-wrapper.sheet :is(.playlist-container){max-height:var(--sheet-h,240px)}
@@ -756,21 +736,18 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
       <div class="xp-next-h"><span id="xp-next-label">Queue</span><button id="xp-see-all">See all</button></div>
       <div class="xp-strip" id="xp-strip"></div>
     </div>
+    <div class="xp-lyr" id="xp-lyr" role="button" tabindex="0" aria-label="Open lyrics">
+      <div class="xl-head"><span>Lyrics</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 16.6 13.2 12 8.6 7.4 10 6l6 6-6 6z"/></svg></div>
+      <div class="xl-lines" id="xl-lines"><div class="xl-l xl-prev"></div><div class="xl-l xl-now"></div><div class="xl-l xl-next"></div></div>
+    </div>
     </div>
     <div class="xp-side" id="xp-side">
       <div class="xp-page" id="xp-lyrics">
-        <div class="lyr-head"><div class="lyr-art" id="lyr-art"></div><div class="lyr-meta"><div class="lyr-title" id="lyr-title"></div><div class="lyr-artist" id="lyr-artist"></div></div>
+        <div class="lyr-head"><button class="lyr-close" id="lyr-close" aria-label="Close lyrics"><svg viewBox="0 0 24 24"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button><div class="lyr-art" id="lyr-art"></div><div class="lyr-meta"><div class="lyr-title" id="lyr-title"></div><div class="lyr-artist" id="lyr-artist"></div></div>
           <button class="player-btn lyr-play" id="lyr-play" aria-label="Play"><svg viewBox="0 0 24 24"><path id="lyr-play-path" d="M8 5v14l11-7z"/></svg></button></div>
         <div class="lyr-scroll" id="lyr-scroll"><div class="lyr-list" id="lyr-list"></div></div>
       </div>
-      <div class="xp-page" id="xp-albums">
-        <div class="alb-head"><button class="alb-back" id="alb-back" aria-label="All albums" hidden><svg viewBox="0 0 24 24"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z"/></svg></button>
-          <div class="alb-h"><div class="alb-title" id="alb-title">Albums</div><div class="alb-sub" id="alb-sub"></div></div>
-          <button class="alb-play" id="alb-play" hidden><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Play</button></div>
-        <div class="alb-scroll" id="alb-scroll"><div class="alb-body" id="alb-body"></div></div>
-      </div>
     </div>
-    <div class="xp-nav" id="xp-nav" role="tablist"><i class="xp-nav-lit" id="xp-nav-lit"></i><button role="tab" data-pg="0">Lyrics</button><button role="tab" data-pg="1">Player</button><button role="tab" data-pg="2">Albums</button></div>
   </div>
 </div>
 <div class="safe-probe" id="safe-probe"></div>
@@ -807,7 +784,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v33";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v34";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 let botMode = !!TG && !!TG.initData;                   // switches off if the server can't be reached, so the phone's files still work
 function haptic(kind) {                               // "light" | "medium" | "select". Telegram's haptics also work on iPhone; navigator.vibrate is the fallback (Android browsers)
@@ -1964,7 +1941,7 @@ audio.addEventListener("ended", onEnded);
      springs back in once the new artwork is ready, and the cover light flares.
    Web Animations and small rAF loops only; nothing moves with reduced motion turned on. */
 const RM = matchMedia("(prefers-reduced-motion:reduce)").matches;
-const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.upload-btn,.done-btn,.gear-btn,.hidden-toggle,.q-sec button,.artist-more,.switch,.more-toggle,.xp-next-h button";
+const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.upload-btn,.done-btn,.gear-btn,.hidden-toggle,.q-sec button,.artist-more,.switch,.more-toggle,.xp-next-h button,.lyr-close";
 const curScale = el => { const v = parseFloat(getComputedStyle(el).scale); return isFinite(v) ? v : 1; };
 function pressDown(el) {
   if (RM || !el.animate) return;
@@ -2812,7 +2789,7 @@ XP = (() => {
   const smBloom = $("art-bloom"), smLight = $("art-light"), glight = $("xp-light");           // the small cover's glows: handed over to the big cover's own while it's shown
   const pm = $("player-main"), cm = $("controls-main"), fm = $("footer-main"), artBox = $("album-art-box"), tText = pm.querySelector(".track-text");
   const REPEAT = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z", REPEAT_ONE = REPEAT + "m-4-2V9h-1l-2 1v1h1.5v4H13z";
-  let LYR = null, ALB = null;                                        // the lyrics and albums pages (set further down)
+  let LYR = null;                                                    // the lyrics (set further down)
   const st = { p: 0, v: 0, over: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
   const clamp01 = v => Math.max(0, Math.min(1, v)), lerp = (a, b, t) => a + (b - a) * t, lin = (p, a, b) => clamp01((p - a) / (b - a));
   const fade = (p, a, b) => { const t = lin(p, a, b); return t * t * (3 - 2 * t); };   // eased in and out, so nothing pops in or stops abruptly
@@ -2826,7 +2803,7 @@ XP = (() => {
   }
   /* sizes: the cover takes about 60 % of the panel's width (COVER), smaller on short screens; the panel ends right
      under its content, so the whole player sits high and compact */
-  const COVER = .6, COVER_MAX = 260, GAP = 36, NAV = 54;            // NAV: room under the panel for the Lyrics / Player / Albums switch                       // GAP: space between the controls and Up next
+  const COVER = .6, COVER_MAX = 260, GAP = 36, NAV = 0;             // GAP: space between the controls and Up next; NAV: room kept under the panel (none now)
   function layout() {
     const vv = window.visualViewport, vh = vv ? vv.height : innerHeight;
     const topY = wrap.getBoundingClientRect().top, safeB = $("safe-probe").offsetHeight || 0;
@@ -2955,19 +2932,18 @@ XP = (() => {
     fm.style.transform = P ? `translateY(${playDy0.toFixed(2)}px)` : ""; setOp(fm, 1 - fade(P, 0, .13));   // the compact tab row leaves with the controls above it
     const bo = fade(P, .74, 1); bot.style.opacity = bo > .999 ? "" : bo.toFixed(3); bot.style.transform = bo > .999 ? "" : `translateY(${((1 - bo) * 12).toFixed(1)}px)`;
     handle.style.opacity = fade(P, .5, .9).toFixed(3);
-    nav.style.opacity = fade(P, .8, 1).toFixed(3); nav.style.transform = `translateX(-50%) translateY(${((1 - fade(P, .8, 1)) * 8).toFixed(1)}px)`;
     gear.style.opacity = ((1 - fade(P, 0, .25)) * .75).toFixed(3); gear.style.pointerEvents = P > .1 ? "none" : "";
   }
   function settle(t) {
     st.raf = 0; st.p = t; st.v = 0; st.over = 0;
     if (t === 1) {
-      render(1); st.expanded = true; LYR.song(); if (!pg.raf) { pg.x = pg.page * pgW(); pgRender(); }
+      render(1); st.expanded = true; LYR.song(); svRender();
       clearMoved();                                                  // at rest: the big layout as laid out, the compact one hidden
       wrap.classList.remove("xp-anim"); wrap.classList.add("xp-on");
       if (stripDirty) renderStrip();
       return;
     }
-    st.expanded = false; st.m = null; pgReset();
+    st.expanded = false; st.m = null; viewReset();
     xp.classList.remove("show"); xp.setAttribute("aria-hidden", "true");
     wrap.classList.remove("xp-on", "xp-anim");
     clearMoved(); [pm, cm, fm, bot].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
@@ -3017,14 +2993,17 @@ XP = (() => {
   }
   function close() {
     if (!st.expanded && !st.raf) return;
-    if (st.expanded && !st.raf && away()) { goPage(HOME, close); return; }   // on Lyrics / Albums: slide back to the player first
+    if (st.expanded && !st.raf) {                                    // lyrics open, or scrolled down: back to the player first, then fold
+      if (lyr.open) { lyrClose(close); return; }
+      if (sv.s > .5 || sv.raf) { svTo(0, 0, close); return; }
+    }
     if (!st.raf) prep();
     animateTo(0, 0);
   }
   function reset() { cancelAnimationFrame(st.raf); st.sheet = st.pendingOpen = false; wrap.classList.remove("sheet"); if (shown()) settle(0); wrap.style.height = ""; }
   /* Library / Artists / Queue while expanded: fold back to the compact row and let the section fill the tall panel */
   function toSheet() {
-    st.sheet = true; st.sheetAt = performance.now(); pgReset();
+    st.sheet = true; st.sheetAt = performance.now(); viewReset();
     cancelAnimationFrame(st.raf);
     const cur = wrap.offsetHeight;
     prep(cur); st.h1 = cur;                                          // the panel keeps its height through the fold
@@ -3066,9 +3045,9 @@ XP = (() => {
     const dx = ev.clientX - g.x0, dy = ev.clientY - g.y0;
     if (!g.started) {
       if (g.dead || Math.hypot(dx, dy) < (g.from < .5 ? INTENT : 7)) return;
-      if (g.from >= .5 && !g.any && st.expanded) {                   // open: sideways = pages, up = fold back (only from the player page)
-        if (Math.abs(dx) > Math.abs(dy) * 1.2) { cancelAnimationFrame(pg.raf); pg.raf = 0; g.started = g.pager = true; g.x0 = ev.clientX; g.px0 = pg.x; return; }
-        if (away() || pg.raf) { g.dead = true; return; }             // on Lyrics / Albums an up/down drag scrolls the page instead
+      if (g.from >= .5 && !g.any && st.expanded) {                   // open: a drag on the cover / handle folds it back; anywhere else it scrolls
+        if (Math.abs(dy) <= Math.abs(dx) * 1.1) { g.dead = true; return; }
+        if (!g.fold || sv.s > .5 || sv.raf) { cancelAnimationFrame(sv.raf); sv.raf = 0; sv.after = null; g.started = g.scroll = true; g.y0 = ev.clientY; g.s0 = sv.s; return; }
       }
       /* decided once, here: opening needs a clearly downward start (steeper than ~35 degrees from vertical); anything
          else is not an expand and never becomes one later in the same touch */
@@ -3076,11 +3055,11 @@ XP = (() => {
       if (!vert || !canExpand() || (g.from < .5 && drawerOpen())) { g.dead = true; return; }
       begin(ev); return;
     }
-    if (g.pager) {
-      const W = pgW(), max = 2 * W; let x = g.px0 - (ev.clientX - g.x0);
-      if (x < 0) x = -rub(-x); else if (x > max) x = max + rub(x - max);
-      pg.x = x; pgRender();
-      const now = performance.now(); g.samples.push([now, x]); while (g.samples.length > 2 && now - g.samples[0][0] > 90) g.samples.shift();
+    if (g.scroll) {                                                  // the content follows the finger; past either end it only gives a little
+      const m = maxS(); let s2 = g.s0 - (ev.clientY - g.y0);
+      if (s2 < 0) s2 = -rub(-s2); else if (s2 > m) s2 = m + rub(s2 - m);
+      sv.s = s2; svRender();
+      const now = performance.now(); g.samples.push([now, s2]); while (g.samples.length > 2 && now - g.samples[0][0] > 90) g.samples.shift();
       return;
     }
     /* clamped to the two layouts: past the open end the panel only stretches a few px (strong resistance, never more
@@ -3096,12 +3075,7 @@ XP = (() => {
     if (!w.started) { if (!w.dead && ev.type === "pointerup" && performance.now() - w.t0 < 500 && w.onTap) w.onTap(); return; }
     let v = 0; const s = w.samples; if (s.length > 1) { const a = s[0], b = s[s.length - 1]; if (b[0] > a[0]) v = (b[1] - a[1]) / ((b[0] - a[0]) / 1000); }
     dragEndAt = performance.now();
-    if (w.pager) {                                                   // the page it would land on, at most one away from where it started
-      const W = pgW(), from = Math.round(w.px0 / W), proj = pg.x + Math.max(-W * .8, Math.min(W * .8, v * .18));
-      const to = Math.max(from - 1, Math.min(from + 1, Math.round(proj / W)));
-      if (to !== from) haptic("select");
-      pg.v = v; goPage(to); return;
-    }
+    if (w.scroll) { svSnap(v); return; }
     /* where the flick would carry it: a short, quick swipe is enough; a slow drag has to go about a third of the way */
     const proj = st.p + Math.max(-.6, Math.min(.6, v * .16));
     const t = w.any ? (proj > .5 ? 1 : 0) : w.from < .5 ? (proj > .3 ? 1 : 0) : (proj < .72 ? 0 : 1);
@@ -3138,20 +3112,21 @@ XP = (() => {
   pm.addEventListener("pointerdown", () => { if (!st.expanded && !st.raf && !shown() && canExpand() && !drawerOpen()) prep(null, true); });
   const cool = () => setTimeout(() => { if (st.warm && !st.raf && !(g && g.started) && !st.expanded) { st.warm = false; settle(0); } }, 0);
   document.addEventListener("pointerup", cool); document.addEventListener("pointercancel", cool);
-  /* open: swipe up anywhere on the player to fold it back (not on the scrubber or the Up next strip, which have their
-     own gestures); the handle also closes on a tap. While it springs, a touch anywhere on the panel catches it. */
+  /* open: drag the cover or the handle up to fold it back (a tap on either does too); drag anywhere else to scroll down
+     to the lyrics bubble and back (not on the scrubber or the Up next strip, which have their own gestures, nor inside the
+     full lyrics, which scroll by themselves). While it springs, a touch anywhere on the panel catches it. */
   xp.addEventListener("pointerdown", ev => {
-    if (!st.expanded || st.raf || ev.target.closest(".custom-range-slider,.xp-strip,.xp-nav")) return;
-    gStart(ev, 1, ev.target.closest(".xp-handle,#xp-art") ? close : null);   // the handle or the cover: one tap folds it back
+    if (!st.expanded || st.raf || ev.target.closest(".custom-range-slider,.xp-strip,.xp-side")) return;
+    const fold = !!ev.target.closest(".xp-handle,#xp-art");
+    gStart(ev, 1, fold ? close : null);
+    if (g && g.id === ev.pointerId) g.fold = fold;
   });
   wrap.addEventListener("pointerdown", ev => { if (st.raf && !st.sheet && !drawerOpen()) gStart(ev, st.target, null, true); });
   xp.addEventListener("click", ev => { if (performance.now() - dragEndAt < 350) { ev.stopPropagation(); ev.preventDefault(); } }, true);
   handle.addEventListener("click", e => { if (e.detail === 0) close(); });   // keyboard
   document.addEventListener("keydown", e => {
     if (!st.expanded || drawerOpen() || settingsPanel.classList.contains("active")) return;
-    if (e.key === "Escape") close();
-    else if (e.key === "ArrowRight" && !e.target.closest("input")) goPage(pg.page + 1);
-    else if (e.key === "ArrowLeft" && !e.target.closest("input")) goPage(pg.page - 1);
+    if (e.key === "Escape") { if (lyr.open) lyrClose(); else close(); }
   });
 
   /* ---- controls ---- */
@@ -3206,7 +3181,7 @@ XP = (() => {
     time();
     if (!canExpand() && (st.expanded || st.raf)) reset();
     else if (st.expanded && !st.raf && !(g && g.started)) relayout();
-    if (LYR && st.expanded) { LYR.song(); ALB.song(); }                              // lyrics are looked up once the player is open (not on every touch)
+    if (LYR && st.expanded) LYR.song();                              // lyrics are looked up once the player is open (not on every touch)
   }
   /* long titles: 20 px while they fit on two lines, 17 px if they need a third (the CSS stops at three with "…") */
   function fitTitle() {
@@ -3357,48 +3332,89 @@ XP = (() => {
     raf = requestAnimationFrame(frame);
   }
 
-  /* ---- pages: Lyrics | Player | Albums ----
-     The player is the middle page and home. Swipe the open player right for Lyrics, left for Albums (or tap the switch
-     under the panel). pg.x is the slide position in px: 0 = Lyrics, W = Player, 2W = Albums. The player page slides too
-     and is clipped to the panel only while it is away (at rest its cover glow spreads freely); the other two pages sit
-     in a box clipped to the panel. The switch's light follows the finger from tab to tab. */
-  const home = $("xp-home"), side = $("xp-side"), pLyr = $("xp-lyrics"), pAlb = $("xp-albums"), nav = $("xp-nav"), lit = $("xp-nav-lit");
-  const navBtns = [...nav.querySelectorAll("button")], HOME = 1;
-  const pg = { x: 0, page: HOME, raf: 0, v: 0, after: null, init: false };   // placed on the player page by pgReset() below
-  const pgW = () => wrap.clientWidth || 1;
-  const rub = d => 34 * (1 - Math.exp(-d / 90));                      // past the first / last page: a little give
-  const away = () => Math.abs(pg.x - HOME * pgW()) > .5;               // not on the player page (or on the way)
-  function pgRender() {
-    const W = pgW(); if (!pg.init) { pg.init = true; pg.x = HOME * W; }
-    const x = pg.x, d = x - HOME * W, f = x / W;
-    home.style.transform = Math.abs(d) > .2 ? `translate3d(${(-d).toFixed(1)}px,0,0)` : "";
-    home.style.clipPath = Math.abs(d) > .2 ? `inset(-400px ${(-d).toFixed(1)}px -400px ${d.toFixed(1)}px)` : "";
-    const on = Math.abs(d) > .5; if (side.classList.contains("on") !== on) side.classList.toggle("on", on);
-    pLyr.style.transform = `translate3d(${(-x).toFixed(1)}px,0,0)`; pAlb.style.transform = `translate3d(${(2 * W - x).toFixed(1)}px,0,0)`;
-    const i0 = Math.max(0, Math.min(1, Math.floor(f))), t = clamp01(f - i0), b1 = navBtns[i0], b2 = navBtns[i0 + 1];
-    lit.style.width = lerp(b1.offsetWidth, b2.offsetWidth, t).toFixed(1) + "px";
-    lit.style.transform = `translateX(${lerp(b1.offsetLeft, b2.offsetLeft, t).toFixed(1)}px)`;
-    lit.style.opacity = "1";
-    const cur = Math.max(0, Math.min(2, Math.round(f))); navBtns.forEach((b, i) => { const o = cur === i; if (b.classList.contains("on") !== o) { b.classList.toggle("on", o); b.setAttribute("aria-selected", String(o)); } });
-    LYR.visible(st.expanded && x < W - 1);
-    ALB.visible(st.expanded && x > W + 1);
+  /* ---- scrolling the open player; the lyrics bubble and the full lyrics ----
+     The open player scrolls: drag it up and the lyrics bubble slides in under the queue (three lines: the one just sung,
+     the one being sung, the next). It snaps to one of two places, the player or the bubble in view, the way a flick or
+     the distance travelled points. sv.s is the scroll in px (0 = top). The home layer is moved with a transform and
+     clipped to the panel only while it is scrolled, so at rest the cover glow still spreads past the glass.
+     Tapping the bubble opens the full lyrics: the bubble grows into the whole panel while the player fades away under
+     it; the ⌄ button (or Escape) shrinks it back into the bubble. */
+  const home = $("xp-home"), side = $("xp-side"), pLyr = $("xp-lyrics"), lyrBub = $("xp-lyr");
+  const rub = d => 34 * (1 - Math.exp(-d / 90));                      // past either end: a little give
+  const sv = { s: 0, v: 0, raf: 0, after: null, wt: 0 };
+  const lyr = { open: false, anim: null, kids: [] };
+  const maxS = () => st.expanded ? lyrBub.offsetHeight + 4 + 18 : 0;   // the bubble, plus room under it
+  /* Nothing reaches the panel's top edge until the cover does (the handle fades first), so the top is clipped only from
+     there on, and by then the cover glow above the panel has faded out: no hard line through the glow on the wallpaper. */
+  function svRender() {
+    const s = sv.s, on = Math.abs(s) > .5, T = st.expanded ? Math.max(8, rel(slot).y - 4) : 8;
+    home.style.transform = on ? `translate3d(0,${(-s).toFixed(1)}px,0)` : "";
+    home.style.clipPath = on ? `inset(${s >= T ? s.toFixed(1) : -400}px -400px ${(-s).toFixed(1)}px -400px)` : "";
+    if (st.expanded && !st.raf) {
+      const k = clamp01(s / (T - 2)), hm = Math.max(.004, 1 - k * k * (3 - 2 * k)).toFixed(3);
+      bloom.style.setProperty("--hm", hm); glight.style.setProperty("--hm", hm); st.hm = null;
+      handle.style.opacity = (1 - clamp01(s / 6)).toFixed(3);
+    }
+    const vis = s > .5 ? "visible" : ""; if (lyrBub.style.visibility !== vis) lyrBub.style.visibility = vis;
+    LYR.bubble(st.expanded && s > .5);
   }
-  function goPage(i, after) {
-    i = Math.max(0, Math.min(2, i)); pg.page = i; pg.after = after || null;
-    cancelAnimationFrame(pg.raf);
-    const target = i * pgW(), K = 260, C = 2 * Math.sqrt(K); let last = 0;
-    if (RM) { pg.x = target; pg.v = 0; pgRender(); if (pg.after) pg.after(); return; }
+  function svTo(t, v0, after) {                                     // critically damped: lands without swinging past
+    cancelAnimationFrame(sv.raf); sv.raf = 0; sv.v = v0 || 0; sv.after = after || null;
+    const fin = () => { sv.s = t; sv.v = 0; sv.raf = 0; svRender(); const a = sv.after; sv.after = null; if (a) a(); };
+    if (RM || Math.abs(t - sv.s) < .3 && Math.abs(sv.v) < 6) { fin(); return; }
+    const K = 230, C = 2 * Math.sqrt(K); let last = 0;
     const step = now => {
-      const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
-      for (let k = 0, n = Math.max(4, Math.ceil(dt / .006)), h = dt / n; k < n; k++) { pg.v += (K * (target - pg.x) - C * pg.v) * h; pg.x += pg.v * h; }
-      pgRender();
-      if (Math.abs(target - pg.x) < .4 && Math.abs(pg.v) < 8) { pg.x = target; pg.v = 0; pg.raf = 0; pgRender(); const a = pg.after; pg.after = null; if (a) a(); return; }
-      pg.raf = requestAnimationFrame(step);
+      const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now; PERF.frame(now);
+      for (let k = 0, n = Math.max(4, Math.ceil(dt / .006)), h = dt / n; k < n; k++) { sv.v += (K * (t - sv.s) - C * sv.v) * h; sv.s += sv.v * h; }
+      svRender();
+      if (Math.abs(t - sv.s) < .3 && Math.abs(sv.v) < 6) { fin(); return; }
+      sv.raf = requestAnimationFrame(step);
     };
-    pg.raf = requestAnimationFrame(step);
+    sv.raf = requestAnimationFrame(step);
   }
-  function pgReset() { cancelAnimationFrame(pg.raf); pg.raf = 0; pg.x = HOME * pgW(); pg.init = true; pg.v = 0; pg.page = HOME; pg.after = null; pgRender(); }
-  navBtns.forEach(b => b.addEventListener("click", () => { const i = +b.dataset.pg; if (i !== pg.page) haptic("select"); goPage(i); }));
+  function svSnap(v) {                                              // to the player or to the bubble, whichever the flick / distance points to
+    const m = maxS(), proj = sv.s + Math.max(-m, Math.min(m, v * .2)), t = proj > m * .42 ? m : 0;
+    if ((t > 0) !== (sv.s > m * .5)) haptic("select");
+    svTo(t, v);
+  }
+  xp.addEventListener("wheel", ev => {                              // mouse / trackpad
+    if (!st.expanded || st.raf || lyr.open || ev.target.closest(".xp-side,.xp-strip")) return;
+    ev.preventDefault(); cancelAnimationFrame(sv.raf); sv.raf = 0;
+    sv.s = Math.max(0, Math.min(maxS(), sv.s + ev.deltaY)); svRender();
+    clearTimeout(sv.wt); sv.wt = setTimeout(() => svSnap(0), 140);
+  }, { passive: false });
+  function bubClip() {                                              // the bubble's outline, as a clip of the full-panel lyrics page
+    const W = xp.offsetWidth, H = xp.offsetHeight, x = lyrBub.offsetLeft, y = lyrBub.offsetTop - sv.s, w = lyrBub.offsetWidth, h = lyrBub.offsetHeight;
+    return `inset(${y.toFixed(1)}px ${(W - x - w).toFixed(1)}px ${(H - y - h).toFixed(1)}px ${x.toFixed(1)}px round 22px)`;
+  }
+  const FULL = "inset(0px 0px 0px 0px round 36px)", EASE = "cubic-bezier(.22,1,.36,1)";
+  function lyrStop() { if (lyr.anim) { lyr.anim.onfinish = null; lyr.anim.cancel(); lyr.anim = null; } lyr.kids.forEach(a => a.cancel()); lyr.kids = []; }
+  function lyrOpen() {
+    if (lyr.open || !st.expanded || st.raf || drawerOpen()) return;
+    const from = bubClip(); lyrStop();
+    lyr.open = true; haptic("light");
+    side.classList.add("on"); xp.classList.add("lyr-open");
+    LYR.visible(true);
+    if (RM || !pLyr.animate) return;
+    lyr.anim = pLyr.animate([{ clipPath: from, backgroundColor: "rgba(255,255,255,.08)" }, { clipPath: FULL, backgroundColor: "rgba(255,255,255,0)" }], { duration: 520, easing: EASE });
+    lyr.anim.onfinish = () => { lyr.anim = null; };
+    lyr.kids = [...pLyr.children].map(c => c.animate([{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "none" }], { duration: 440, delay: 80, easing: EASE, fill: "backwards" }));
+  }
+  function lyrClose(after) {
+    if (!lyr.open) { if (after) after(); return; }
+    lyr.open = false; LYR.visible(false); haptic("light"); lyrStop();
+    xp.classList.remove("lyr-open");
+    const done = () => { lyrStop(); if (!lyr.open) side.classList.remove("on"); if (after) after(); };
+    if (RM || !pLyr.animate) { done(); return; }
+    lyr.kids = [...pLyr.children].map(c => c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 170, easing: "ease-out", fill: "forwards" }));
+    lyr.anim = pLyr.animate([{ clipPath: FULL, backgroundColor: "rgba(255,255,255,0)" }, { clipPath: bubClip(), backgroundColor: "rgba(255,255,255,.08)" }], { duration: 400, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
+    lyr.anim.onfinish = done;
+  }
+  function lyrReset() { lyrStop(); lyr.open = false; side.classList.remove("on"); xp.classList.remove("lyr-open"); if (LYR) LYR.visible(false); }
+  function viewReset() { cancelAnimationFrame(sv.raf); sv.raf = 0; sv.s = sv.v = 0; sv.after = null; lyrReset(); svRender(); }
+  lyrBub.addEventListener("click", () => { if (performance.now() - dragEndAt < 350) return; lyrOpen(); });
+  lyrBub.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); lyrOpen(); } });
+  $("lyr-close").addEventListener("click", () => lyrClose());
 
   /* ---- lyrics: synced lines from LRCLIB (a free, open lyrics database), the current line lit and kept in view ----
      - Looked up by title + artist (remaster / live / edition tags taken off the title), picking the result whose length
@@ -3409,6 +3425,7 @@ XP = (() => {
   LYR = (() => {
     const list = $("lyr-list"), sc = $("lyr-scroll"), cache = new Map(), KEY = "lyrics1", MAX = 60;
     let id = null, data = null, idx = -2, raf = 0, userAt = 0, req = 0, vis = false, els = [];
+    const bub = $("xl-lines"), bl = [...bub.children]; let bvis = false, bKey = "";   // the bubble's three lines; bvis: scrolled into view
     let disk = {}; try { disk = JSON.parse(store.get(KEY) || "{}"); } catch (e) {}
     const clean = t => String(t || "").replace(/\s*[([][^)\]]*(remaster|live|version|mono|stereo|edit|mix|deluxe|anniversary|bonus|demo|explicit|feat\.?|ft\.)[^)\]]*[)\]]/gi, "")
       .replace(/\s+-\s+[^-]*(remaster|live|version|mono|stereo|edit|mix)[^-]*$/i, "").trim() || String(t || "");
@@ -3447,10 +3464,30 @@ XP = (() => {
       const a = t.art || albumCover(t.album); $("lyr-art").style.backgroundImage = a ? `url("${String(a).replace(/"/g, "%22")}")` : "";
     }
     function note(text) { list.className = "lyr-list"; list.innerHTML = ""; const n = document.createElement("div"); n.className = "lyr-note"; n.textContent = text; list.appendChild(n); els = []; }
+    /* the bubble: the line just sung, the one being sung, the next. Unsynced lyrics show their first three lines; while
+       looking, or with no lyrics, a short note. When the line changes the three lines glide up into place. */
+    function setBub(a, b, c, cls) {
+      const key = [a, b, c, cls].join("\n"); if (key === bKey) return false; bKey = key;
+      bl[0].textContent = a; bl[1].textContent = b; bl[2].textContent = c; bub.className = "xl-lines" + (cls ? " " + cls : "");
+      return true;
+    }
+    function bubFill(anim) {
+      let ch;
+      if (!data) ch = setBub("", "Looking for lyrics…", "", "note");
+      else if (data.kind === "error") ch = setBub("", "Couldn't reach the lyrics service", "", "note");
+      else if (data.kind === "none") ch = setBub("", "No lyrics for this song", "", "note");
+      else if (data.kind === "instrumental") ch = setBub("", "♪  Instrumental  ♪", "", "note");
+      else if (data.kind === "plain") { const r = data.text.split(/\r?\n/).map(x => x.trim()).filter(Boolean); ch = setBub(r[0] || "", r[1] || "", r[2] || "", "plain"); }
+      else {
+        const L = data.lines, tx = k => k < 0 || k >= L.length ? "" : L[k].text || "•••";
+        ch = idx < 0 ? setBub("", "•••", tx(0), "") : setBub(tx(idx - 1), tx(idx), tx(idx + 1), "");
+      }
+      if (ch && anim && bvis && !RM && bub.animate) bub.animate([{ transform: "translateY(10px)", opacity: .3 }, { transform: "none", opacity: 1 }], { duration: 440, easing: "cubic-bezier(.22,1,.36,1)" });
+    }
     function show() {
-      head(); idx = -2; els = [];
+      head(); idx = -2; els = []; bubFill(false);
       if (!data) return note("Looking for lyrics…");
-      if (data.kind === "error") return note("Couldn't reach the lyrics service. Check the connection and swipe back here to try again.");
+      if (data.kind === "error") return note("Couldn't reach the lyrics service. Check the connection and open the lyrics again to retry.");
       if (data.kind === "none") return note("No lyrics found for this song.");
       if (data.kind === "instrumental") return note("♪  Instrumental  ♪");
       list.innerHTML = ""; list.className = "lyr-list" + (data.kind === "plain" ? " lyr-plain" : "");
@@ -3474,25 +3511,28 @@ XP = (() => {
       show();
     }
     function tick(jump) {
-      if (!data || data.kind !== "synced" || !els.length) return;
+      if (!data || data.kind !== "synced") return;
       const now = pendingSeek != null && audio.paused ? pendingSeek : audio.currentTime || 0, L = data.lines;
       let lo = 0, hi = L.length - 1, i = -1;
       while (lo <= hi) { const m = (lo + hi) >> 1; if (L[m].t <= now + .2) { i = m; lo = m + 1; } else hi = m - 1; }
       if (i === idx && !jump) return;
+      const moved = i !== idx;
+      if (!els.length) { idx = i; bubFill(moved && !jump); return; }
       if (idx >= 0 && els[idx]) els[idx].classList.remove("on");
       const from = Math.min(idx < 0 ? 0 : idx, i < 0 ? 0 : i), to = Math.max(idx, i);
       for (let k = Math.max(0, from - 1); k <= Math.min(els.length - 1, to + 1); k++) els[k].classList.toggle("past", k < i);
       if (jump) els.forEach((e, k) => e.classList.toggle("past", k < i));
       idx = i;
       if (i >= 0) els[i].classList.add("on");
-      if (performance.now() - userAt > 3000) {
+      bubFill(moved && !jump);
+      if ((vis || jump) && performance.now() - userAt > 3000) {
         const el = els[Math.max(0, i)], top = i < 0 ? 0 : el.offsetTop - sc.clientHeight * .32;
         sc.scrollTo({ top: Math.max(0, top), behavior: jump || RM ? "auto" : "smooth" });
       }
     }
-    const loop = () => { raf = 0; if (!vis) return; tick(false); raf = requestAnimationFrame(loop); };
+    const loop = () => { raf = 0; if (!vis && !bvis) return; tick(false); raf = requestAnimationFrame(loop); };
     ["pointerdown", "wheel", "touchstart"].forEach(k => sc.addEventListener(k, () => { userAt = performance.now(); }, { passive: true }));
-    audio.addEventListener("seeked", () => { if (vis) { userAt = 0; tick(true); } });
+    audio.addEventListener("seeked", () => { if (vis || bvis) { userAt = 0; tick(true); } });
     const playPath = () => $("lyr-play-path").setAttribute("d", audio.paused ? "M8 5v14l11-7z" : "M6 19h4V5H6v14zm8-14v14h4V5h-4z");
     ["play", "pause", "ended"].forEach(k => audio.addEventListener(k, playPath));
     $("lyr-play").addEventListener("click", () => { audio.paused ? playTrack() : pauseTrack(); haptic("light"); });
@@ -3500,72 +3540,22 @@ XP = (() => {
       song() { if (curId !== id) { id = curId; data = null; idx = -2; load(); } else head(); },
       visible(v) {
         if (v === vis) return; vis = v;
-        if (v) { if (data && data.kind === "error") load(); playPath(); tick(true); if (!raf) raf = requestAnimationFrame(loop); }
-        else { cancelAnimationFrame(raf); raf = 0; }
+        if (v) { if (data && data.kind === "error") load(); playPath(); userAt = 0; tick(true); if (!raf) raf = requestAnimationFrame(loop); }
+        else if (!bvis) { cancelAnimationFrame(raf); raf = 0; }
+      },
+      bubble(v) {                                                    // the bubble scrolled into view (or out of it)
+        if (v === bvis) return; bvis = v;
+        if (v) { if (data && data.kind === "error") load(); tick(true); if (!raf) raf = requestAnimationFrame(loop); }
+        else if (!vis) { cancelAnimationFrame(raf); raf = 0; }
       },
       _state: () => ({ id, data, idx })
     };
   })();
 
-  /* ---- albums page: your albums as a grid of covers; tap one for its songs; tap a song (or Play) to play that album
-     from there, exactly like playing it from Library. The album and song that are playing are marked. ---- */
-  ALB = (() => {
-    const body = $("alb-body"), sc = $("alb-scroll"), back = $("alb-back"), play = $("alb-play");
-    let vis = false, open = null, gridTop = 0, built = "";
-    const songs = n => albumEntries(n).filter(e => e.track).map(e => e.track);
-    const tapOk = () => performance.now() - dragEndAt > 350;
-    function playIn(n, id) { albumOrigin = null; currentCat = null; currentAlbum = n; startContext(id); haptic("light"); }
-    function grid(keep) {
-      open = null; back.hidden = play.hidden = true; $("alb-title").textContent = "Albums";
-      const names = orderedAlbumNames(), cur = trackById(curId);
-      $("alb-sub").textContent = names.length ? `${names.length} album${names.length === 1 ? "" : "s"}` : "";
-      body.innerHTML = "";
-      if (!names.length) { body.innerHTML = '<div class="alb-empty">No albums yet.</div>'; return; }
-      const g = document.createElement("div"); g.className = "alb-grid";
-      names.forEach(n => {
-        const c = document.createElement("div"), cover = albumCover(n), first = songs(n)[0];
-        c.className = "alb-card" + (cur && cur.album === n ? " now" : ""); c.dataset.album = n;
-        c.innerHTML = `<div class="alb-cov">${cover ? `<img src="${esc(cover)}" alt="" loading="lazy">` : noteSvg}</div><div class="alb-name"></div><div class="alb-art"></div>`;
-        c.querySelector(".alb-name").textContent = n; c.querySelector(".alb-art").textContent = first ? first.albumArtist || first.artist : "";
-        c.addEventListener("click", () => { if (!tapOk()) return; gridTop = sc.scrollTop; show(n); haptic("light"); });
-        g.appendChild(c);
-      });
-      body.appendChild(g); sc.scrollTop = keep ? gridTop : 0; built = "grid";
-    }
-    function show(n) {
-      open = n; back.hidden = play.hidden = false;
-      const list = songs(n), first = list[0], cur = trackById(curId);
-      $("alb-title").textContent = n;
-      $("alb-sub").textContent = [first ? first.albumArtist || first.artist : "", first && first.year, `${list.length} song${list.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
-      body.innerHTML = "";
-      list.forEach((t, k) => {
-        const r = document.createElement("div"); r.className = "alb-row" + (cur && cur.id === t.id ? " now" : ""); r.dataset.id = t.id;
-        r.innerHTML = `<div class="alb-n"></div><div class="alb-row-t"></div><div class="alb-row-d"></div>`;
-        r.querySelector(".alb-n").textContent = t.num || k + 1; r.querySelector(".alb-row-t").textContent = t.title;
-        r.querySelector(".alb-row-d").textContent = t.dur ? fmt(t.dur) : "";
-        r.addEventListener("click", () => { if (tapOk()) playIn(n, t.id); });
-        body.appendChild(r);
-      });
-      sc.scrollTop = 0; built = "album";
-    }
-    back.addEventListener("click", () => { grid(true); haptic("light"); });
-    play.addEventListener("click", () => { const l = open && songs(open); if (l && l.length) playIn(open, l[0].id); });
-    function marks() {                                                 // the playing album / song, without rebuilding
-      const cur = trackById(curId);
-      body.querySelectorAll(".alb-card").forEach(c => c.classList.toggle("now", !!cur && cur.album === c.dataset.album));
-      body.querySelectorAll(".alb-row").forEach(r => r.classList.toggle("now", !!cur && String(cur.id) === r.dataset.id));
-    }
-    return {
-      visible(v) { if (v === vis) return; vis = v; if (v) { if (open && songs(open).length) show(open); else grid(true); } },
-      song() { if (built) marks(); },
-      reset() { open = null; built = ""; }
-    };
-  })();
-
-  pgReset();
-  const onResize = () => { if (!st.expanded || st.raf || g) return; layout(); wrap.style.height = st.h1 + "px"; measureRects(); if (!pg.raf) { pg.x = pg.page * pgW(); pgRender(); } };
+  viewReset();
+  const onResize = () => { if (!st.expanded || st.raf || g) return; layout(); wrap.style.height = st.h1 + "px"; measureRects(); if (!sv.raf) { sv.s = Math.min(sv.s, maxS()); svRender(); } };
   addEventListener("resize", onResize); if (window.visualViewport) visualViewport.addEventListener("resize", onResize);
-  return { glowLight: coverGlow.light, open, close, sync, onSong, goPage, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, _st: st, _pg: pg, _lyr: () => LYR._state() };
+  return { glowLight: coverGlow.light, open, close, sync, onSong, scrollTo: svTo, openLyrics: lyrOpen, closeLyrics: lyrClose, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, get lyricsOpen() { return lyr.open; }, _st: st, _sv: sv, _lyr: () => LYR._state() };
 })();
 
 /* ---------- LIQUID GLASS: tilt (optional) adds to the cover light; the light also moves on its own ---------- */
