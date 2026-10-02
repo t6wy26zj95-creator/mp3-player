@@ -4146,12 +4146,14 @@ function retroDSP(x, sr, mode, xr) {
     const L = L0, R = R0 === L0 ? new Float32Array(n) : R0;          // results go back into the input arrays: less memory on a phone
     /* slow random curves, one value per 256 samples: the wow's wander, how muddy it is, how busy the crackle is */
     const K = (n >> 8) + 2, drift = new Float32Array(K), mud = new Float32Array(K), burst = new Float32Array(K);
-    { let d = 0, dv = 0, m = 0, mv = 0, b = 0, bv = 0;
+    { let d = 0, dv = 0, m = 0, mv = 0, b = 0, bv = 0, ac = .3, av = 0;
       for (let k = 0; k < K; k++) {
         dv += (rnd() - .5) * .02; dv *= .97; d = Math.max(-1, Math.min(1, d + dv)); drift[k] = d;
         mv += (rnd() - .5) * .001; mv *= .995; m = Math.max(-1, Math.min(1, (m + mv) * .999));   // muddy about a third of the time, a few seconds at a go,
         mud[k] = m > .4 ? Math.min(.55, (m - .4) * 1.5) : 0;                                        // easing in and out, and never all the way
-        bv += (rnd() - .5) * .05; bv *= .97; b = Math.max(0, Math.min(1, b + bv)); burst[k] = b;
+        bv += (rnd() - .5) * .05; bv *= .97; b = Math.max(0, Math.min(1, b + bv));
+        av += (rnd() - .5) * .0016; av *= .995; ac = Math.max(0, Math.min(1, ac + av + (.3 - ac) * .0006));   // crackle passages, several seconds long
+        burst[k] = (.12 + .88 * ac * ac) * (.45 + .55 * b);
       } }
     /* 1. wow (both sides move together), then the tone, then the muddy stretches */
     const rev = 33.333 / 60, A1 = .0007 / (TAU * rev) * sr, base = 4 + A1, D = 2048, M = D - 1, ring = new Float32Array(D), dark = new Float32Array(n), tmp = new Float32Array(n);
@@ -4175,9 +4177,11 @@ function retroDSP(x, sr, mode, xr) {
     /* 3. surface noise, set against how loud the song itself is (so a quiet song doesn't drown in it):
        - hiss, mostly the same on both sides: very faint, about 60 dB under the music, so the song covers it and
          it only shows in quiet moments, as on a real record
-       - crackle: soft rounded ticks (their top is rounded off above ~5 kHz, so no sharp spikes), usually on one side
-         only, a couple per second and more during a burst; now and then a slightly longer one; plus the odd low pop
-         and a faint tick once per revolution */
+       - crackle that lives: it comes in passages, from almost silent stretches to busy frying ones, and often in
+         little clusters (a crackle trailed by a few smaller ones within tens of ms). Each crackle is different: tiny
+         dull dust specks, crisper ticks, the odd short scrape, mostly small but now and then a loud one, each placed
+         somewhere of its own between left and right. Nothing is a sharp spike (rounded off above ~4.5-7 kHz).
+       - the odd low pop and a faint tick once per revolution */
     let ms = 0; for (let i = 0; i < n; i++) ms += L[i] * L[i] + R[i] * R[i];
     const ref = Math.sqrt(ms / (2 * n)) || .1, db = v => ref * Math.pow(10, v / 20), nz = dark, per = sr / rev;
     let h = seed | 1; const white = () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return h / 2147483648; };   // a cheaper generator for the hiss itself
@@ -4187,22 +4191,34 @@ function retroDSP(x, sr, mode, xr) {
     bq("hp", 1500, .6)(nz); bq("hp", 1500, .6)(nz); bq("lp", 10000, .6)(nz);
     { const k = db(-61) * .85 / rms(nz); for (let i = 0; i < n; i++) nz[i] *= k; }
     const ticks = []; for (let c = rnd() * per; c < n; c += per * (1 + (rnd() - .5) * .004)) ticks.push(Math.round(c));
-    const both = []; for (let i = Math.floor(gap(.5)); i < n; i += 1 + Math.floor(gap(.5 + 2 * burst[i >> 8]))) both.push([i, crackAmp(), rnd() < .5 ? -1 : 1, rnd() < .25]);
-    function crackAmp() { return db(-27 + 21 * Math.pow(rnd(), 1.8)); }   // mostly small, a few louder
-    function click(buf, i, a, rough) {
-      if (!rough) { buf[i] += a; if (i + 1 < n) buf[i + 1] -= .6 * a; if (i + 2 < n) buf[i + 2] += .25 * a; return; }   // a sharp tick
-      const len = Math.round(sr * (.003 + .005 * rnd())), tau = len / 3;   // a short rough scrape, 3-8 ms
+    /* the crackle events: [where, size, how far right (0-1), kind: 0 dust / 1 tick / 2 scrape] */
+    const ev = [];
+    for (let i = Math.floor(gap(1)); i < n; i += 1 + Math.floor(gap(.8 + 12 * burst[i >> 8]))) {
+      const a = db(-40 + 32 * Math.pow(rnd(), 2.4)) * (rnd() < .5 ? -1 : 1), kind = rnd() < .45 ? 0 : rnd() < .9 ? 1 : 2;
+      const pan = rnd() < .6 ? (rnd() < .5 ? rnd() * .25 : 1 - rnd() * .25) : rnd();   // mostly off to one side, sometimes anywhere
+      ev.push([i, a, pan, kind]);
+      if (rnd() < .35) for (let c = 1 + Math.floor(rnd() * 4), j = i; c > 0; c--) {      // a little cluster trailing it
+        j += Math.round(sr * (.003 + .035 * rnd())); if (j >= n) break;
+        ev.push([j, a * (.25 + .6 * rnd()), Math.min(1, Math.max(0, pan + (rnd() - .5) * .3)), rnd() < .6 ? 0 : 1]);
+      }
+    }
+    function click(buf, i, a, kind) {
+      if (kind < 2) { buf[i] += a; if (i + 1 < n) buf[i + 1] -= .6 * a; if (i + 2 < n) buf[i + 2] += .25 * a; return; }
+      const len = Math.round(sr * (.003 + .006 * rnd())), tau = len / 3;   // a short scrape, 3-9 ms
       for (let k = 0; k < len && i + k < n; k++) buf[i + k] += a * .8 * Math.exp(-k / tau) * white();
     }
     for (const out of [L, R]) {
       for (let i = 0; i < n; i++) tmp[i] = white();                    // this side's own hiss
       bq("hp", 1500, .6)(tmp); bq("lp", 10000, .6)(tmp);
       { const k = db(-61) * .5 / rms(tmp); for (let i = 0; i < n; i++) out[i] += nz[i] + tmp[i] * k; }
-      tmp.fill(0);                                                     // crackle: this side's own, plus the shared ones a little different each side
-      for (let i = Math.floor(gap(1.8)); i < n; i += 1 + Math.floor(gap(1.8 + 7 * burst[i >> 8] * burst[i >> 8]))) click(tmp, i, crackAmp() * (rnd() < .5 ? -1 : 1), rnd() < .12);
-      for (const [i, a, sg, rough] of both) click(tmp, i, a * sg * (.6 + .4 * rnd()), rough);
-      bq("hp", 600, .7)(tmp); bq("lp", 5500, .6)(tmp);   // rounded: a soft tick, not a sharp spike
-      for (let i = 0; i < n; i++) out[i] += tmp[i];
+      const side = out === R;                                          // crackle: dull dust first, then the crisper ticks and scrapes
+      for (const dust of [true, false]) {
+        tmp.fill(0);
+        for (const [i, a, pan, kind] of ev) if ((kind === 0) === dust) click(tmp, i, a * Math.sqrt(side ? pan : 1 - pan) * 1.4, kind);
+        if (dust) { bq("hp", 400, .7)(tmp); bq("lp", 3000, .6)(tmp); bq("lp", 4500, .7)(tmp); for (let i = 0; i < n; i++) tmp[i] *= 1.8; }
+        else { bq("hp", 700, .7)(tmp); bq("lp", 7000, .6)(tmp); }
+        for (let i = 0; i < n; i++) out[i] += tmp[i];
+      }
       tmp.fill(0);                                                     // pops and the tick
       for (let i = Math.floor(gap(.15)); i < n; i += 1 + Math.floor(gap(.15))) tmp[i] += db(-6 - 8 * rnd()) * 6 * (rnd() < .5 ? -1 : 1);
       for (const j of ticks) if (j < n) tmp[j] += db(-14) * 4 * (j & 1 ? -1 : 1);
