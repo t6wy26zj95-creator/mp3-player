@@ -552,7 +552,7 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
   -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent)}
 .xp-strip::-webkit-scrollbar{display:none}
 .xp-strip.dragging{overflow-x:hidden}
-.xp-card{position:relative;flex:0 0 138px;height:52px;display:flex;align-items:center;gap:8px;padding:0 10px 0 6px;box-sizing:border-box;border-radius:14px;
+.xp-card{position:relative;flex:0 0 138px;width:138px;min-width:0;height:52px;display:flex;align-items:center;gap:8px;padding:0 10px 0 6px;box-sizing:border-box;border-radius:14px;
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
   transition:background .22s var(--ease),border-color .22s var(--ease),opacity .22s ease}
 .xp-card:active{background:rgba(255,255,255,.14)}
@@ -790,7 +790,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v36";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v37";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 let botMode = !!TG && !!TG.initData;                   // switches off if the server can't be reached, so the phone's files still work
 function haptic(kind) {                               // "light" | "medium" | "select". Telegram's haptics also work on iPhone; navigator.vibrate is the fallback (Android browsers)
