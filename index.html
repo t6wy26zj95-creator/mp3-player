@@ -4173,8 +4173,8 @@ function retroDSP(x, sr, mode, xr) {
     const g = 1.25, tg = Math.tanh(g), k0 = .9 / pk;
     for (let i = 0; i < n; i++) { const l = Math.tanh(g * L[i] * k0) / tg, r = Math.tanh(g * R[i] * k0) / tg; L[i] = l + .1 * r; R[i] = r + .1 * l; }
     /* 3. surface noise, set against how loud the song itself is (so a quiet song doesn't drown in it):
-       - hiss, mostly the same on both sides: soft, a little darker and quieter than a bright
-         tape-like "shhh"
+       - hiss, mostly the same on both sides: very faint, about 60 dB under the music, so the song covers it and
+         it only shows in quiet moments, as on a real record
        - crackle: soft rounded ticks (their top is rounded off above ~5 kHz, so no sharp spikes), usually on one side
          only, a couple per second and more during a burst; now and then a slightly longer one; plus the odd low pop
          and a faint tick once per revolution */
@@ -4185,7 +4185,7 @@ function retroDSP(x, sr, mode, xr) {
     const rms = buf => { let q = 0; for (let i = 0; i < n; i++) q += buf[i] * buf[i]; return Math.sqrt(q / n) || 1; };
     for (let i = 0; i < n; i++) nz[i] = white();                       // the hiss both sides share
     bq("hp", 1500, .6)(nz); bq("hp", 1500, .6)(nz); bq("lp", 10000, .6)(nz);
-    { const k = db(-46) * .85 / rms(nz); for (let i = 0; i < n; i++) nz[i] *= k; }
+    { const k = db(-61) * .85 / rms(nz); for (let i = 0; i < n; i++) nz[i] *= k; }
     const ticks = []; for (let c = rnd() * per; c < n; c += per * (1 + (rnd() - .5) * .004)) ticks.push(Math.round(c));
     const both = []; for (let i = Math.floor(gap(.5)); i < n; i += 1 + Math.floor(gap(.5 + 2 * burst[i >> 8]))) both.push([i, crackAmp(), rnd() < .5 ? -1 : 1, rnd() < .25]);
     function crackAmp() { return db(-27 + 21 * Math.pow(rnd(), 1.8)); }   // mostly small, a few louder
@@ -4197,7 +4197,7 @@ function retroDSP(x, sr, mode, xr) {
     for (const out of [L, R]) {
       for (let i = 0; i < n; i++) tmp[i] = white();                    // this side's own hiss
       bq("hp", 1500, .6)(tmp); bq("lp", 10000, .6)(tmp);
-      { const k = db(-46) * .5 / rms(tmp); for (let i = 0; i < n; i++) out[i] += nz[i] + tmp[i] * k; }
+      { const k = db(-61) * .5 / rms(tmp); for (let i = 0; i < n; i++) out[i] += nz[i] + tmp[i] * k; }
       tmp.fill(0);                                                     // crackle: this side's own, plus the shared ones a little different each side
       for (let i = Math.floor(gap(1.8)); i < n; i += 1 + Math.floor(gap(1.8 + 7 * burst[i >> 8] * burst[i >> 8]))) click(tmp, i, crackAmp() * (rnd() < .5 ? -1 : 1), rnd() < .12);
       for (const [i, a, sg, rough] of both) click(tmp, i, a * sg * (.6 + .4 * rnd()), rough);
