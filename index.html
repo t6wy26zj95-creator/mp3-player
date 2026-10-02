@@ -1291,7 +1291,7 @@ function renderHidden() {
     row.innerHTML = itemHTML(albumCover(n), n, "").replace('<div class="item-text">', '<div class="item-text" style="display:none">') + '<div class="nm"></div>';
     row.querySelector(".nm").textContent = n;
     row.style.cursor = "pointer";
-    row.addEventListener("click", () => { settingsPanel.classList.remove("active"); albumOrigin = null; currentCat = null; currentAlbum = n; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
+    row.addEventListener("click", () => { settingsPanel.classList.remove("active"); rememberTab(); albumOrigin = null; currentCat = null; currentAlbum = n; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
       setTab(btnPlaylist); drawerBox.classList.add("expanded"); showOnly(playlistWrapper, 1); renderPlaylist(); });
     const b = document.createElement("button"); b.textContent = "Unhide";
     b.addEventListener("click", e => { e.stopPropagation(); hiddenSet.delete(n); saveHidden(); renderHidden(); renderAlbums(); if (!curId) { const t = tracks[0]; if (t) loadTrack(t.id, false); } });
@@ -2239,12 +2239,13 @@ async function openCatalogAlbum(a, artistName) {
 async function openArtist(name, mode, scroll) {
   if (resolving()) { clearTimeout(relTimer); runResolve(); }
   name = mainArtist(name || ""); if (!name || name === "Unknown Artist") return;
+  if (!btnArtists.classList.contains("active")) rememberTab();     // coming from another tab: keep where that tab was
   if (mode === "push") { if (currentArtistName) artistStack.push(currentArtistName); }
-  else if (mode !== "back") artistStack = [];
+  else if (mode !== "back" && mode !== "restore") artistStack = [];
   currentArtistName = name;
   const ui = $("artist-ui"), ck = artistCache[norm(name)], hit = ck && ck.full && ck.v === 3 && Date.now() - ck.t < 7 * 864e5;
   if (!(ui.dataset.for === name && ui.dataset.filled === "1")) renderArtist(hit ? ck : { name, loading: true }); else updateArtistOwnership();   // cached artists render in one pass; the shell exists before the transition is measured
-  setTab(btnArtists); showOnly(artistWrapper, mode === "back" ? -1 : 1); drawerBox.classList.add("expanded");
+  setTab(btnArtists); showOnly(artistWrapper, mode === "back" ? -1 : mode === "restore" ? 0 : 1); drawerBox.classList.add("expanded");
   ui.scrollTop = scroll || 0;
   const d = await loadArtist(name, p => { if (currentArtistName === name) renderArtist(p); });
   if (currentArtistName === name) { renderArtist(d); if (scroll) $("artist-ui").scrollTop = scroll; }
@@ -2318,8 +2319,34 @@ function showOnly(el, dir) {
   clearTimeout(viewHost._t); viewHost._t = setTimeout(() => { viewHost.style.height = ""; }, 450);
 }
 function setTab(btn) { [btnQueue, btnPlaylist, btnArtists].forEach(b => b.classList.toggle("active", b === btn)); tabPill.to(btn); }
+/* Library and Artists remember what they last showed (an open album, an artist page, an album opened from an artist, and
+   the scroll position), so leaving for another tab and coming back lands where you were. Kept for this session only. */
+const tabMemory = new Map();
+function rememberTab() {
+  const b = [btnPlaylist, btnArtists].find(b => b.classList.contains("active")), el = allWraps.find(w => w.style.display === "block");
+  if (!b || !el) return;
+  const sc = el === playlistWrapper ? $("playlist-ui") : el === artistWrapper ? $("artist-ui") : el;
+  tabMemory.set(b, { el, album: currentAlbum, cat: currentCat, origin: albumOrigin, artist: currentArtistName, stack: artistStack.slice(), scroll: sc.scrollTop });
+}
+function restoreTab(btn, m) {
+  const backTo = t => { $("back-to-grid-btn").querySelector("span").textContent = t; };
+  if (m.el === playlistWrapper) {
+    if (!m.cat && m.album !== "All Tracks" && !tracks.some(t => t.album === m.album)) return false;   // the album has gone since
+    currentAlbum = m.album; currentCat = m.cat; albumOrigin = m.origin;
+    if (m.origin) { currentArtistName = m.artist; artistStack = m.stack.slice(); }
+    backTo(m.origin ? "Back" : "Back to Albums");
+    renderPlaylist(); showOnly(playlistWrapper); $("playlist-ui").scrollTop = m.scroll;
+    return true;
+  }
+  albumOrigin = null; currentCat = null; backTo("Back to Albums");
+  if (m.el === artistWrapper && m.artist) { artistStack = m.stack.slice(); openArtist(m.artist, "restore", m.scroll); return true; }
+  if (m.el === artistsWrapper) { renderArtists(); showOnly(artistsWrapper); }
+  else { renderAlbums(); showOnly(albumsGridWrapper); }
+  m.el.scrollTop = m.scroll;
+  return true;
+}
 function toggleTab(btn) {
-  albumOrigin = null; currentCat = null; setEdit(false); $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
+  setEdit(false); rememberTab();
   if (btn.classList.contains("active")) {
     setTab(null); drawerBox.classList.remove("expanded");
     setTimeout(() => { if (!drawerBox.classList.contains("expanded")) showOnly(null); }, 400);
@@ -2327,9 +2354,14 @@ function toggleTab(btn) {
   }
   const wasOpen = drawerBox.classList.contains("expanded");
   setTab(btn);
-  if (btn === btnPlaylist) { renderAlbums(); showOnly(albumsGridWrapper); }      // fill the view first, so the height morph measures the real content
-  else if (btn === btnQueue) { renderQueue(); showOnly(queueWrapper); renderQueue(true); }
-  else { renderArtists(); showOnly(artistsWrapper); }
+  const m = btn !== btnQueue && tabMemory.get(btn);
+  if (btn === btnQueue) { renderQueue(); showOnly(queueWrapper); renderQueue(true); }
+  else if (m && restoreTab(btn, m)) {}
+  else {
+    albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
+    if (btn === btnPlaylist) { renderAlbums(); showOnly(albumsGridWrapper); }      // fill the view first, so the height morph measures the real content
+    else { currentArtistName = ""; artistStack = []; renderArtists(); showOnly(artistsWrapper); }
+  }
   drawerBox.classList.add("expanded");
 }
 btnQueue.addEventListener("click", () => toggleTab(btnQueue));
