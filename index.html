@@ -772,6 +772,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
     <div class="set-row"><span>Old panel</span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Old panel"><i></i></button></div>
     <div class="set-row" style="margin-top:10px"><span>Gramophone</span><button class="switch" data-m="gram" role="switch" aria-checked="false" aria-label="Gramophone"><i></i></button></div>
     <div class="set-row" style="margin-top:10px"><span>Old radio</span><button class="switch" data-m="radio" role="switch" aria-checked="false" aria-label="Old radio"><i></i></button></div>
+    <div class="set-row" style="margin-top:10px"><span>Vinyl</span><button class="switch" data-m="vinyl" role="switch" aria-checked="false" aria-label="Vinyl"><i></i></button></div>
   </div></div>
 </div>
 
@@ -4003,7 +4004,7 @@ async function analyze(t) {
   } catch (err) {}                                                   // no envelope -> the glow just breathes slowly
 }
 /* ---------- RETRO SOUND (Settings > Sound) ----------
-   Off / Gramophone / Old radio (Settings > More). The effect is not applied live: playback stays a plain <audio> element (live Web Audio
+   Off / Gramophone / Old radio / Vinyl (Settings > More). The effect is not applied live: playback stays a plain <audio> element (live Web Audio
    is silenced by iOS when the phone locks or Telegram goes to the background). Instead each song is rendered once, on
    the phone, into an old-sounding copy: decoded at 22 kHz, mixed to mono, run through the effect in a Web Worker and
    written out as a 16-bit stereo WAV (about 21 MB for 4 minutes). That copy then simply replaces the song's source, at
@@ -4017,11 +4018,11 @@ async function analyze(t) {
    - the room you hear it in: direct sound, wall reflections (different left and right) and the room's tail, in stereo
    - surface noise added on top: crackle, the odd pop, the scratch that comes round every revolution, hiss;
      the radio adds static that swells and fades, mains hum and a slight drift in strength. */
-function retroDSP(x, sr, mode) {
+function retroDSP(x, sr, mode, xr) {
+  if (mode === "vinyl") return vinyl(x, xr || x, sr);
   const P = {
     gram:  { hp: [220, 2], lp: [3900, 2], pk: [1500, 4.5, 1.1], drive: 2.4, wow: [.55, .0024], flut: [7.2, .0007], crk: 10, crkA: .11, pop: .35, popA: .5, tick: [1.3, .05], hiss: .014, rev: .1, room: .22, hum: 0, fade: 0, stat: 0, dry: .78, er: .5, late: .3, t60: 1.0 },
-    radio: { hp: [380, 2], lp: [3100, 3], pk: [1900, 5, 1.2], drive: 3.2, wow: [.13, .0007], flut: [0, 0], crk: 2, crkA: .05, pop: .06, popA: .2, tick: [0, 0], hiss: .022, rev: .12, room: .18, hum: .005, fade: .25, stat: .05, dry: .74, er: .55, late: .36, t60: 1.15 },
-    vinyl: { hp: [45, 1], lp: [8500, 1], pk: [180, 2.5, .8], drive: 1.35, wow: [.555, .0012], flut: [0, 0], crk: 18, crkA: .045, pop: .22, popA: .3, tick: [.555, .025], hiss: .005, rev: .05, room: .25, hum: 0, fade: 0, stat: 0, dry: .85, er: .36, late: .22, t60: .8 }
+    radio: { hp: [380, 2], lp: [3100, 3], pk: [1900, 5, 1.2], drive: 3.2, wow: [.13, .0007], flut: [0, 0], crk: 2, crkA: .05, pop: .06, popA: .2, tick: [0, 0], hiss: .022, rev: .12, room: .18, hum: .005, fade: .25, stat: .05, dry: .74, er: .55, late: .36, t60: 1.15 }
   }[mode];
   const n = x.length, TAU = Math.PI * 2;
   let seed = 0x9e3779b9 ^ n;                                          // same song + preset = the very same crackles every time
@@ -4120,10 +4121,90 @@ function retroDSP(x, sr, mode) {
   const lim = v => { v *= k1; if (v > .97) v = .97 + Math.tanh((v - .97) * 10) * .03; else if (v < -.97) v = -.97 - Math.tanh((-v - .97) * 10) * .03; return Math.round(v * 32767); };
   for (let i = 0; i < n; i++) { const d = y[i] * P.dry; out[2 * i] = lim(d + wl[i]); out[2 * i + 1] = lim(d + wr[i]); }
   return out;
+  /* Vinyl: a record played on a decent turntable. Unlike the two above it keeps the song's clarity: rendered at
+     32 kHz in stereo, no narrow band, no box, no room. What it adds (measured off a vinyl rip of an orchestral record):
+     - a little extra body in the low mids (~250 Hz) and slightly softened top end, like a cartridge and phono stage
+     - "muddy" stretches: every so often, for several seconds, the sound gets duller and thicker, then clears again
+       (a worn or dusty part of the groove)
+     - a faint wow (33 rpm = one revolution every 1.8 s) and a touch of warmth
+     - a steady, clearly audible hiss between ~2 and ~12 kHz, light crackle that comes and goes in bursts,
+       the odd pop and a faint tick once per revolution */
+  function vinyl(L0, R0, sr) {
+    const n = L0.length, TAU = Math.PI * 2;
+    let seed = 0x5bd1e995 ^ n;
+    const rnd = () => { seed |= 0; seed = seed + 0x6d2b79f5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    function bq(type, f, Q, g) {                                      // RBJ biquad, applied in place to a whole buffer
+      f = Math.min(f, sr * .45); const w = TAU * f / sr, c = Math.cos(w), a = Math.sin(w) / (2 * Q), A = Math.pow(10, (g || 0) / 40);
+      let b0, b1, b2, a0, a1, a2;
+      if (type === "lp") { b0 = (1 - c) / 2; b1 = 1 - c; b2 = b0; a0 = 1 + a; a1 = -2 * c; a2 = 1 - a; }
+      else if (type === "hp") { b0 = (1 + c) / 2; b1 = -(1 + c); b2 = b0; a0 = 1 + a; a1 = -2 * c; a2 = 1 - a; }
+      else if (type === "hs") { const s = 2 * Math.sqrt(A) * a; b0 = A * ((A + 1) + (A - 1) * c + s); b1 = -2 * A * ((A - 1) + (A + 1) * c); b2 = A * ((A + 1) + (A - 1) * c - s); a0 = (A + 1) - (A - 1) * c + s; a1 = 2 * ((A - 1) - (A + 1) * c); a2 = (A + 1) - (A - 1) * c - s; }
+      else { b0 = 1 + a * A; b1 = -2 * c; b2 = 1 - a * A; a0 = 1 + a / A; a1 = -2 * c; a2 = 1 - a / A; }
+      b0 /= a0; b1 /= a0; b2 /= a0; a1 /= a0; a2 /= a0;
+      return buf => { let x1 = 0, x2 = 0, y1 = 0, y2 = 0; for (let i = 0; i < buf.length; i++) { const v = buf[i], y = b0 * v + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = v; y2 = y1; y1 = y; buf[i] = y; } };
+    }
+    const L = L0, R = R0 === L0 ? new Float32Array(n) : R0;          // results go back into the input arrays: less memory on a phone
+    /* slow random curves, one value per 256 samples: the wow's wander, how muddy it is, how busy the crackle is */
+    const K = (n >> 8) + 2, drift = new Float32Array(K), mud = new Float32Array(K), burst = new Float32Array(K);
+    { let d = 0, dv = 0, m = 0, mv = 0, b = 0, bv = 0;
+      for (let k = 0; k < K; k++) {
+        dv += (rnd() - .5) * .02; dv *= .97; d = Math.max(-1, Math.min(1, d + dv)); drift[k] = d;
+        mv += (rnd() - .5) * .001; mv *= .995; m = Math.max(-1, Math.min(1, (m + mv) * .999));   // muddy about a third of the time, a few seconds at a go,
+        mud[k] = m > .4 ? Math.min(.55, (m - .4) * 1.5) : 0;                                        // easing in and out, and never all the way
+        bv += (rnd() - .5) * .05; bv *= .97; b = Math.max(0, Math.min(1, b + bv)); burst[k] = b;
+      } }
+    /* 1. wow (both sides move together), then the tone, then the muddy stretches */
+    const rev = 33.333 / 60, A1 = .0007 / (TAU * rev) * sr, base = 4 + A1, D = 2048, M = D - 1, ring = new Float32Array(D), dark = new Float32Array(n), tmp = new Float32Array(n);
+    for (let i = 0; i < n; i++) tmp[i] = i - base - A1 * (Math.sin(TAU * rev * i / sr) + .3 * drift[i >> 8]);   // where to read from, for both sides
+    for (const [src, dst] of [[L0, L], [R0, R]]) {
+      ring.fill(0);
+      const s0 = src === dst ? null : src;                            // mono song: read from the left, write to the new right
+      for (let i = 0; i < n; i++) {
+        ring[i & M] = (s0 || dst)[i];
+        const r = tmp[i], i0 = Math.floor(r), fr = r - i0;
+        dst[i] = i0 < 0 ? 0 : ring[i0 & M] * (1 - fr) + ring[(i0 + 1) & M] * fr;
+      }
+      bq("hp", 28, .707)(dst); bq("pk", 250, .8, 2.5)(dst); bq("hs", 7000, .7, -2.5)(dst); bq("lp", 14500, .707)(dst);
+      dark.set(dst); bq("lp", 2600, .6)(dark); bq("pk", 300, .9, 3)(dark);   // what a muddy stretch sounds like
+      for (let i = 0; i < n; i++) { const a = mud[i >> 8]; if (a) dst[i] += (dark[i] - dst[i]) * a; }
+    }
+    /* 2. warmth, and the slight crosstalk between the two sides of the groove */
+    let pk = 1e-6; for (let i = 0; i < n; i++) { const m = Math.max(Math.abs(L[i]), Math.abs(R[i])); if (m > pk) pk = m; }
+    const g = 1.25, tg = Math.tanh(g), k0 = .9 / pk;
+    for (let i = 0; i < n; i++) { const l = Math.tanh(g * L[i] * k0) / tg, r = Math.tanh(g * R[i] * k0) / tg; L[i] = l + .1 * r; R[i] = r + .1 * l; }
+    /* 3. surface noise: hiss (mostly the same on both sides), crackle in bursts, pops, a faint tick once per revolution */
+    const HISS = .016, nz = dark, per = sr / rev;
+    let h = seed | 1; const white = () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return h / 2147483648; };   // a cheaper generator for the hiss itself
+    const gap = rate => -Math.log(1 - rnd()) * sr / rate;              // samples until the next random event
+    for (let i = 0; i < n; i++) nz[i] = white();                       // the hiss both sides share
+    bq("hp", 1800, .6)(nz); bq("hp", 1800, .6)(nz); bq("lp", 11000, .6)(nz); bq("pk", 5000, .7, 2)(nz);
+    const ticks = []; for (let c = rnd() * per; c < n; c += per * (1 + (rnd() - .5) * .004)) ticks.push(Math.round(c));
+    for (const out of [L, R]) {
+      for (let i = 0; i < n; i++) tmp[i] = white();                    // this side's own hiss
+      bq("hp", 1800, .6)(tmp); bq("lp", 11000, .6)(tmp);
+      for (let i = 0; i < n; i++) out[i] += HISS * (.8 * nz[i] + .45 * tmp[i]);
+      tmp.fill(0);                                                     // crackle
+      for (let i = Math.floor(gap(3)); i < n; i += 1 + Math.floor(gap(3 + 40 * burst[i >> 8] * burst[i >> 8]))) { const a = Math.pow(rnd(), 3) * .07; tmp[i] = rnd() < .5 ? -a : a; }
+      bq("hp", 1500, .7)(tmp); bq("lp", 9000, .7)(tmp);
+      for (let i = 0; i < n; i++) out[i] += tmp[i];
+      tmp.fill(0);                                                     // pops and the tick
+      for (let i = Math.floor(gap(.2)); i < n; i += 1 + Math.floor(gap(.2))) { const a = (.3 + .7 * rnd()) * .35; tmp[i] = rnd() < .5 ? -a : a; }
+      for (const j of ticks) if (j < n) tmp[j] += .03 * (j & 1 ? -1 : 1);
+      bq("lp", 1200, .7)(tmp); bq("lp", 800, .7)(tmp);
+      for (let i = 0; i < n; i++) out[i] += tmp[i] * 2.2;
+    }
+    /* 4. final level, 16-bit stereo (interleaved; a gentle ceiling catches the odd loud pop) */
+    pk = 1e-6; for (let i = 0; i < n; i++) { const m = Math.max(Math.abs(L[i]), Math.abs(R[i])); if (m > pk) pk = m; }
+    const out = new Int16Array(n * 2), k1 = Math.min(1.4, .95 / pk);
+    const lim = v => { v *= k1; if (v > .97) v = .97 + Math.tanh((v - .97) * 10) * .03; else if (v < -.97) v = -.97 - Math.tanh((-v - .97) * 10) * .03; return Math.round(v * 32767); };
+    for (let i = 0; i < n; i++) { out[2 * i] = lim(L[i]); out[2 * i + 1] = lim(R[i]); }
+    return out;
+  }
 }
 RETRO = (() => {
-  const LABEL = { gram: "Gramophone", radio: "Old radio" }, SR = 22050, KEEP = 3;
-  let mode = ["gram", "radio"].includes(store.get("retroMode")) ? store.get("retroMode") : "off";
+  const LABEL = { gram: "Gramophone", radio: "Old radio", vinyl: "Vinyl" }, KEEP = 3;
+  const rate = m => m === "vinyl" ? 32000 : 22050;                    // Vinyl keeps the song's clarity (and its stereo); the others are meant to sound narrow
+  let mode = ["gram", "radio", "vinyl"].includes(store.get("retroMode")) ? store.get("retroMode") : "off";
   const done = new Map(), jobs = new Map();                          // "id|mode" -> WAV blob ; "id|mode" -> Promise
   let chain = Promise.resolve(), worker = null, wjob = 0; const wwait = new Map();
   const key = (t, m) => t.id + "|" + (m || mode);
@@ -4131,19 +4212,19 @@ RETRO = (() => {
   function workerGet() {
     if (worker !== null) return worker;
     try {
-      const src = retroDSP.toString() + "\nonmessage = e => { const { id, data, sr, mode } = e.data; try { const out = retroDSP(data, sr, mode); postMessage({ id, out }, [out.buffer]); } catch (err) { postMessage({ id, err: String(err) }); } };";
+      const src = retroDSP.toString() + "\nonmessage = e => { const { id, data, sr, mode, right } = e.data; try { const out = retroDSP(data, sr, mode, right); postMessage({ id, out }, [out.buffer]); } catch (err) { postMessage({ id, err: String(err) }); } };";
       worker = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
       worker.onmessage = e => { const j = wwait.get(e.data.id); if (!j) return; wwait.delete(e.data.id); e.data.err ? j.rej(new Error(e.data.err)) : j.res(e.data.out); };
       worker.onerror = () => { wwait.forEach(j => j.rej(new Error("worker"))); wwait.clear(); worker = false; };
     } catch (e) { worker = false; }
     return worker;
   }
-  function dsp(mono, m) {
-    const w = workerGet();
-    if (!w) return new Promise(r => setTimeout(() => r(retroDSP(mono, SR, m)), 0));   // no workers: same maths on the page
-    return new Promise((res, rej) => { const id = ++wjob; wwait.set(id, { res, rej }); w.postMessage({ id, data: mono, sr: SR, mode: m }, [mono.buffer]); });
+  function dsp(mono, m, right) {                                      // right: the second channel (Vinyl only), else null
+    const w = workerGet(), SR = rate(m);
+    if (!w) return new Promise(r => setTimeout(() => r(retroDSP(mono, SR, m, right)), 0));   // no workers: same maths on the page
+    return new Promise((res, rej) => { const id = ++wjob; wwait.set(id, { res, rej }); w.postMessage({ id, data: mono, sr: SR, mode: m, right }, right ? [mono.buffer, right.buffer] : [mono.buffer]); });
   }
-  function wav(pcm) {
+  function wav(pcm, SR) {
     const b = new ArrayBuffer(44 + pcm.length * 2), v = new DataView(b), str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
     str(0, "RIFF"); v.setUint32(4, 36 + pcm.length * 2, true); str(8, "WAVE"); str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true);
     v.setUint32(24, SR, true); v.setUint32(28, SR * 4, true); v.setUint16(32, 4, true); v.setUint16(34, 16, true); str(36, "data"); v.setUint32(40, pcm.length * 2, true);
@@ -4153,18 +4234,20 @@ RETRO = (() => {
   async function make(t, m) {
     if (!t.file || t.file.size > 80e6 || !wanted(t) || m !== mode) return null;
     const buf = await t.file.arrayBuffer(), OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-    let ab = await new Promise((res, rej) => { const r = new OC(1, 1, SR).decodeAudioData(buf, res, rej); if (r && r.then) r.then(res, rej); });   // decoded straight to 22 kHz
+    let ab = await new Promise((res, rej) => { const r = new OC(1, 1, rate(m)).decodeAudioData(buf, res, rej); if (r && r.then) r.then(res, rej); });   // decoded straight to 22 kHz (Vinyl: 32 kHz)
     if (m !== mode) return null;
     const n = ab.length, nc = ab.numberOfChannels, mono = new Float32Array(n), chs = [];
     for (let c = 0; c < nc; c++) chs.push(ab.getChannelData(c));
+    const right = m === "vinyl" && nc > 1 ? new Float32Array(n) : null;   // Vinyl stays stereo: left in `mono`, right here
     for (let i0 = 0; i0 < n; i0 += 131072) {                          // mixed down in small slices, so the screen never stalls
       const e = Math.min(n, i0 + 131072);
       if (nc === 1) mono.set(chs[0].subarray(i0, e), i0);
+      else if (right) { mono.set(chs[0].subarray(i0, e), i0); right.set(chs[1].subarray(i0, e), i0); }
       else for (let i = i0; i < e; i++) { let s = 0; for (let c = 0; c < nc; c++) s += chs[c][i]; mono[i] = s / nc; }
       await sleep(0);
     }
     chs.length = 0; ab = null;
-    const blob = wav(await dsp(mono, m));
+    const blob = wav(await dsp(mono, m, right), rate(m));
     remember(key(t, m), blob);
     return blob;
   }
@@ -4175,7 +4258,7 @@ RETRO = (() => {
     const p = chain.then(() => make(t, m)).catch(e => { console.warn("retro", e && e.message); return null; }).finally(() => jobs.delete(k));
     chain = p; jobs.set(k, p); return p;
   }
-  const seg = $("retro-sw");                                           // Settings > More: Gramophone / Old radio switches (one at a time)
+  const seg = $("retro-sw");                                           // Settings > More: Gramophone / Old radio / Vinyl switches (one at a time)
   const busy = v => seg.querySelectorAll(".switch").forEach(b => b.classList.toggle("busy", !!v && b.dataset.m === mode));
   /* swap the current song between its original and its old-sounding copy, at the same place, playing or not */
   function swap(t, useRetro) {
