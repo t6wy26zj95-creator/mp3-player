@@ -4192,10 +4192,10 @@ function retroDSP(x, sr, mode, xr) {
     bq("hp", 1500, .6)(nz); bq("hp", 1500, .6)(nz); bq("lp", 10000, .6)(nz);
     { const k = db(-61) * .85 / rms(nz); for (let i = 0; i < n; i++) nz[i] *= k; }
     const ticks = []; for (let c = rnd() * per; c < n; c += per * (1 + (rnd() - .5) * .004)) ticks.push(Math.round(c));
-    /* the crackle events: [where, size, how far right (0-1), kind: 0 dust / 1 tick / 2 scrape] */
+    /* the generated crackle (kept well under the real crackle laid in below): [where, size, how far right (0-1), kind: 0 dust / 1 tick / 2 scrape] */
     const ev = [];
     for (let i = Math.floor(gap(2)); i < n; i += 1 + Math.floor(gap(1.5 + 9 * burst[i >> 8]))) {
-      const a = db(-40 + 24 * Math.pow(rnd(), 1.8)) * (rnd() < .5 ? -1 : 1), kind = rnd() < .45 ? 0 : rnd() < .9 ? 1 : 2;
+      const a = db(-46 + 24 * Math.pow(rnd(), 1.8)) * (rnd() < .5 ? -1 : 1), kind = rnd() < .45 ? 0 : rnd() < .9 ? 1 : 2;
       const pan = rnd() < .6 ? (rnd() < .5 ? rnd() * .25 : 1 - rnd() * .25) : rnd();   // mostly off to one side, sometimes anywhere
       ev.push([i, a, pan, kind]);
       if (rnd() < .35) for (let c = 1 + Math.floor(rnd() * 4), j = i; c > 0; c--) {      // a little cluster trailing it
@@ -4221,8 +4221,8 @@ function retroDSP(x, sr, mode, xr) {
         for (let i = 0; i < n; i++) out[i] += tmp[i];
       }
       tmp.fill(0);                                                     // pops and the tick
-      for (let i = Math.floor(gap(.15)); i < n; i += 1 + Math.floor(gap(.15))) tmp[i] += db(-6 - 8 * rnd()) * 6 * (rnd() < .5 ? -1 : 1);
-      for (const j of ticks) if (j < n) tmp[j] += db(-14) * 4 * (j & 1 ? -1 : 1);
+      for (let i = Math.floor(gap(.15)); i < n; i += 1 + Math.floor(gap(.15))) tmp[i] += db(-12 - 8 * rnd()) * 6 * (rnd() < .5 ? -1 : 1);
+      for (const j of ticks) if (j < n) tmp[j] += db(-20) * 4 * (j & 1 ? -1 : 1);
       bq("lp", 1200, .7)(tmp); bq("lp", 800, .7)(tmp);
       for (let i = 0; i < n; i++) out[i] += tmp[i];
     }
@@ -4244,7 +4244,7 @@ function retroDSP(x, sr, mode, xr) {
         let o = 0; const off = new Int32Array(cnt + 1); for (let r = 0; r < cnt; r++) { off[r] = o; o += len[r]; } off[cnt] = o;
         src.push({ cnt, pos, len, off, val: Float32Array.from(val) });
       }
-      const rs = sr / 44100, G = ref * .8;                            // the same level against the music as on the record (its values are against a mono mix, ref is per side)
+      const rs = sr / 44100, G = ref * .4;                            // about half (-6 dB) the level it had against the music on the record: the full level was too loud
       for (let t0 = 0; t0 < n;) {
         const chunk = Math.round(sr * (3 + 6 * rnd())), from = Math.floor(rnd() * Math.max(1, srcLen - chunk / rs)), to = from + chunk / rs;
         const swap = rnd() < .5, sgn = rnd() < .5 ? -1 : 1, g = G * sgn * (.85 + .3 * rnd());
