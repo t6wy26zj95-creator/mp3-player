@@ -629,12 +629,8 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .player-wrapper.sheet .artist-scroll{height:var(--sheet-h,450px);max-height:var(--sheet-h,450px)}
 .player-wrapper.sheet .scroll-container-wrapper{max-height:none}
 /* Sound (retro) setting: a small segmented control; the big player names the sound after the album line */
-.retro-box{display:flex;flex-direction:column;gap:8px}
-.seg{display:flex;gap:3px;padding:3px;border-radius:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12)}
-.seg button{flex:1;min-width:0;padding:7px 0;border:0;border-radius:9px;background:none;color:rgba(255,255,255,.6);font:600 11px -apple-system,system-ui,sans-serif;cursor:pointer;white-space:nowrap;transition:background .25s var(--ease),color .25s var(--ease)}
-.seg button.on{background:rgba(255,255,255,.18);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
-.seg.busy button.on{animation:segBusy 1.1s ease-in-out infinite alternate}
-@keyframes segBusy{from{background:rgba(255,255,255,.1)}to{background:rgba(255,255,255,.24)}}
+.switch.busy[aria-checked="true"]{animation:swBusy 1.1s ease-in-out infinite alternate}
+@keyframes swBusy{from{background:rgba(88,196,178,.3)}to{background:rgba(88,196,178,.65)}}
 .xp-fx{color:rgb(232,196,140)}
 .safe-probe{position:fixed;left:0;bottom:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom,0px)}
 html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px))}
@@ -765,8 +761,6 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
 </div>
 <div class="floating-customizer" id="settings-panel">
   <div class="slider-setting"><span>Bg Blur</span><input type="range" id="blur-slider" min="0" max="30" step="1" value="0"></div>
-  <div class="retro-box"><div class="set-row"><span>Sound<small>Make songs sound like an old record or radio</small></span></div>
-    <div class="seg" id="retro-seg" role="radiogroup" aria-label="Sound"><button data-m="off" role="radio">Off</button><button data-m="gram" role="radio">78 rpm</button><button data-m="radio" role="radio">Radio</button><button data-m="vinyl" role="radio">Vinyl</button></div></div>
   <button class="upload-btn" id="upload-wall">Upload wallpaper</button>
   <button class="upload-btn ghost" id="reset-wall">Use default wallpaper</button>
   <button class="upload-btn" id="motion-btn" style="display:none">Enable tilt effect</button>
@@ -774,10 +768,11 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
   <button class="hidden-toggle" id="hidden-toggle" aria-label="Hidden Albums" title="Hidden Albums"><svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2z"/></svg><span id="hidden-count"></span></button>
   <div class="hidden-list" id="hidden-list" style="display:none"></div>
   <button class="more-toggle" id="more-toggle" aria-expanded="false">More<svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
-  <div class="more-box" id="more-box" hidden>
-    <div class="set-row"><span>Old panel<small>The previous flat glass panel</small></span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Old panel"><i></i></button></div>
-    <div class="set-row" style="margin-top:10px"><span>Light effects<small>Fewer glass redraws. Turns on by itself while the phone struggles (e.g. screen recording)</small></span><button class="switch" id="lite-switch" role="switch" aria-checked="false" aria-label="Light effects"><i></i></button></div>
-  </div>
+  <div class="more-box" id="more-box" hidden><div id="retro-sw">
+    <div class="set-row"><span>Old panel</span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Old panel"><i></i></button></div>
+    <div class="set-row" style="margin-top:10px"><span>Gramophone</span><button class="switch" data-m="gram" role="switch" aria-checked="false" aria-label="Gramophone"><i></i></button></div>
+    <div class="set-row" style="margin-top:10px"><span>Old radio</span><button class="switch" data-m="radio" role="switch" aria-checked="false" aria-label="Old radio"><i></i></button></div>
+  </div></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -831,25 +826,12 @@ if (tgStore && !store.get("tgMark")) (function () {
 const TILT = { x: 0, y: 0, apply() {}, redraw: null };                // the current (smoothed) tilt, -1..1; set by the tilt module
 const PERF = (() => {
   const phone = matchMedia("(pointer:coarse)").matches;
-  let lite = false, auto = false, trips = 0, avg = 16.7, last = 0, slow = 0, fast = 0;
-  const subs = [], forced = () => store.get("perfLite") === "1";
-  function set(v) {
-    if (v === lite) return; lite = v;
-    document.documentElement.classList.toggle("lite", v);
-    subs.forEach(f => { try { f(v); } catch (e) {} });
-  }
-  function frame(now) {                                               // call once per animation frame from a loop that asks for every frame
-    const d = last ? now - last : 0; last = now;
-    if (!d || d > 250) return;                                        // first frame, or a stall / tab switch: not a measure of smoothness
-    avg += (d - avg) * .05;
-    if (!lite) { if (avg > 24) { if (++slow > 75) { slow = 0; auto = true; trips++; set(true); } } else slow = 0; }   // below ~42 fps for ~2-3 s
-    else if (auto && !forced() && trips < 2) { if (avg < 18.5) { if (++fast > 700) { fast = 0; auto = false; set(false); } } else fast = 0; }
-  }
-  return { frame, gap() { last = 0; }, on: f => subs.push(f), get lite() { return lite; }, phone,
-    force(v) { store.set("perfLite", v ? "1" : "0"); if (v) set(true); else if (!auto) set(false); },
-    get decoFps() { return lite ? 24 : phone ? 30 : 60; } };
+  /* Light mode is gone: full effects always, never switched down (not even while screen recording). The hooks stay as
+     no-ops so the loops that report frames and the modules that listened for light mode keep working unchanged. */
+  try { store.set("perfLite", "0"); } catch (e) {}
+  return { frame() {}, gap() {}, on() {}, get lite() { return false; }, phone, force() {},
+    get decoFps() { return phone ? 30 : 60; } };
 })();
-if (store.get("perfLite") === "1") PERF.force(true);
 
 const LASTFM_API_KEY = "dbe9aea2d4e59436f4b2015d1f0e027a";
 const albumMeta = {};
@@ -1955,7 +1937,7 @@ audio.addEventListener("ended", onEnded);
      springs back in once the new artwork is ready, and the cover light flares.
    Web Animations and small rAF loops only; nothing moves with reduced motion turned on. */
 const RM = matchMedia("(prefers-reduced-motion:reduce)").matches;
-const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.upload-btn,.done-btn,.gear-btn,.hidden-toggle,.q-sec button,.artist-more,.switch,.more-toggle,.xp-next-h button,.lyr-close,.seg button";
+const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.upload-btn,.done-btn,.gear-btn,.hidden-toggle,.q-sec button,.artist-more,.switch,.more-toggle,.xp-next-h button,.lyr-close";
 const curScale = el => { const v = parseFloat(getComputedStyle(el).scale); return isFinite(v) ? v : 1; };
 function pressDown(el) {
   if (RM || !el.animate) return;
@@ -2676,12 +2658,6 @@ const bubble = (() => {
 $("old-panel-switch").addEventListener("click", () => { const old = bubble.on; store.set("oldPanel", old ? "1" : "0"); bubble.set(!old, true); haptic("light"); });
 $("more-toggle").addEventListener("click", () => { const b = $("more-box"), open = b.hidden; b.hidden = !open; $("more-toggle").setAttribute("aria-expanded", String(open)); haptic("light"); });
 bubble.set(store.get("oldPanel") !== "1", false);
-/* Settings > More > Light effects: on = always light; off = automatic (light only while the phone can't keep up) */
-(function () {
-  const sw = $("lite-switch"), show = () => sw.setAttribute("aria-checked", String(store.get("perfLite") === "1"));
-  sw.addEventListener("click", () => { PERF.force(store.get("perfLite") !== "1"); show(); haptic("light"); });
-  show();
-})();
 
 /* ---------- COVER GLOW ----------
    One image per song, drawn once into canvases and then only moved, scaled and faded by the GPU. The small cover and the
@@ -3995,7 +3971,7 @@ async function analyze(t) {
   } catch (err) {}                                                   // no envelope -> the glow just breathes slowly
 }
 /* ---------- RETRO SOUND (Settings > Sound) ----------
-   Off / 78 rpm / Radio / Vinyl. The effect is not applied live: playback stays a plain <audio> element (live Web Audio
+   Off / Gramophone / Old radio (Settings > More). The effect is not applied live: playback stays a plain <audio> element (live Web Audio
    is silenced by iOS when the phone locks or Telegram goes to the background). Instead each song is rendered once, on
    the phone, into an old-sounding copy: decoded at 22 kHz, mixed to mono, run through the effect in a Web Worker and
    written out as a 16-bit stereo WAV (about 21 MB for 4 minutes). That copy then simply replaces the song's source, at
@@ -4114,8 +4090,8 @@ function retroDSP(x, sr, mode) {
   return out;
 }
 RETRO = (() => {
-  const LABEL = { gram: "Gramophone 78", radio: "Old radio", vinyl: "Worn vinyl" }, SR = 22050, KEEP = 3;
-  let mode = ["gram", "radio", "vinyl"].includes(store.get("retroMode")) ? store.get("retroMode") : "off";
+  const LABEL = { gram: "Gramophone", radio: "Old radio" }, SR = 22050, KEEP = 3;
+  let mode = ["gram", "radio"].includes(store.get("retroMode")) ? store.get("retroMode") : "off";
   const done = new Map(), jobs = new Map();                          // "id|mode" -> WAV blob ; "id|mode" -> Promise
   let chain = Promise.resolve(), worker = null, wjob = 0; const wwait = new Map();
   const key = (t, m) => t.id + "|" + (m || mode);
@@ -4167,8 +4143,8 @@ RETRO = (() => {
     const p = chain.then(() => make(t, m)).catch(e => { console.warn("retro", e && e.message); return null; }).finally(() => jobs.delete(k));
     chain = p; jobs.set(k, p); return p;
   }
-  const seg = $("retro-seg");
-  const busy = v => seg.classList.toggle("busy", !!v);
+  const seg = $("retro-sw");                                           // Settings > More: Gramophone / Old radio switches (one at a time)
+  const busy = v => seg.querySelectorAll(".switch").forEach(b => b.classList.toggle("busy", !!v && b.dataset.m === mode));
   /* swap the current song between its original and its old-sounding copy, at the same place, playing or not */
   function swap(t, useRetro) {
     const b = useRetro ? done.get(key(t)) : t.file;
@@ -4203,16 +4179,16 @@ RETRO = (() => {
   }
   function pre(t) { if (mode !== "off" && t && t.file && t.id !== curId && wanted(t)) render(t); }
   function preNext() { if (mode === "off") return; const n = trackById(peekNext()); if (n && n.file) pre(n); }
-  function paint() { seg.querySelectorAll("button").forEach(b => { const on = b.dataset.m === mode; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); }); }
+  function paint() { seg.querySelectorAll(".switch[data-m]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.m === mode))); }
   function set(m) {
     if (m === mode) return;
     mode = m; store.set("retroMode", m); paint(); haptic("light");
-    toast(m === "off" ? "Original sound" : LABEL[m]);
+    if (m !== "off") toast(LABEL[m]);
     if (XP) XP.sync(false, true);
     busy(false);
     const t = trackById(curId); if (t) want(t);
   }
-  seg.addEventListener("click", e => { const b = e.target.closest("button[data-m]"); if (b) set(b.dataset.m); });
+  seg.addEventListener("click", e => { const b = e.target.closest(".switch[data-m]"); if (b) set(b.dataset.m === mode ? "off" : b.dataset.m); });
   paint();
   const R = {
     cur: null,                                                        // "id|mode" of the copy that is loaded now, null = the original
