@@ -735,7 +735,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
     <div class="scroll-container-wrapper" id="playlist-wrapper" style="display:none;">
       <button class="back-btn" id="back-to-grid-btn">
         <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-        <span>Back to Albums</span>
+        <span>Back to Library</span>
       </button>
       <div class="playlist-container" id="playlist-ui"></div>
     </div>
@@ -1510,7 +1510,7 @@ function plReorder(from, to) {                                       // rows fro
   if (k !== target) { p.keys.splice(p.keys.indexOf(k), 1); let j = p.keys.indexOf(target); if (to > from) j++; p.keys.splice(j, 0, k); }
   savePl();
 }
-document.addEventListener("keydown", e => { if (e.key === "Escape") plPopClose(); });
+document.addEventListener("keydown", e => { if (e.key !== "Escape") return; const c = document.querySelector(".crop-ov .no"); if (c) c.click(); else plPopClose(); });
 
 /* ---- drag to reorder (long-press, then drag) ---- */
 let drag = null, suppressClick = false, editing = false;
@@ -1535,8 +1535,8 @@ function renderHidden() {
     row.innerHTML = itemHTML(albumCover(n), n, "").replace('<div class="item-text">', '<div class="item-text" style="display:none">') + '<div class="nm"></div>';
     row.querySelector(".nm").textContent = n;
     row.style.cursor = "pointer";
-    row.addEventListener("click", () => { settingsPanel.classList.remove("active"); rememberTab(); albumOrigin = null; currentCat = null; currentAlbum = n; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
-      setTab(btnPlaylist); drawerBox.classList.add("expanded"); showOnly(playlistWrapper, 1); renderPlaylist(); });
+    row.addEventListener("click", () => { settingsPanel.classList.remove("active"); rememberTab(); albumOrigin = null; currentCat = null; currentAlbum = n; $("back-to-grid-btn").querySelector("span").textContent = "Back to Library";
+      setTab(btnPlaylist); drawerBox.classList.add("expanded"); renderPlaylist(); $("playlist-ui").scrollTop = 0; showOnly(playlistWrapper, 1); });
     const b = document.createElement("button"); b.textContent = "Unhide";
     b.addEventListener("click", e => { e.stopPropagation(); hiddenSet.delete(n); saveHidden(); renderHidden(); renderAlbums(); if (!curId) { const t = tracks[0]; if (t) loadTrack(t.id, false); } });
     row.appendChild(b); box.appendChild(row);
@@ -1627,9 +1627,9 @@ function endDrag() {
 document.addEventListener("pointerup", endDrag);
 document.addEventListener("pointercancel", endDrag);
 
-function openTracklist() {
-  showOnly(playlistWrapper, 1);
-  renderPlaylist();
+function openTracklist() {                                           // fill the list first, then the view slides in and the height morphs to it
+  renderPlaylist(); $("playlist-ui").scrollTop = 0;
+  showOnly(playlistWrapper, 1); swipeHint();
 }
 function itemHTML(art, title, sub) {
   return `<div class="item-art">${art ? `<img src="${art}" alt="">` : noteSvg}</div>
@@ -1880,9 +1880,10 @@ function renderQueue(scrollToNow) {
     const r = swShell(fg); r.classList.add("q-row", kind);
     if (kind !== "now") {
       fg.addEventListener("click", () => { if (fg._swiped) { fg._swiped = false; return; } playFromQueue(kind, i); });
-      attachSwipe(r, Q_STAGES, () => swOut(r, () => removeRow(kind, i)));
+      attachSwipe(r, Q_STAGES, () => swOut(r, () => removeRow(kind, i)), MENU_STAGES, () => { swBack(r); setTimeout(() => songMenu(t, r), 90); });   // as in Library: right for the song's menu
     }
-    if (group) { r._qi = i; r.dataset.group = group; attachReorder(r, i, group); }
+    if (group) { r._qi = i; r.dataset.group = group; attachReorder(r, i, group, { still: () => songMenu(t, r) }); }   // hold and move: reorder; hold and let go: the menu
+    else if (kind === "hist") holdFor(fg, () => { fg._swiped = true; setTimeout(() => { fg._swiped = false; }, 600); songMenu(t, r); });
     const art = t.art || albumCover(t.album); if (art) r.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
     ui.appendChild(r); return r;
   };
@@ -1972,7 +1973,7 @@ function beginDrag(r, from, group, e, el, opt = {}) {
     qDrag = null; r._dragging = false;
     if (opt.still && Math.abs(y - y0) < 7) {                          // held but never moved: the menu instead of a move
       rows.forEach(x => { x.style.transition = x.style.transform = ""; });
-      r.classList.remove("lifted"); ui.classList.remove("dragging"); swActive = null;
+      r.classList.remove("lifted"); ui.classList.remove("dragging"); swRelease();   // a rebuild that waited for the finger runs now
       opt.still(); return;
     }
     let land = 0;                                                     // glide into the gap that opened for it
@@ -2480,7 +2481,7 @@ function renderArtist(d) {
     c.innerHTML = `${own ? '<div class="own-dot"></div>' : ""}<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>${a.year ? '<div class="year"></div>' : ""}`;
     c.querySelector(".album-card-title").textContent = a.title;
     if (a.year) c.querySelector(".year").textContent = a.year;
-    const slot = c.querySelector(".ph-wrap"), ph = () => { slot.innerHTML = `<div class="all-tracks-icon">${noteSvg}</div>`; };
+    const slot = c.querySelector(".ph-wrap"), ph = () => { slot.innerHTML = `<div class="all-tracks-icon">${NOTES_SVG}</div>`; };
     if (a.cover) { const im = new Image(); im.loading = "lazy"; im.alt = ""; im.onerror = ph; im.src = a.cover; slot.appendChild(im); } else ph();
     c.addEventListener("click", () => openCatalogAlbum(a, d.name));
     grid.appendChild(c);
@@ -2495,7 +2496,7 @@ async function openCatalogAlbum(a, artistName) {
   const cat = currentCat = { key: "cat:" + (a.id || sn(a.title)), id: a.id, title: a.title, artist: artistName, cover: a.cover, list: null };
   currentAlbum = cat.key; albumOrigin = { name: artistName, scroll: $("artist-ui").scrollTop };
   $("back-to-grid-btn").querySelector("span").textContent = "Back";
-  showOnly(playlistWrapper, 1); renderPlaylist(); $("playlist-ui").scrollTop = 0;
+  renderPlaylist(); $("playlist-ui").scrollTop = 0; showOnly(playlistWrapper, 1);
   cat.list = (a.id && await relTrackList(a.id)) || [];
   if (currentCat === cat) renderPlaylist();
 }
@@ -2562,8 +2563,8 @@ $("track-artist").addEventListener("click", () => { const t = trackById(curId); 
 const btnQueue = $("btn-queue"), btnPlaylist = $("btn-playlist"), drawerBox = $("drawer-box");
 const queueWrapper = $("queue-wrapper"), playlistWrapper = $("playlist-wrapper"), albumsGridWrapper = $("albums-grid-wrapper");
 $("back-to-grid-btn").addEventListener("click", () => {
-  if (albumOrigin) { const o = albumOrigin; albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums"; openArtist(o.name, "back", o.scroll); return; }
-  currentCat = null; showOnly(albumsGridWrapper, -1); renderAlbums();
+  if (albumOrigin) { const o = albumOrigin; albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Library"; openArtist(o.name, "back", o.scroll); return; }
+  currentCat = null; renderAlbums(); showOnly(albumsGridWrapper, -1);
 });
 const btnArtists = $("btn-artists"), artistsWrapper = $("artists-wrapper"), artistWrapper = $("artist-wrapper");
 const allWraps = [queueWrapper, playlistWrapper, albumsGridWrapper, artistsWrapper, artistWrapper];
@@ -2597,11 +2598,11 @@ function restoreTab(btn, m) {
     if (!m.cat && m.album !== "All Tracks" && !plOf(m.album) && !tracks.some(t => t.album === m.album)) return false;   // the album (or playlist) has gone since
     currentAlbum = m.album; currentCat = m.cat; albumOrigin = m.origin;
     if (m.origin) { currentArtistName = m.artist; artistStack = m.stack.slice(); }
-    backTo(m.origin ? "Back" : "Back to Albums");
+    backTo(m.origin ? "Back" : "Back to Library");
     renderPlaylist(); showOnly(playlistWrapper); $("playlist-ui").scrollTop = m.scroll;
     return true;
   }
-  albumOrigin = null; currentCat = null; backTo("Back to Albums");
+  albumOrigin = null; currentCat = null; backTo("Back to Library");
   if (m.el === artistWrapper && m.artist) { artistStack = m.stack.slice(); openArtist(m.artist, "restore", m.scroll); return true; }
   if (m.el === artistsWrapper) { renderArtists(); showOnly(artistsWrapper); }
   else { renderAlbums(); showOnly(albumsGridWrapper); }
@@ -2621,7 +2622,7 @@ function toggleTab(btn) {
   if (btn === btnQueue) { renderQueue(); showOnly(queueWrapper); renderQueue(true); }
   else if (m && restoreTab(btn, m)) {}
   else {
-    albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
+    albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Library";
     if (btn === btnPlaylist) { renderAlbums(); showOnly(albumsGridWrapper); }      // fill the view first, so the height morph measures the real content
     else { currentArtistName = ""; artistStack = []; renderArtists(); showOnly(artistsWrapper); }
   }
@@ -2632,7 +2633,7 @@ btnPlaylist.addEventListener("click", () => toggleTab(btnPlaylist));
 btnArtists.addEventListener("click", () => toggleTab(btnArtists));
 $("artist-back").addEventListener("click", () => {
   if (artistStack.length) openArtist(artistStack.pop(), "back");
-  else { currentArtistName = ""; showOnly(artistsWrapper, -1); renderArtists(); }
+  else { currentArtistName = ""; renderArtists(); showOnly(artistsWrapper, -1); }
 });
 
 /* ---------- LIQUID GLASS TAB SLIDER ----------
@@ -3149,7 +3150,8 @@ XP = (() => {
   function prep(h0, warm) {                                          // before any move: show the layer, size it, measure both layouts
     clearTimeout(st.shT); wrap.style.transition = "";
     xp.classList.add("show"); xp.setAttribute("aria-hidden", "false");
-    st.warm = !!warm; if (!warm) wrap.classList.add("xp-anim");      // warm: shown but not yet moving, the compact row still takes taps
+    st.warm = !!warm;                                                 // warm: shown but not yet moving, the compact row still takes taps
+    if (!warm) { wrap.classList.add("xp-anim"); wrap.classList.remove("xp-on"); }   // moving: the compact copies fade in/out along the way (render below places them first)
     sync(true, true);
     layout();
     if (!drawerOpen()) st.compactH = naturalH();
@@ -3173,7 +3175,7 @@ XP = (() => {
     if (!m.originsOn) origins(m);
     const P = clamp01(p);                                            // never laid out past either end (the panel only gives a few px, below)
     wrap.style.height = (lerp(st.h0, st.h1, P) + st.over).toFixed(1) + "px";
-    artBox.style.visibility = P > .0005 ? "hidden" : "";
+    artBox.style.opacity = P > .0005 ? ".001" : "";                    // kept painted under the big cover (not hidden): the hand-over at the end is instant
     /* the big cover, scaled down onto the small one at p = 0 */
     const size = lerp(m.aw, st.S, P), s = size / st.S, curX = lerp(m.ax, m.sx, P), curY = lerp(m.ay, m.sy, P);
     art.style.transform = `translate(${(curX - m.sx).toFixed(2)}px,${(curY - m.sy).toFixed(2)}px) scale(${s.toFixed(4)})`;
@@ -3232,7 +3234,7 @@ XP = (() => {
     xp.classList.remove("show"); xp.setAttribute("aria-hidden", "true");
     wrap.classList.remove("xp-on", "xp-anim");
     clearMoved(); [pm, cm, fm, bot].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
-    tText.style.transform = ""; artBox.style.visibility = ""; st.hm = null; smBloom.style.removeProperty("--hm"); smLight.style.removeProperty("--hm"); gear.style.opacity = ""; gear.style.pointerEvents = "";
+    tText.style.transform = ""; artBox.style.opacity = ""; st.hm = null; smBloom.style.removeProperty("--hm"); smLight.style.removeProperty("--hm"); gear.style.opacity = ""; gear.style.pointerEvents = "";
     if (st.sheet) { st.shT = setTimeout(settleHeight, Math.max(0, 440 - (performance.now() - st.sheetAt))); }   // let the drawer finish opening first
     else wrap.style.height = "";
   }
@@ -3337,7 +3339,8 @@ XP = (() => {
       /* decided once, here: opening needs a clearly downward start (steeper than ~35 degrees from vertical); anything
          else is not an expand and never becomes one later in the same touch */
       const vert = g.from < .5 && !g.any ? dy > 0 && dy > Math.abs(dx) * STEEP : Math.abs(dy) > Math.abs(dx) * 1.1;
-      if (!vert || !canExpand() || (g.from < .5 && drawerOpen())) { g.dead = true; return; }
+      if (!vert || !canExpand()) { g.dead = true; return; }
+      if (g.from < .5 && drawerOpen()) { g.dead = true; open(); return; }   // a section is open: it folds away and the player unfolds
       begin(ev); return;
     }
     if (g.scroll) {                                                  // the content follows the finger; past either end it only gives a little
@@ -3381,8 +3384,9 @@ XP = (() => {
     const dx = d.cx - d.sx, dy = d.cy - d.sy;
     if (Math.hypot(dx, dy) < INTENT) return false;
     d.dec = true;
-    if (!d.row || g || st.raf || st.expanded || !canExpand() || drawerOpen()) return false;
+    if (!d.row || g || st.raf || st.expanded || !canExpand()) return false;
     if (!(dy > 0 && dy > Math.abs(dx) * STEEP)) return false;
+    if (drawerOpen()) { open(); return true; }                       // a section is open: it folds away and the player unfolds
     g = { id: d.id, x0: ev.clientX, y0: ev.clientY, t0: performance.now(), from: st.expanded ? 1 : 0, started: false, dead: false, samples: [] };
     begin(ev); return true;
   };
@@ -4113,7 +4117,9 @@ if (TG) (function () {
     const need = () => settingsPanel.classList.contains("active") || editing || open() || wrap.classList.contains("xp-on");
     const sync = () => { need() ? back.show() : back.hide(); };
     back.onClick(() => {
-      if (settingsPanel.classList.contains("active")) settingsPanel.classList.remove("active");
+      if (document.querySelector(".crop-ov")) document.querySelector(".crop-ov .no").click();
+      else if (plPop) plPopClose();
+      else if (settingsPanel.classList.contains("active")) settingsPanel.classList.remove("active");
       else if (editing) setEdit(false);
       else if (open() && shown(playlistWrapper)) $("back-to-grid-btn").click();
       else if (open() && shown(artistWrapper)) $("artist-back").click();
