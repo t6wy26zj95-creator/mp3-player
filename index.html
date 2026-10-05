@@ -71,17 +71,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .controls-cluster .player-btn{width:34px;height:34px}
 #play-btn{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .artist-row{display:flex;align-items:center;min-width:0}
-/* the heart next to the song: tap to put the song in a playlist. Filled = the song is in at least one. Now and then,
-   while the song isn't saved anywhere, it breathes twice to remind you it's there. */
-.heart-btn{flex-shrink:0;width:38px;height:38px;margin:0 -8px 0 -6px;padding:0;border:0;background:none;display:flex;align-items:center;justify-content:center;cursor:pointer;
-  -webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation;position:relative;z-index:2}
-.heart-btn svg{width:21px;height:21px;fill:rgba(255,255,255,0);stroke:#fff;stroke-width:1.9;opacity:.8;overflow:visible;
-  filter:drop-shadow(0 1px 3px rgba(0,0,0,.45));transition:fill .3s var(--ease),opacity .3s var(--ease)}
-.heart-btn.on svg{fill:#fff;opacity:1}
-.heart-btn.breathe svg{animation:hbreath 2.3s ease-in-out 2}
-@keyframes hbreath{0%,100%{transform:scale(1);opacity:.8;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45))}
-  50%{transform:scale(1.17);opacity:1;filter:drop-shadow(0 0 4px rgba(255,255,255,.7)) drop-shadow(0 0 10px rgba(var(--lc,200,215,225),.6))}}
-/* the playlist picker that opens under the heart */
+/* the song / playlist menu (hold a song or swipe it left; hold a playlist tile) */
 .pl-pop{position:fixed;z-index:40;width:236px;max-width:calc(100vw - 24px);overflow-y:auto;padding:6px;box-sizing:border-box;border-radius:16px;
   background:rgba(15,23,30,.86);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(255,255,255,.15);
   box-shadow:0 14px 34px rgba(0,0,0,.45);opacity:0;transform:scale(.92) translateY(-6px);transform-origin:top right;pointer-events:none;
@@ -96,10 +86,18 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .pl-row.in .ck{background:#fff;border-color:#fff}
 .pl-row.in .ck svg{opacity:1}
 .pl-row.add{color:rgba(255,255,255,.75)}
+.pl-row>svg{flex-shrink:0;width:18px;height:18px;fill:rgba(255,255,255,.75)}
+.pl-row.danger{color:#ff8a8a}.pl-row.danger>svg{fill:#ff8a8a}
+.pl-sep{height:1px;margin:4px 8px;background:rgba(255,255,255,.12)}
+.pl-song{display:flex;align-items:center;gap:10px;padding:6px 8px 8px}
+.pl-song .item-art{width:36px;height:36px;flex-shrink:0}
+.pl-song .t{min-width:0;flex:1}.pl-song .t div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-song .t .a{font-size:12px;color:rgba(255,255,255,.55)}
+.sw.menu-on>.sw-fg{background:rgba(255,255,255,.12);border-radius:12px}
 .pl-new{display:flex;gap:6px;padding:4px}
 .pl-new input{flex:1;min-width:0;padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:16px;outline:none}
 .pl-new button{padding:0 12px;border-radius:10px;border:0;background:#fff;color:#0f171e;font:600 13px -apple-system,system-ui,sans-serif;cursor:pointer}
-/* playlist tiles in Library: up to four covers in a square, and a small heart in the corner */
+/* playlist tiles in Library: your own cover, or up to four song covers in a square, or a music note; a small playlist mark in the corner */
 .album-card .pl-mosaic{position:relative;display:grid;grid-template-columns:1fr 1fr;background:rgba(255,255,255,.05);width:100%;aspect-ratio:1/1;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 15px rgba(0,0,0,.3);box-sizing:border-box;transition:transform .2s ease}
 .album-card .pl-mosaic.one{grid-template-columns:1fr}
 .album-card .pl-mosaic img{border:0;border-radius:0;box-shadow:none;width:100%;height:100%;aspect-ratio:auto}
@@ -107,7 +105,6 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .album-card .pl-mosaic .pl-empty svg{width:40px;height:40px;fill:rgba(255,255,255,.4)}
 .album-card:active .pl-mosaic{transform:scale(.96)}
 .pl-mark{position:absolute;right:6px;bottom:6px;width:18px;height:18px;fill:#fff;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));pointer-events:none}
-.albums-grid.editing .album-card.pl-card>.pl-mosaic{animation:jig .34s ease-in-out infinite alternate;animation-delay:calc(var(--j,0) * -.13s)}
 .artist-row .track-artist{min-width:0;flex:0 1 auto}
 .shuf-ind{flex-shrink:0;width:0;height:13px;margin-left:0;opacity:0;fill:#fff;transition:width .3s var(--ease),margin .3s var(--ease),opacity .3s var(--ease)}
 .shuf-ind.on{width:13px;margin-left:6px;opacity:.85}
@@ -390,7 +387,9 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 @keyframes qglowOut{from{opacity:.5}to{opacity:0;transform:scale(.9)}}
 .q-row.lifted .item-art{transform:scale(1.08);box-shadow:0 4px 12px rgba(0,0,0,.35)}
 .q-row.lifted .q-handle svg{fill:#fff}
-.queue-container .q-row{transition:opacity .22s ease}
+.queue-container .q-row,.playlist-container .q-row{transition:opacity .22s ease}
+.playlist-container.dragging .q-row:not(.lifted){opacity:.5}
+.playlist-container.dragging{-webkit-overflow-scrolling:auto}
 .queue-container.dragging .q-row:not(.lifted){opacity:.5}
 .queue-container.dragging{-webkit-overflow-scrolling:auto}
 .q-row.collapse{overflow:hidden;transition:height .22s var(--ease),opacity .22s var(--ease)}
@@ -700,7 +699,6 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
       <div class="title-box"><div class="track-title" id="track-title">Loading...</div><div class="track-title title-glint" id="title-glint" aria-hidden="true"></div></div>
       <div class="artist-row"><div class="track-artist" id="track-artist">Unknown Artist</div><svg class="shuf-ind" id="shuf-ind" viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></div>
     </div>
-    <button class="heart-btn" id="heart-btn" aria-label="Add to playlist"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button>
   </div>
 
   <div class="progress-container" id="controls-main" style="display:none;">
@@ -842,7 +840,7 @@ const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
 /* Each write to Telegram's storage is a round trip through the app, so a key is sent at most once per its delay (the
    latest value wins), and whatever is still waiting is sent straight away when the app is hidden or closed. The play
    position changes every few seconds while you listen: it goes at most every 30 s (and on pause / hide). */
-const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists"], mirrorT = {}, mirrorV = {};
+const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "plCovers"], mirrorT = {}, mirrorV = {};
 const MIRROR_DELAY = { playState: 3000, playPos: 30000, artistCache: 5000, releaseMap2: 5000 };
 function mirrorSend(k) { clearTimeout(mirrorT[k]); delete mirrorT[k]; if (!(k in mirrorV)) return; const v = mirrorV[k]; delete mirrorV[k]; try { tgStore.setItem(k, v); } catch (e) {} }
 function mirrorFlush() { Object.keys(mirrorV).forEach(mirrorSend); }
@@ -881,7 +879,8 @@ let currentAlbum = "All Tracks";
 let playlists = []; try { playlists = JSON.parse(localStorage.getItem("playlists") || "[]"); if (!Array.isArray(playlists)) playlists = []; } catch (e) {}
 const PL = "pl:", plOf = n => typeof n === "string" && n.startsWith(PL) ? playlists.find(p => PL + p.id === n) : null;
 const albumLabel = n => { const p = plOf(n); return p ? p.name : n; };
-const HEART_D = "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z", HEART_SVG = `<svg viewBox="0 0 24 24"><path d="${HEART_D}"/></svg>`;
+let plCovers = {}; try { plCovers = JSON.parse(localStorage.getItem("plCovers") || "{}") || {}; } catch (e) {}   // your own playlist covers, by playlist id
+const PL_MARK = `<svg class="pl-mark" viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>`;
 
 const audio = $("audio-element"), playBtn = $("play-btn");
 const playIconSvg = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
@@ -1261,7 +1260,7 @@ function catEntries(cat) {
 }
 const verOf = s => { const m = String(s).match(/\b(live|demo|rough(?: mix| vocal)?|instrumental|acoustic|remix|alternate|session)\b/i); return m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : ""; };
 function albumCover(name) {
-  const pl = plOf(name); if (pl) { const t = plTracks(pl).find(t => t.art || albumCover(t.album)); return t ? t.art || albumCover(t.album) : null; }
+  const pl = plOf(name); if (pl) { if (plCovers[pl.id]) return plCovers[pl.id]; const t = plTracks(pl).find(t => t.art || albumCover(t.album)); return t ? t.art || albumCover(t.album) : null; }
   if (currentCat && name === currentCat.key) return currentCat.cover; const t = tracks.find(t => t.album === name && t.art); return t ? t.art : (albumMeta[name] && albumMeta[name].cover) || null; }
 function albumEntries(name) {
   const pl = plOf(name); if (pl) return plTracks(pl).map(t => ({ track: t, title: t.title, num: 0, disc: 1 }));
@@ -1309,12 +1308,12 @@ function renderAlbums() {
   const folder = `<div class="all-tracks-icon"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></div>`;
   mk("All Tracks", folder, () => { albumOrigin = null; currentCat = null; currentAlbum = "All Tracks"; openTracklist(); }).style.order = 0;
   playlists.forEach(p => {                                           // your playlists come next and stay there (order 0, not draggable)
-    const covers = [...new Set(plTracks(p).map(t => t.art || albumCover(t.album)).filter(Boolean))];
+    const covers = plCovers[p.id] ? [plCovers[p.id]] : [...new Set(plTracks(p).map(t => t.art || albumCover(t.album)).filter(Boolean))];
     const imgs = covers.length >= 4 ? covers.slice(0, 4) : covers.slice(0, 1);
-    const art = imgs.length ? imgs.map(c => `<img src="${c}" alt="">`).join("") : `<div class="pl-empty">${HEART_SVG}</div>`;
-    const c = mk(p.name, `<div class="pl-mosaic${imgs.length === 4 ? "" : " one"}">${art}${imgs.length ? `<svg class="pl-mark" viewBox="0 0 24 24"><path d="${HEART_D}"/></svg>` : ""}</div>`,
+    const art = imgs.length ? imgs.map(c => `<img src="${c}" alt="">`).join("") : `<div class="pl-empty">${noteSvg}</div>`;
+    const c = mk(p.name, `<div class="pl-mosaic${imgs.length === 4 ? "" : " one"}">${art}${PL_MARK}</div>`,
       () => { albumOrigin = null; currentCat = null; currentAlbum = PL + p.id; openTracklist(); });
-    c.classList.add("pl-card"); c.style.order = 0; plCardEdit(c, p);
+    c.classList.add("pl-card"); c.style.order = 0; holdFor(c, () => { suppressClick = true; plTileMenu(c, p); });
   });
   orderedAlbumNames().forEach((name, i) => {
     const cover = albumCover(name);
@@ -1324,103 +1323,145 @@ function renderAlbums() {
 }
 
 /* ---------- PLAYLISTS ----------
-   The heart next to the song's title opens a small picker: tick a playlist to put the song in it (tap again to take it
-   out), or make a new one with the song already in it. Playlists show up in Library right after All Tracks; hold one
-   (like an album) to get the − badge, which deletes it. */
+   Hold a song (anywhere in Library, or on an artist page) or swipe it left: a menu with Play next / Play last, your
+   playlists (tick one to put the song in it, tap again to take it out) and New playlist. Inside one of your playlists,
+   hold a song and move your finger to reorder (or drag the handle); hold and let go without moving for the menu.
+   Playlists show up in Library right after All Tracks; hold a tile to choose its cover, rename or delete it. */
 function plTracks(p) { const byKey = new Map(tracks.map(t => [tkey(t), t])); return p.keys.map(k => byKey.get(k)).filter(Boolean); }
 function savePl() {
-  store.set("playlists", JSON.stringify(playlists)); heartSync();
+  store.set("playlists", JSON.stringify(playlists));
   if (gridShown()) renderAlbums();
   if (playlistWrapper.style.display === "block" && plOf(currentAlbum)) renderPlaylist();
 }
-function heartSync() {
-  const t = trackById(curId), on = !!t && playlists.some(p => p.keys.includes(tkey(t)));
-  $("heart-btn").classList.toggle("on", on);
-}
-function plSong() { heartSync(); plPopClose(); }                     // a new song: the heart shows its state, an open picker goes
-function plCardEdit(card, p) {                                       // hold a playlist tile: edit mode, its − badge deletes it
-  card.insertAdjacentHTML("afterbegin", '<div class="del-badge" aria-label="Delete playlist"></div>');
-  card.querySelector(".del-badge").addEventListener("click", e => {
-    e.stopPropagation();
-    const go = ok => { if (!ok) return; playlists = playlists.filter(x => x !== p); savePl(); toast("Playlist deleted"); };
-    const q = `Delete the playlist "${p.name}"? The songs stay in your library.`;
-    if (tgAt("6.2")) TG.showConfirm(q, go); else go(confirm(q));
-  });
-  card.addEventListener("contextmenu", e => e.preventDefault());
+function holdFor(el, fn) {                                           // a long press (or a right click) runs fn; moving the finger first cancels it
   let lp = 0, x0 = 0, y0 = 0;
   const stop = () => { clearTimeout(lp); lp = 0; };
-  card.addEventListener("pointerdown", e => {
-    if (editing || (e.pointerType === "mouse" && e.button !== 0)) return;
+  el.addEventListener("contextmenu", e => { e.preventDefault(); if (e.pointerType === "mouse" || e.button === 2) fn(); });
+  el.addEventListener("pointerdown", e => {
+    if (editing || swActive || (e.pointerType === "mouse" && e.button !== 0)) return;
     x0 = e.clientX; y0 = e.clientY;
-    lp = setTimeout(() => { lp = 0; suppressClick = true; setEdit(true); haptic("medium"); }, LONG_PRESS);
+    lp = setTimeout(() => { lp = 0; if (swActive) return; haptic("medium"); fn(); }, LONG_PRESS);
   });
-  card.addEventListener("pointermove", e => { if (lp && Math.hypot(e.clientX - x0, e.clientY - y0) > 9) stop(); });
-  ["pointerup", "pointercancel", "pointerleave"].forEach(k => card.addEventListener(k, stop));
+  el.addEventListener("pointermove", e => { if (lp && Math.hypot(e.clientX - x0, e.clientY - y0) > 8) stop(); });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(k => el.addEventListener(k, stop));
 }
-let plPop = null;
+let plPop = null, plAnchor = null;
 function plPopClose() {
   if (!plPop) return; const el = plPop; plPop = null;
+  if (plAnchor) { plAnchor.classList.remove("menu-on"); plAnchor = null; }
   el.classList.remove("show"); setTimeout(() => el.remove(), 260);
   document.removeEventListener("pointerdown", plOutside, true);
 }
-function plOutside(e) { if (plPop && !plPop.contains(e.target) && !$("heart-btn").contains(e.target)) plPopClose(); }
-function plPopOpen() {
-  const t = trackById(curId); if (!t) return;
-  const k = tkey(t), btn = $("heart-btn"), el = plPop = document.createElement("div");
-  el.className = "pl-pop";
-  const draw = naming => {
-    el.innerHTML = '<div class="pl-h">Add to playlist</div>';
-    playlists.forEach(p => {
-      const r = document.createElement("div"); r.className = "pl-row" + (p.keys.includes(k) ? " in" : "");
-      r.innerHTML = `<span class="nm"></span><span class="ck">${ICON_CHECK}</span>`; r.querySelector(".nm").textContent = p.name;
-      r.addEventListener("click", () => {
-        const i = p.keys.indexOf(k); if (i < 0) p.keys.push(k); else p.keys.splice(i, 1);
-        r.classList.toggle("in", i < 0); haptic("select"); savePl();
-      });
-      el.appendChild(r);
-    });
-    if (!naming) {
-      const r = document.createElement("div"); r.className = "pl-row add"; r.textContent = "+ New playlist";
-      r.addEventListener("click", () => draw(true)); el.appendChild(r); return;
-    }
-    const f = document.createElement("form"); f.className = "pl-new";
-    f.innerHTML = '<input maxlength="40" placeholder="Playlist name" enterkeyhint="done" autocomplete="off"><button type="submit">Create</button>';
-    f.addEventListener("submit", e => {
-      e.preventDefault();
-      const name = f.querySelector("input").value.trim() || "My playlist " + (playlists.length + 1);
-      playlists.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, keys: [k] });
-      haptic("light"); savePl(); plPopClose(); toast(`Added to ${name}`);
-    });
-    el.appendChild(f); f.querySelector("input").focus();
-  };
-  document.body.appendChild(el); draw(!playlists.length);
-  const r = btn.getBoundingClientRect(), vh = window.visualViewport ? visualViewport.height : innerHeight;
-  el.style.top = Math.round(r.bottom + 4) + "px"; el.style.right = Math.max(12, Math.round(innerWidth - r.right - 2)) + "px";
-  el.style.maxHeight = Math.max(160, vh - r.bottom - 24) + "px";
-  void el.offsetWidth; el.classList.add("show");
-  document.addEventListener("pointerdown", plOutside, true);
+function plOutside(e) { if (plPop && !plPop.contains(e.target)) { plPopClose(); if (e.target.closest && e.target.closest(".sw,.album-card")) { e.stopPropagation(); e.preventDefault(); plSwallow(); } } }
+function plSwallow() {                                               // the tap that closes the menu doesn't also open the song / album under it
+  const eat = e => { e.stopPropagation(); e.preventDefault(); };
+  document.addEventListener("click", eat, true); setTimeout(() => document.removeEventListener("click", eat, true), 450);
 }
-(() => {
-  const btn = $("heart-btn");
-  btn.addEventListener("pointerdown", e => e.stopPropagation());     // a tap on the heart is never the start of a pull on the song row
-  btn.addEventListener("contextmenu", e => e.preventDefault());
-  btn.addEventListener("click", e => {
-    e.stopPropagation();
-    const svg = btn.querySelector("svg"); btn.classList.remove("breathe");
-    if (!RM && svg.animate) svg.animate([{ scale: 1 }, { scale: .8, offset: .35 }, { scale: 1.12, offset: .7 }, { scale: 1 }], { duration: 380, easing: "ease-out" });
-    if (plPop) plPopClose(); else { haptic("light"); plPopOpen(); }
-  });
-  document.addEventListener("keydown", e => { if (e.key === "Escape") plPopClose(); });
-  /* the reminder: every 25-50 s, two slow breaths, but only while the song isn't in any playlist and the heart is on screen */
-  btn.addEventListener("animationend", () => btn.classList.remove("breathe"));
-  const remind = () => {
-    if (!RM && !document.hidden && !plPop && !btn.classList.contains("on") && $("player-main").style.display !== "none" && !(XP && XP.expanded) && curId != null) {
-      btn.classList.remove("breathe"); void btn.offsetWidth; btn.classList.add("breathe");
-    }
-    setTimeout(remind, 25000 + Math.random() * 25000);
+function plMenu(anchor, draw) {                                      // a menu next to anchor (below it, or above when there's no room)
+  plPopClose();
+  const el = plPop = document.createElement("div"); el.className = "pl-pop";
+  const item = (label, icon, fn, cls) => {
+    const r = document.createElement("div"); r.className = "pl-row" + (cls ? " " + cls : "");
+    r.innerHTML = (icon || "") + '<span class="nm"></span>'; r.querySelector(".nm").textContent = label;
+    r.addEventListener("click", e => { e.stopPropagation(); fn(r); }); el.appendChild(r); return r;
   };
-  setTimeout(remind, 8000);
-})();
+  const sep = () => el.insertAdjacentHTML("beforeend", '<div class="pl-sep"></div>');
+  const ask = (ph, val, btn, fn) => {                               // a name field in place of the menu's last row
+    const f = document.createElement("form"); f.className = "pl-new";
+    f.innerHTML = `<input maxlength="40" placeholder="${ph}" enterkeyhint="done" autocomplete="off"><button type="submit">${btn}</button>`;
+    const inp = f.querySelector("input"); inp.value = val;
+    f.addEventListener("submit", e => { e.preventDefault(); fn(inp.value.trim()); });
+    el.appendChild(f); inp.focus(); place();
+  };
+  const place = () => {
+    const r = anchor.getBoundingClientRect(), vh = window.visualViewport ? visualViewport.height : innerHeight;
+    el.style.maxHeight = ""; const h = el.offsetHeight, w = el.offsetWidth;
+    let top = r.bottom + 4;
+    if (top + h > vh - 12) top = r.top - h - 4 >= 12 ? r.top - h - 4 : Math.max(12, vh - 12 - h);
+    el.style.top = Math.round(top) + "px";
+    el.style.left = Math.round(Math.max(12, Math.min(innerWidth - w - 12, r.right - w - 8))) + "px";
+    el.style.maxHeight = (vh - 24) + "px";
+  };
+  document.body.appendChild(el); draw({ el, item, sep, ask });
+  if (anchor.classList.contains("sw")) { plAnchor = anchor; anchor.classList.add("menu-on"); }
+  place(); void el.offsetWidth; el.classList.add("show");
+  setTimeout(() => { if (plPop === el) document.addEventListener("pointerdown", plOutside, true); }, 0);
+}
+function newPlaylist(name, keys) {
+  const p = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: name || "My playlist " + (playlists.length + 1), keys };
+  playlists.push(p); savePl(); return p;
+}
+function songMenu(t, row) {
+  if (!t) return;
+  const k = tkey(t), here = plOf(currentAlbum) && playlistWrapper.style.display === "block" ? plOf(currentAlbum) : null;
+  plMenu(row, ({ el, item, sep, ask }) => {
+    const head = document.createElement("div"); head.className = "pl-song";
+    head.innerHTML = itemHTML(t.art || albumCover(t.album), t.title, t.artist).replace('class="item-text"', 'class="t"').replace('class="item-title"', "").replace('class="item-artist"', 'class="a"');
+    el.appendChild(head);
+    item("Play next", ICON_NEXT, () => { plPopClose(); enqueue(t.id, false); });
+    item("Play last", ICON_LAST, () => { plPopClose(); enqueue(t.id, true); });
+    sep();
+    if (playlists.length) {
+      el.insertAdjacentHTML("beforeend", '<div class="pl-h">Add to playlist</div>');
+      playlists.forEach(p => {
+        const r = item(p.name, "", r => {
+          const i = p.keys.indexOf(k); if (i < 0) p.keys.push(k); else p.keys.splice(i, 1);
+          r.classList.toggle("in", i < 0); haptic("select"); savePl();
+        }, p.keys.includes(k) ? "in" : "");
+        r.insertAdjacentHTML("beforeend", `<span class="ck">${ICON_CHECK}</span>`);
+      });
+    }
+    const nw = item("New playlist", ICON_ADD, () => {
+      nw.remove(); if (rm) rm.remove();
+      ask("Playlist name", "", "Create", name => { const p = newPlaylist(name, [k]); haptic("light"); plPopClose(); toast(`Added to ${p.name}`); });
+    }, "add");
+    const rm = here && here.keys.includes(k) ? item(`Remove from ${here.name}`, ICON_REMOVE, () => {
+      plPopClose(); here.keys = here.keys.filter(x => x !== k); haptic("light"); savePl(); toast(`Removed from ${here.name}`);
+    }, "danger") : null;
+  });
+}
+function plTileMenu(card, p) {
+  plMenu(card, ({ el, item, sep, ask }) => {
+    el.insertAdjacentHTML("beforeend", '<div class="pl-h"></div>'); el.lastChild.textContent = p.name;
+    item("Choose cover", ICON_PHOTO, () => { plPopClose(); pickCover(p); });
+    if (plCovers[p.id]) item("Use song covers", ICON_UNDO, () => { plPopClose(); delete plCovers[p.id]; store.set("plCovers", JSON.stringify(plCovers)); savePl(); });
+    const rn = item("Rename", ICON_EDIT, () => {
+      [...el.querySelectorAll(".pl-row,.pl-sep")].forEach(x => x.remove());
+      ask("Playlist name", p.name, "Save", name => { if (name) { p.name = name; savePl(); } plPopClose(); });
+    });
+    sep();
+    item("Delete playlist", ICON_REMOVE, () => {
+      plPopClose();
+      const go = ok => { if (!ok) return; playlists = playlists.filter(x => x !== p); delete plCovers[p.id]; store.set("plCovers", JSON.stringify(plCovers)); savePl(); toast("Playlist deleted"); };
+      const q = `Delete the playlist "${p.name}"? The songs stay in your library.`;
+      if (tgAt("6.2")) TG.showConfirm(q, go); else go(confirm(q));
+    }, "danger");
+  });
+}
+function pickCover(p) {                                              // your own picture: cut to a square in the middle, 400 px, kept with the playlist
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+  inp.addEventListener("change", () => {
+    const f = inp.files[0]; if (!f) return;
+    const img = new Image(), u = URL.createObjectURL(f);
+    img.onload = () => {
+      const side = Math.min(img.width, img.height), S = Math.min(400, side), c = document.createElement("canvas");
+      c.width = c.height = S;
+      c.getContext("2d").drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, S, S);
+      URL.revokeObjectURL(u);
+      plCovers[p.id] = c.toDataURL("image/jpeg", .85); store.set("plCovers", JSON.stringify(plCovers)); savePl(); toast("Cover changed");
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); toast("That picture couldn't be opened"); };
+    img.src = u;
+  });
+  inp.click();
+}
+function plReorder(from, to) {                                       // rows from -> to (indexes among the songs on screen)
+  const p = plOf(currentAlbum); if (!p) return;
+  const vis = plTracks(p).map(tkey), k = vis[from], target = vis[to];
+  if (k !== target) { p.keys.splice(p.keys.indexOf(k), 1); let j = p.keys.indexOf(target); if (to > from) j++; p.keys.splice(j, 0, k); }
+  savePl();
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") plPopClose(); });
 
 /* ---- drag to reorder (long-press, then drag) ---- */
 let drag = null, suppressClick = false, editing = false;
@@ -1548,7 +1589,8 @@ function renderPlaylist() {
   const ui = $("playlist-ui"); ui.innerHTML = "";
   const all = currentAlbum === "All Tracks";
   const entries = all ? tracks.map(t => ({ track: t, title: t.title, num: t.num })) : albumEntries(currentAlbum);
-  if (!all && !entries.length) ui.innerHTML = plOf(currentAlbum) ? '<div class="artist-note" style="text-align:center;padding:16px">No songs here yet. While a song plays, tap the ♡ next to its title to add it.</div>'
+  const pl = plOf(currentAlbum); let pi = 0;                          // one of your playlists: its songs can be reordered
+  if (!all && !entries.length) ui.innerHTML = pl ? '<div class="artist-note" style="text-align:center;padding:16px">No songs here yet. Hold a song in Library, or swipe it left, to add it.</div>'
     : '<div class="artist-note" style="text-align:center;padding:16px">Loading tracks…</div>';
   if (currentCat && !resolving() && !albumEntries(currentAlbum).some(e => e.track)) { const ds = Object.keys(relDebug).filter(n => norm(relDebug[n].split(" · ")[0]) === norm(currentCat.artist)).map(n => n + " → " + relDebug[n].split(" · ").slice(1).join(" · ")); if (ds.length) { const n = document.createElement("div"); n.className = "artist-note"; n.style.fontSize = "10px"; n.textContent = "Matching: " + ds.join(" | "); ui.appendChild(n); } }
   if (currentCat && resolving()) { const n = document.createElement("div"); n.className = "artist-note"; n.textContent = "Checking your library…"; ui.appendChild(n); }
@@ -1562,9 +1604,15 @@ function renderPlaylist() {
       item.innerHTML = itemHTML(albumCover(currentAlbum), label, "🔒 Not in your library");
       ui.appendChild(item); return;
     }
-    item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : ""));
+    item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : "")) + (pl ? `<div class="q-handle" aria-label="Move">${ICON_HANDLE}</div>` : "");
     item.addEventListener("click", () => { if (item._swiped) { item._swiped = false; return; } startContext(t.id); });
-    const row = swShell(item); row.classList.add("can"); libSwipe(row, t.id);   // swipe left: Play Next, further: Play Last
+    const row = swShell(item); row.classList.add("can"); libSwipe(row, t.id);   // swipe left: the song's menu
+    if (pl) {                                                        // hold and move (or drag the handle): reorder; hold and let go: the menu
+      item.classList.add("q-fg"); row.classList.add("q-row"); row.dataset.group = "pl"; row._qi = pi;
+      const art = t.art || albumCover(t.album); if (art) row.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
+      attachReorder(row, pi++, "pl", { ui, drop: plReorder, still: () => songMenu(t, row) });
+      item.addEventListener("contextmenu", ev => { ev.preventDefault(); if (ev.pointerType === "mouse" || ev.button === 2) songMenu(t, row); });
+    } else holdFor(item, () => { item._swiped = true; setTimeout(() => { item._swiped = false; }, 600); songMenu(t, row); });
     ui.appendChild(row);
   });
   if (playlistWrapper.style.display === "block") swipeHint();
@@ -1584,6 +1632,11 @@ const ICON_NEXT = `<svg viewBox="0 0 24 24"><path d="M2 6h12v2H2zm0 4h12v2H2zm0 
 const ICON_LAST = `<svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg>`;
 const ICON_REMOVE = `<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
 const ICON_CHECK = `<svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>`;
+const ICON_MORE = `<svg viewBox="0 0 24 24"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>`;
+const ICON_ADD = `<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
+const ICON_PHOTO = `<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>`;
+const ICON_EDIT = `<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
+const ICON_UNDO = `<svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>`;
 const ICON_HANDLE = `<svg viewBox="0 0 24 24"><path d="M20 9H4v2h16V9zM4 15h16v-2H4v2z"/></svg>`;
 let history = [], nowFrom = "other", curPlayed = false, shuffle = false;
 let repeatMode = ["all", "one", "off"].includes(store.get("repeatMode")) ? store.get("repeatMode") : "all";
@@ -1663,7 +1716,7 @@ function applyShuffle() {                                            // shuffle 
      (12 px of slack, so it doesn't flicker on the line) undoes it the same way; back near the start = nothing happens.
    - Past the last stage the row gets heavy (rubber band), so there's no stage 3 to hunt for. */
 const SW_TONE = { next: "88,196,178", last: "126,146,255", remove: "255,99,99" };
-const LIB_STAGES = [{ min: 64, f: .2, label: "Play next", icon: ICON_NEXT, tone: SW_TONE.next }, { min: 170, f: .52, label: "Play last", icon: ICON_LAST, tone: SW_TONE.last }];   // on a phone: ~66 px and ~172 px
+const LIB_STAGES = [{ min: 64, f: .2, label: "More", icon: ICON_MORE, tone: SW_TONE.next }];   // swipe left past ~66 px: the song's menu
 const Q_STAGES = [{ min: 90, f: .35, label: "Remove", icon: ICON_REMOVE, tone: SW_TONE.remove }];
 let swActive = null; const swLater = new Set();                     // swActive: the row being swiped or dragged; lists wait for it before rebuilding
 function swRelease() { swActive = null; setTimeout(() => { if (swActive) return; const l = [...swLater]; swLater.clear(); l.forEach(f => f()); }, 420); }
@@ -1700,7 +1753,7 @@ function attachSwipe(row, stages, onCommit) {
   });
   fg.addEventListener("pointermove", e => {
     if (!s || e.pointerId !== s.id) return;
-    if (row._dragging) { s = null; return; }
+    if (row._dragging || plPop) { s = null; return; }
     const dx = e.clientX - s.x, dy = e.clientY - s.y;
     if (!s.on) {
       if (dx < -12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
@@ -1739,7 +1792,7 @@ function swOut(row, cb) {                                            // Queue: t
   setTimeout(cb, 380);
 }
 function libSwipe(row, id) {
-  attachSwipe(row, LIB_STAGES, k => { enqueue(id, k === 2); swDone(row, k === 2 ? "Added" : "Plays next"); });
+  attachSwipe(row, LIB_STAGES, () => { swBack(row); setTimeout(() => songMenu(trackById(id), row), 90); });
 }
 function swipeHint() {                                               // once ever: the first song peeks left to show there's something behind it
   if (store.get("hintSwipe")) return;
@@ -1751,7 +1804,7 @@ function swipeHint() {                                               // once eve
     fg.style.transition = bg.style.transition = "transform .5s var(--ease),width .5s var(--ease)";
     fg.style.transform = "translateX(-76px)"; bg.style.width = "76px"; swPaint(row, LIB_STAGES, 1, 76);
     setTimeout(() => swBack(row), 1100);
-    toast("Swipe a song left to queue it");
+    toast("Hold a song or swipe it left for more");
   }, 650);
 }
 
@@ -1792,7 +1845,7 @@ function renderQueue(scrollToNow) {
     up.slice(0, n).forEach((id, i) => { const t = trackById(id); if (t) row(t, "ctx", i, "ctx"); });
     if (up.length > n) note(`Show all ${up.length}`, "q-more q-link", () => { renderQueue.all = true; renderQueue(); });
     else if (ctxList().length) note(repeatMode === "off" ? (up.length ? `Then ${ctx.name} stops` : `${ctx.name} stops after this song`) : up.length ? `Then ${ctx.name} starts again` : `${ctx.name} starts again from the top`, "q-more");
-  } else if (!queue.length) note("Nothing after this song. Swipe a song left in Library to queue it.", "q-empty");
+  } else if (!queue.length) note("Nothing after this song. Hold a song in Library, or swipe it left, to queue it.", "q-empty");
   ui.scrollTop = scrollToNow ? nowSec.offsetTop : keep;
 }
 function removeRow(kind, i) {
@@ -1816,26 +1869,26 @@ function playFromQueue(kind, i) {
 const LONG_PRESS = 380;
 let qDrag = null;
 document.addEventListener("touchmove", e => { if (qDrag) e.preventDefault(); }, { passive: false });   // while holding a song the list mustn't scroll under the finger
-function attachReorder(r, from, group) {
+function attachReorder(r, from, group, opt = {}) {      // opt (a playlist): ui, drop(from, to), still() for a hold without a move
   const handle = r.querySelector(".q-handle"), fg = r.querySelector(".q-fg");
   handle.addEventListener("click", e => e.stopPropagation());
   handle.addEventListener("pointerdown", e => {
     if ((e.pointerType === "mouse" && e.button) || swActive) return;
     e.preventDefault(); e.stopPropagation();
-    beginDrag(r, from, group, e, handle);
+    beginDrag(r, from, group, e, handle, { ...opt, still: null });
   });
   fg.addEventListener("pointerdown", e => {                           // long press anywhere on the row
     if ((e.pointerType === "mouse" && e.button) || swActive || e.target.closest(".q-handle")) return;
     const x0 = e.clientX, y0 = e.clientY, id = e.pointerId;
-    let t = setTimeout(() => { t = 0; cleanup(); if (!swActive) { fg._swiped = true; beginDrag(r, from, group, { clientY: y0, pointerId: id }, fg); } }, LONG_PRESS);
+    let t = setTimeout(() => { t = 0; cleanup(); if (!swActive && !plPop) { fg._swiped = true; beginDrag(r, from, group, { clientY: y0, pointerId: id }, fg, opt); } }, LONG_PRESS);
     const mv = ev => { if (ev.pointerId === id && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) { clearTimeout(t); cleanup(); } };
     const stop = () => { clearTimeout(t); cleanup(); };
     const cleanup = () => { fg.removeEventListener("pointermove", mv); fg.removeEventListener("pointerup", stop); fg.removeEventListener("pointercancel", stop); };
     fg.addEventListener("pointermove", mv); fg.addEventListener("pointerup", stop); fg.addEventListener("pointercancel", stop);
   });
 }
-function beginDrag(r, from, group, e, el) {
-  const ui = $("queue-ui");
+function beginDrag(r, from, group, e, el, opt = {}) {
+  const ui = opt.ui || $("queue-ui");
   try { el.setPointerCapture(e.pointerId); } catch (er) {}
   const rows = [...ui.querySelectorAll(`.q-row[data-group="${group}"]`)], me = rows.indexOf(r), idx = rows.map(x => x._qi);
   const tops = rows.map(x => x.offsetTop), hts = rows.map(x => x.offsetHeight), H = hts[me], mid = j => tops[j] + hts[j] / 2;
@@ -1869,6 +1922,11 @@ function beginDrag(r, from, group, e, el) {
     if (done) return; done = true;
     cancelAnimationFrame(raf); el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up);
     qDrag = null; r._dragging = false;
+    if (opt.still && Math.abs(y - y0) < 7) {                          // held but never moved: the menu instead of a move
+      rows.forEach(x => { x.style.transition = x.style.transform = ""; });
+      r.classList.remove("lifted"); ui.classList.remove("dragging"); swActive = null;
+      opt.still(); return;
+    }
     let land = 0;                                                     // glide into the gap that opened for it
     if (to > me) for (let j = me + 1; j <= to; j++) land += hts[j];
     else for (let j = to; j < me; j++) land -= hts[j];
@@ -1876,7 +1934,9 @@ function beginDrag(r, from, group, e, el) {
     r.classList.remove("lifted"); r.classList.add("landing"); ui.classList.remove("dragging");
     haptic("light");
     setTimeout(() => {
-      swActive = null; swLater.delete(renderQueue);
+      swActive = null;
+      if (opt.drop) { swLater.delete(renderPlaylist); opt.drop(from, idx[to]); return; }   // the list is rebuilt from the new order
+      swLater.delete(renderQueue);
       if (to !== me) {                                               // lands where row "to" was
         if (group === "queue") { const [e2] = queue.splice(from, 1); queue.splice(idx[to], 0, e2); }
         else { const o = ctxOwnOrder(), base = o.indexOf(ctx.at) + 1, [x] = o.splice(base + from, 1); o.splice(base + idx[to], 0, x); }
@@ -1987,7 +2047,7 @@ function loadTrack(id, autoplay, o = {}) {
   if (t.file) { curUrl = URL.createObjectURL(RETRO ? RETRO.blobFor(t) : t.file); audio.src = srcFor(curUrl, t.id); analyze(t); }
   else if (t.remote) later = remoteSrc(t, autoplay);
   $("track-title").innerText = t.title; sparkStop();
-  $("track-artist").innerText = t.artist; plSong();
+  $("track-artist").innerText = t.artist;
   if (anim) songIn(dir);
   setCover(t.art || albumCover(t.album));
   progressCtrl.setValue(0);
@@ -2964,7 +3024,7 @@ XP = (() => {
   const slot = $("xp-slot"), art = $("xp-art"), bloom = $("xp-bloom"), clip = $("xp-clip"), meta = $("xp-meta");
   const scrub = $("xp-scrub"), ctrls = $("xp-ctrls"), handle = $("xp-handle"), strip = $("xp-strip"), gear = $("gear-trigger");
   const smBloom = $("art-bloom"), smLight = $("art-light"), glight = $("xp-light");           // the small cover's glows: handed over to the big cover's own while it's shown
-  const pm = $("player-main"), cm = $("controls-main"), fm = $("footer-main"), artBox = $("album-art-box"), tText = pm.querySelector(".track-text"), heartEl = $("heart-btn");
+  const pm = $("player-main"), cm = $("controls-main"), fm = $("footer-main"), artBox = $("album-art-box"), tText = pm.querySelector(".track-text");
   const REPEAT = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z", REPEAT_ONE = REPEAT + "m-4-2V9h-1l-2 1v1h1.5v4H13z";
   let LYR = null;                                                    // the lyrics (set further down)
   const st = { p: 0, v: 0, over: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
@@ -3107,7 +3167,6 @@ XP = (() => {
     const fo = fade(P, .25, .7);                                      // shuffle / repeat: ride with the big controls' row
     FOLLOW.forEach(el => { el.style.transform = `translateY(${playDy.toFixed(2)}px)`; setOp(el, fo); });
     fm.style.transform = P ? `translateY(${playDy0.toFixed(2)}px)` : ""; setOp(fm, 1 - fade(P, 0, .13));   // the compact tab row leaves with the controls above it
-    setOp(heartEl, 1 - fade(P, 0, .13));                             // the heart has no twin in the big player: it just fades
     const bo = fade(P, .74, 1); bot.style.opacity = bo > .999 ? "" : bo.toFixed(3); bot.style.transform = bo > .999 ? "" : `translateY(${((1 - bo) * 12).toFixed(1)}px)`;
     handle.style.opacity = fade(P, .5, .9).toFixed(3);
     gear.style.opacity = ((1 - fade(P, 0, .25)) * .75).toFixed(3); gear.style.pointerEvents = P > .1 ? "none" : "";
@@ -3124,7 +3183,7 @@ XP = (() => {
     st.expanded = false; st.m = null; viewReset();
     xp.classList.remove("show"); xp.setAttribute("aria-hidden", "true");
     wrap.classList.remove("xp-on", "xp-anim");
-    clearMoved(); [pm, cm, fm, bot, heartEl].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
+    clearMoved(); [pm, cm, fm, bot].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
     tText.style.transform = ""; artBox.style.visibility = ""; st.hm = null; smBloom.style.removeProperty("--hm"); smLight.style.removeProperty("--hm"); gear.style.opacity = ""; gear.style.pointerEvents = "";
     if (st.sheet) { st.shT = setTimeout(settleHeight, Math.max(0, 440 - (performance.now() - st.sheetAt))); }   // let the drawer finish opening first
     else wrap.style.height = "";
