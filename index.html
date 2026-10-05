@@ -3242,7 +3242,7 @@ XP = (() => {
     art.style.borderRadius = (lerp(12, 18, G) / s).toFixed(2) + "px";
     art.style.setProperty("--u", (lerp(1, 1.6, G) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
     /* glows: both covers show the same bitmaps at the same place at p = 0, so the hand-over is a quick, invisible swap */
-    const hm = fade(P, 0, .04), hs = Math.max(.004, hm).toFixed(3), hr = (1 - hm).toFixed(3);   // never exactly 0: keeps the big glow's layer painted, ready
+    const hm = P > .0005 ? 1 : 0, hs = Math.max(.004, hm).toFixed(3), hr = (1 - hm).toFixed(3);   // a swap, not a cross-fade (two half glows add up darker); never exactly 0: keeps the big glow's layer painted, ready
     if (st.hm !== hs) { st.hm = hs; bloom.style.setProperty("--hm", hs); glight.style.setProperty("--hm", hs); smBloom.style.setProperty("--hm", hr); smLight.style.setProperty("--hm", hr); }
     const v = 1 - (1 - P) * (1 - P), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
     const rowY = (y0, y1) => bottom + lerp(y0 - bottom0, y1 - bottom1, v);
@@ -3254,7 +3254,7 @@ XP = (() => {
        over in place (cut short, or wrapping) hands over quickly, one copy fully out before the other comes in. */
     const extra = fade(P, .14, .72);
     for (const l of m.lines) {
-      const cOp = l.swap ? (P > 0 ? 0 : 1) : 1 - fade(P, 0, .12), xOp = l.swap ? (P > 0 ? 1 : 0) : fade(P, .2, .4);
+      const cOp = l.swap ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, .12)), xOp = l.swap ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .2, .4));
       /* the title circles round the growing cover: from beside it, round its corner, to under it (see orbit) */
       const t = P, lead = m.lines[0];
       let X, Y;
@@ -3292,7 +3292,8 @@ XP = (() => {
       if (q.track) bow(q, X, Y, kx, ky, P);
       if (q.icon && q.ik !== 1) q.icon.style.transform = P > 0 && P < 1 ? `scale(${lerp(q.ik, 1, hc).toFixed(4)})` : "";   // icons match the small ones' size at first
       /* same as the lines: the big copy takes over in place; a time whose text differs ("4:22" / "-2:04") swaps over quickly */
-      setOp(q.c, q.same ? (P > 0 ? 0 : 1) : 1 - fade(P, 0, .12)); setOp(q.x, q.same ? (P > 0 ? 1 : 0) : fade(P, .12, .32));
+      setOp(q.c, q.same ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, .12)));   // hidden, but kept painted (.001), so it is back the instant it's needed
+      setOp(q.x, q.same ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .12, .32)));
       if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; }
     }
     const fo = fade(P, .72, 1);                                      // shuffle / repeat: ride with the big controls' row
@@ -3306,15 +3307,18 @@ XP = (() => {
     st.raf = 0; st.p = t; st.v = 0; st.over = 0;
     if (t === 1) {
       render(1); st.expanded = true; LYR.song(); svRender();
-      clearMoved();                                                  // at rest: the big layout as laid out, the compact one hidden
-      wrap.classList.remove("xp-anim"); wrap.classList.add("xp-on");
+      wrap.classList.add("xp-on"); clearMoved();                     // at rest: the big layout as laid out, the compact one hidden
+      void getComputedStyle(playBtn).opacity; wrap.classList.remove("xp-anim");   // (styles settle while the buttons' own fades are still off)
       if (stripDirty) renderStrip();
       return;
     }
     st.expanded = false; st.m = null; viewReset();
     xp.classList.remove("show"); xp.setAttribute("aria-hidden", "true");
-    wrap.classList.remove("xp-on", "xp-anim");
+    wrap.classList.remove("xp-on");
     clearMoved(); [pm, cm, fm, bot].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
+    /* the small buttons come back at full strength at once: their own fade (for presses) stays off until the styles are
+       applied, otherwise they would fade in again from nothing, a visible blink after the motion */
+    void getComputedStyle(playBtn).opacity; wrap.classList.remove("xp-anim");
     tText.style.transform = ""; artBox.style.opacity = ""; st.hm = null; smBloom.style.removeProperty("--hm"); smLight.style.removeProperty("--hm"); gear.style.opacity = ""; gear.style.pointerEvents = "";
     if (st.sheet) { st.shT = setTimeout(settleHeight, Math.max(0, 440 - (performance.now() - st.sheetAt))); }   // let the drawer finish opening first
     else wrap.style.height = "";
@@ -3408,8 +3412,9 @@ XP = (() => {
     else if (!st.warm && (!st.expanded || !st.m)) prep();            // already open (or warmed up by the touch): everything is measured, just move
     st.warm = false;
     g.started = true; g.y0 = ev.clientY; g.p0 = st.p; g.travel = Math.max(200, st.h1 - st.h0);
+    wrap.classList.add("xp-anim");                                   // the buttons' own fades off before anything moves
     render(st.p);                                                    // first: the compact copies get their place and fade before they are unhidden
-    wrap.classList.add("xp-anim"); wrap.classList.remove("xp-on");
+    wrap.classList.remove("xp-on");
   }
   document.addEventListener("pointermove", ev => {
     if (!g || ev.pointerId !== g.id) return;
