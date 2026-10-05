@@ -148,7 +148,8 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .back-btn svg{width:14px;height:14px;fill:currentColor}
 
 .scroll-container-wrapper{position:relative;max-height:280px;padding-bottom:10px}
-.playlist-container,.queue-container{max-height:240px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.playlist-container,.queue-container{max-height:240px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  padding:6px 10px;margin:-6px -10px}                                 /* room round the edges, so a song lifted to drag isn't cut off */
 .playlist-container::-webkit-scrollbar,.queue-container::-webkit-scrollbar{display:none}
 
 .playlist-item,.queue-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:12px;cursor:pointer;gap:10px}
@@ -372,8 +373,6 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 .q-fg:active{background:rgba(255,255,255,.08)}
 .q-row.hist .q-fg{opacity:.5}
 .q-row.now .q-fg{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.1);cursor:default}
-.q-handle{width:30px;height:30px;margin-right:-6px;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab;flex-shrink:0}
-.q-handle svg{width:16px;height:16px;fill:rgba(255,255,255,.45)}
 /* the held row: a glass card lit by its own cover (same idea as the album glow). Everything fades in and out, nothing
    switches: the card's glass is a layer under the row's content whose opacity animates, the cover glow grows in on
    pick-up and fades on drop. */
@@ -384,7 +383,6 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
   box-shadow:0 14px 30px rgba(0,0,0,.32),0 3px 8px rgba(0,0,0,.18),inset 0 0 2px rgba(255,255,255,.25)}
 .q-row.lifted .q-fg::before{opacity:1}
 .q-row .item-art{transition:transform .26s var(--ease),box-shadow .26s var(--ease)}
-.q-row .q-handle svg{transition:fill .2s ease}
 .q-row.lifted,.q-row.landing{z-index:5;overflow:visible}
 .q-row.lifted::after,.q-row.landing::after{content:'';position:absolute;inset:6px 18px;border-radius:14px;background:var(--art,rgba(255,255,255,.2)) center/cover;
   filter:blur(18px) saturate(1.7);z-index:-1;pointer-events:none}
@@ -393,7 +391,6 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 @keyframes qglow{from{opacity:0;transform:scale(.8)}to{opacity:.5;transform:none}}
 @keyframes qglowOut{from{opacity:.5}to{opacity:0;transform:scale(.9)}}
 .q-row.lifted .item-art{transform:scale(1.08);box-shadow:0 4px 12px rgba(0,0,0,.35)}
-.q-row.lifted .q-handle svg{fill:#fff}
 .queue-container .q-row,.playlist-container .q-row{transition:opacity .22s ease}
 .playlist-container.dragging .q-row:not(.lifted){opacity:.5}
 .playlist-container.dragging{-webkit-overflow-scrolling:auto}
@@ -1658,7 +1655,7 @@ function renderPlaylist() {
       item.innerHTML = itemHTML(albumCover(currentAlbum), label, "🔒 Not in your library");
       ui.appendChild(item); return;
     }
-    item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : "")) + (pl ? `<div class="q-handle" aria-label="Move">${ICON_HANDLE}</div>` : "");
+    item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : ""));
     item.addEventListener("click", () => { if (item._swiped) { item._swiped = false; return; } startContext(t.id); });
     const row = swShell(item); row.classList.add("can"); libSwipe(row, t.id);   // swipe left: Play next / Play last; right: the song's menu
     if (pl) {                                                        // hold and move (or drag the handle): reorder; hold and let go: the menu
@@ -1691,7 +1688,6 @@ const ICON_ADD = `<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2
 const ICON_PHOTO = `<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>`;
 const ICON_EDIT = `<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
 const ICON_UNDO = `<svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>`;
-const ICON_HANDLE = `<svg viewBox="0 0 24 24"><path d="M20 9H4v2h16V9zM4 15h16v-2H4v2z"/></svg>`;
 let history = [], nowFrom = "other", curPlayed = false, shuffle = false;
 let repeatMode = ["all", "one", "off"].includes(store.get("repeatMode")) ? store.get("repeatMode") : "all";
 let ctx = null;                                                      // { name, ids: [..] | null (= whole library, live), order: [..] | null (= the list's own order), at: id }
@@ -1803,7 +1799,7 @@ function attachSwipe(row, stages, onCommit, rStages, onRight) {     // left: sta
   const at = st => Math.max(st.min, st.f * fg.offsetWidth);
   const stageOf = (st, d, prev) => { let k = 0; st.forEach((x, i) => { if (d >= at(x) - (prev > i ? 12 : 0)) k = i + 1; }); return k; };
   fg.addEventListener("pointerdown", e => {
-    if ((e.pointerType === "mouse" && e.button) || e.target.closest(".q-handle") || swActive) return;
+    if ((e.pointerType === "mouse" && e.button) || swActive) return;
     s = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false, k: 0, d: 0, dir: -1 };
   });
   fg.addEventListener("pointermove", e => {
@@ -1880,7 +1876,7 @@ function renderQueue(scrollToNow) {
   const note = (t, cls, fn) => { const m = document.createElement(fn ? "button" : "div"); m.className = cls; m.textContent = t; if (fn) m.addEventListener("click", fn); ui.appendChild(m); };
   const row = (t, kind, i, group) => {
     const fg = document.createElement("div"); fg.className = "q-fg";
-    fg.innerHTML = itemHTML(t.art || albumCover(t.album), t.title, t.artist) + (group ? `<div class="q-handle" aria-label="Move">${ICON_HANDLE}</div>` : "");
+    fg.innerHTML = itemHTML(t.art || albumCover(t.album), t.title, t.artist);
     const r = swShell(fg); r.classList.add("q-row", kind);
     if (kind !== "now") {
       fg.addEventListener("click", () => { if (fg._swiped) { fg._swiped = false; return; } playFromQueue(kind, i); });
@@ -1918,7 +1914,7 @@ function playFromQueue(kind, i) {
   else playId(ctxUpcoming()[i], "context");                                  // the album jumps there; your queue still plays first
   haptic("light");
 }
-/* Reorder: hold a song anywhere (a long press) or grab its handle (at once), then drag.
+/* Reorder (Queue and your playlists alike): hold a song anywhere (a long press), then drag.
    - The card follows the finger through a light spring (every frame, no CSS transitions to fight), so pick-up and
      movement are smooth; it lifts to 1.03 and its glass and cover glow fade in.
    - The rest of the list dims and makes room. A row moves out of the way once the edge of the card you're moving
@@ -1928,15 +1924,9 @@ const LONG_PRESS = 380;
 let qDrag = null;
 document.addEventListener("touchmove", e => { if (qDrag) e.preventDefault(); }, { passive: false });   // while holding a song the list mustn't scroll under the finger
 function attachReorder(r, from, group, opt = {}) {      // opt (a playlist): ui, drop(from, to), still() for a hold without a move
-  const handle = r.querySelector(".q-handle"), fg = r.querySelector(".q-fg");
-  handle.addEventListener("click", e => e.stopPropagation());
-  handle.addEventListener("pointerdown", e => {
-    if ((e.pointerType === "mouse" && e.button) || swActive) return;
-    e.preventDefault(); e.stopPropagation();
-    beginDrag(r, from, group, e, handle, { ...opt, still: null });
-  });
+  const fg = r.querySelector(".q-fg");
   fg.addEventListener("pointerdown", e => {                           // long press anywhere on the row
-    if ((e.pointerType === "mouse" && e.button) || swActive || e.target.closest(".q-handle")) return;
+    if ((e.pointerType === "mouse" && e.button) || swActive) return;
     const x0 = e.clientX, y0 = e.clientY, id = e.pointerId;
     let t = setTimeout(() => { t = 0; cleanup(); if (!swActive && !plPop) { fg._swiped = true; beginDrag(r, from, group, { clientY: y0, pointerId: id }, fg, opt); } }, LONG_PRESS);
     const mv = ev => { if (ev.pointerId === id && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) { clearTimeout(t); cleanup(); } };
