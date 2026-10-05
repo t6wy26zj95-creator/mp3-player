@@ -574,6 +574,12 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .xp-artist{color:rgba(255,255,255,.85);cursor:pointer}
 .xp-scrub{margin-top:24px}
+/* while the player opens / closes the playback line is drawn here instead: it bends like a string being carried */
+.xp-bow{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none;display:none}
+.xp-bow.on{display:block}
+.xp-bow path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.xp-bow .bow-bg{stroke:rgba(255,255,255,.15)}
+.xp-bow .bow-fill{stroke:#fff;filter:drop-shadow(0 0 4px rgba(255,255,255,.55))}
 .xp-scrub .custom-range-slider{height:4px;border-radius:3px}
 .xp-times{display:flex;justify-content:space-between;margin-top:9px;font-size:11px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
 .xp-ctrls{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:0 4px}
@@ -771,6 +777,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
       <div class="xp-meta" id="xp-meta"><div class="xp-title" id="xp-title"></div><div class="xp-sub"><span class="xp-artist" id="xp-artist"></span><span id="xp-album"></span><span class="xp-fx" id="xp-fx"></span></div></div>
       <div class="xp-scrub" id="xp-scrub">
         <div class="custom-range-slider" id="xp-progress"><div class="slider-fill"></div><div class="slider-thumb"></div></div>
+        <svg class="xp-bow" id="xp-bow" aria-hidden="true"><path class="bow-bg"/><path class="bow-fill"/></svg>
         <div class="xp-times"><span id="xp-cur">0:00</span><span id="xp-left">-0:00</span></div>
       </div>
       <div class="xp-ctrls" id="xp-ctrls">
@@ -3084,6 +3091,7 @@ XP = (() => {
   const fade = (p, a, b) => { const t = lin(p, a, b); return t * t * (3 - 2 * t); };
   /* a rounded path instead of a straight line: down first, then across (a quarter of an ellipse). r: how round, 0 = straight.
      Returns how far along it is across (x) and down (y) at t. Played backwards when closing, so it comes back the same way. */
+  const grow = p => p * p * (1.6 - .6 * p);                          // the cover grows a little behind the rest, so the text can sweep around it
   const arc = (t, r) => { const a = t * Math.PI / 2; return [lerp(t, 1 - Math.cos(a), r), lerp(t, Math.sin(a), r)]; };   // eased in and out, so nothing pops in or stops abruptly
   const canExpand = () => pm.style.display !== "none" && curId != null;
   const drawerOpen = () => drawerBox.classList.contains("expanded");
@@ -3108,16 +3116,15 @@ XP = (() => {
     art.style.setProperty("--k", (S / (artBox.offsetWidth || 66)).toFixed(4));
   }
   /* ---- one continuous motion for everything that moves ----
-     Each moving thing exists twice: in the compact layout and in the big one. While the panel opens, both copies travel
-     the SAME path, so they sit exactly on top of each other and cross-fade: it reads as one title (one Play button, one
-     scrubber...) moving and growing, never as two, never a jump.
-     - Vertically every path is tied to the growing cover: y = cover bottom + an offset that eases (over the first third)
-       from the compact layout's offset to the big layout's. All rows use the same easing, so they keep their order and
-       can never run into the cover or into each other.
-     - The title and artist start beside the cover: until they are below it they ride along its right edge (they can't
-       touch it), then they glide to their centred place. A line that would run past the panel's right edge on the way
-       fades out there instead of spilling over.
-     - The rest (buttons, scrubber, times) starts under the cover and simply moves and grows to its big place. */
+     Each moving thing exists twice, in the compact layout and in the big one. Only ONE copy is ever seen: the big copy
+     takes over in place on the first frame (same text, size and weight) and carries the whole motion, so it reads as
+     one title, one Play button, one scrubber moving and growing.
+     - The cover grows a little behind the rest.
+     - The title and artist circle round the growing cover: from beside it, round its corner, to under it (orbit).
+       A line that would run past the panel's right edge on the way fades out there instead of spilling over.
+     - The rest (buttons, scrubber, times) is tied to the cover's bottom edge: every row drops to its place on the same
+       timing (so rows keep their order and never meet), then slides across, a rounded path. The times slide last.
+     - The playback line bends like a carried string on the way (bow). */
   const cTitle = pm.querySelector(".title-box"), cArtist = pm.querySelector(".artist-row"), xTitle = $("xp-title"), xSub = meta.querySelector(".xp-sub");
   const LINES = [[cTitle, xTitle, 20 / 17], [cArtist, xSub, 13.5 / 13]];
   const PAIRS = [[$("prev-btn"), $("xp-prev")], [playBtn, $("xp-play")], [$("skip-btn"), $("xp-next")], [$("progress-slider"), $("xp-progress"), "track"],
@@ -3125,13 +3132,41 @@ XP = (() => {
   const FOLLOW = [$("xp-shuffle"), $("xp-repeat")], XA = $("xp-album"), XF = $("xp-fx"), XR = $("xp-artist");
   const MOVED = [...LINES.flatMap(l => l.slice(0, 2)), ...PAIRS.flatMap(p => p.slice(0, 2)), ...FOLLOW, fm];
   const XTRA = [$("xp-album"), $("xp-fx"), $("xp-artist"), $("xp-progress").querySelector(".slider-thumb"), ...PAIRS.map(p => p[1].querySelector("svg")).filter(Boolean)];
+  /* a point travelling round the cover from a (small layout) to b (big layout): its angle round the cover's centre and
+     its gap from the cover's edge both ease from one layout's to the other's. The edge is taken as a rounded square, so
+     the path hugs the cover in a smooth curve and can't touch it however the cover grows. */
+  const edge = (a, half) => half / Math.pow(Math.pow(Math.abs(Math.cos(a)), 4) + Math.pow(Math.abs(Math.sin(a)), 4), .25);
+  function orbit(a, b, cx, cy, half, t) {
+    const m = st.m, c0x = m.ax + m.aw / 2, c0y = m.ay + m.aw / 2, c1x = m.sx + st.S / 2, c1y = m.sy + st.S / 2;
+    const a0 = Math.atan2(a[1] - c0y, a[0] - c0x); let a1 = Math.atan2(b[1] - c1y, b[0] - c1x);
+    while (a1 - a0 > Math.PI) a1 -= 2 * Math.PI; while (a0 - a1 > Math.PI) a1 += 2 * Math.PI;
+    const g0 = Math.hypot(a[0] - c0x, a[1] - c0y) - edge(a0, m.aw / 2), g1 = Math.hypot(b[0] - c1x, b[1] - c1y) - edge(a1, st.S / 2);
+    const ang = lerp(a0, a1, 1 - (1 - t) * (1 - t)), r = edge(ang, half) + lerp(g0, g1, t);   // the angle runs ahead: it rounds the corner early, without running past the panel's edge
+    return [cx + r * Math.cos(ang), cy + r * Math.sin(ang)];
+  }
   function letters(el) {                                             // the text as one span per letter (made once per change of text)
     const t = el.textContent;
     if (el._lt !== t || el.children.length !== [...t].length) { el.textContent = ""; el._ls = [...t].map(ch => { const sp = document.createElement("span"); sp.textContent = ch; el.appendChild(sp); return sp; }); el._lt = t; }
     return el._ls;
   }
   function unletters(el) { if (el.children.length) el.textContent = el._lt; el._ls = []; el._lt = null; }
-  function clearMoved() { unletters(XA); unletters(XF); if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); });
+  /* the playback line while moving: a string carried along. It sags in the middle and a soft ripple runs along it, both
+     strongest halfway and gone at either end (its ends stay put), so it lands as the straight line it is at rest */
+  const BOW = $("xp-bow"), bowBg = BOW.querySelector(".bow-bg"), bowFill = BOW.querySelector(".bow-fill"), xpBar = $("xp-progress"), xpFill = xpBar.querySelector(".slider-fill");
+  function bow(q, X, Y, kx, ky, P) {
+    const on = P > 0 && P < 1;
+    BOW.classList.toggle("on", on); xpBar.style.background = on ? "transparent" : ""; xpFill.style.opacity = on ? "0" : "";
+    if (!on) { q.thumb.style.transform = ""; return; }
+    const L = q.xw * kx, x0 = xpBar.offsetLeft + q.xw / 2 + (X - q.x1[0]) - L / 2, y0 = xpBar.offsetTop + xpBar.offsetHeight / 2 + (Y - q.x1[1]);
+    const env = Math.sin(Math.PI * P), A = -11 * env, W = 3 * env, ph = P * 2.2;   // carried downwards, its middle trails behind (upwards)
+    const dy = t => 4 * t * (1 - t) * (A + W * Math.sin(2 * Math.PI * (1.3 * t - ph)));
+    const f = parseFloat(xpFill.style.width) / 100 || 0, N = 28;
+    const path = upto => { let d = ""; const n = Math.max(1, Math.round(N * upto)); for (let i = 0; i <= n; i++) { const t = upto * i / n; d += (i ? "L" : "M") + (x0 + L * t).toFixed(1) + "," + (y0 + dy(t)).toFixed(1); } return d; };
+    bowBg.setAttribute("d", path(1)); bowFill.setAttribute("d", f > .002 ? path(f) : "");
+    bowBg.style.strokeWidth = bowFill.style.strokeWidth = (xpBar.offsetHeight * ky).toFixed(2);
+    q.thumb.style.transform = `translate(-50%,calc(-50% + ${(dy(f) / ky).toFixed(2)}px)) scale(${(1 / kx).toFixed(4)},${(1 / ky).toFixed(4)})`;   // the dot rides the string
+  }
+  function clearMoved() { unletters(XA); unletters(XF); BOW.classList.remove("on"); xpBar.style.background = xpFill.style.opacity = ""; if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); });
     XTRA.forEach(el => { el.style.opacity = el.style.color = ""; if (el.classList.contains("slider-thumb") || el.tagName === "svg") el.style.transform = ""; }); }
   function box(el) { const r = rel(el); return { x: r.x, y: r.y, w: el.offsetWidth, h: el.offsetHeight }; }
   function textBox(el) {                                             // where the text's first line starts, and how far the text reaches
@@ -3196,26 +3231,31 @@ XP = (() => {
     wrap.style.height = (lerp(st.h0, st.h1, P) + st.over).toFixed(1) + "px";
     artBox.style.opacity = P > .0005 ? ".001" : "";                    // kept painted under the big cover (not hidden): the hand-over at the end is instant
     /* the big cover, scaled down onto the small one at p = 0 */
-    const [ca, cb] = arc(P, .7), coverX = t => lerp(m.ax, m.sx, arc(t, .7)[0]);
-    const size = lerp(m.aw, st.S, P), s = size / st.S, curX = lerp(m.ax, m.sx, ca), curY = lerp(m.ay, m.sy, cb);
+    const G = grow(P), [ca, cb] = arc(G, .7);
+    const size = lerp(m.aw, st.S, G), s = size / st.S, curX = lerp(m.ax, m.sx, ca), curY = lerp(m.ay, m.sy, cb);
     art.style.transform = `translate(${(curX - m.sx).toFixed(2)}px,${(curY - m.sy).toFixed(2)}px) scale(${s.toFixed(4)})`;
-    art.style.borderRadius = (lerp(12, 18, P) / s).toFixed(2) + "px";
-    art.style.setProperty("--u", (lerp(1, 1.6, P) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
+    art.style.borderRadius = (lerp(12, 18, G) / s).toFixed(2) + "px";
+    art.style.setProperty("--u", (lerp(1, 1.6, G) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
     /* glows: both covers show the same bitmaps at the same place at p = 0, so the hand-over is a quick, invisible swap */
     const hm = fade(P, 0, .04), hs = Math.max(.004, hm).toFixed(3), hr = (1 - hm).toFixed(3);   // never exactly 0: keeps the big glow's layer painted, ready
     if (st.hm !== hs) { st.hm = hs; bloom.style.setProperty("--hm", hs); glight.style.setProperty("--hm", hs); smBloom.style.setProperty("--hm", hr); smLight.style.setProperty("--hm", hr); }
     const v = fade(P, 0, .28), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
     const rowY = (y0, y1) => bottom + lerp(y0 - bottom0, y1 - bottom1, v);
     /* title + artist line */
-    const Pr = Math.min(P, .28), ride = coverX(Pr) + lerp(m.aw, st.S, Pr) - (m.ax + m.aw);   // rides the cover's right edge only until it is below it
-    const h = 1 - Math.cos(fade(P, .12, .8) * Math.PI / 2), hsc = fade(P, .1, .9), limit = m.W - 14;
+    const ccx = curX + size / 2, ccy = curY + size / 2;
+    const hsc = fade(P, .1, .9), limit = m.W - 14;
     /* each line is shown by ONE copy: the big one takes over in place at once (same text, size and weight) and the small
        one, now hidden under it, fades away. Only what the small line lacks (album, year) fades in. A title that can't take
        over in place (cut short, or wrapping) hands over quickly, one copy fully out before the other comes in. */
     const extra = fade(P, .14, .72);
     for (const l of m.lines) {
       const cOp = l.swap ? (P > 0 ? (l.c === cTitle ? 0 : 1 - fade(P, 0, .06)) : 1) : 1 - fade(P, 0, .12), xOp = l.swap ? (P > 0 ? 1 : 0) : fade(P, .2, .4);
-      const X = lerp(l.c0[0] + ride, l.x1[0], m.lines.every(n => n.swap) ? h : 1 - Math.cos(fade(P, .08, .5) * Math.PI / 2)), Y = rowY(l.c0[1], l.x1[1]), k = lerp(1, l.r, hsc);   // lines that hand over go straight to their place (both together)
+      /* the title circles round the growing cover: from beside it, round its corner, to under it (see orbit) */
+      const t = fade(P, 0, .9), lead = m.lines[0];
+      let X, Y;
+      if (l === lead) [X, Y] = orbit(l.c0, l.x1, ccx, ccy, size / 2, t);
+      else { const u = fade(P, 0, .22); X = lead.X + lerp(l.c0[0] - lead.c0[0], l.x1[0] - lead.x1[0], u); Y = lead.Y + lerp(l.c0[1] - lead.c0[1], l.x1[1] - lead.x1[1], u); }   // the artist line keeps under the title
+      l.X = X; l.Y = Y; const k = lerp(1, l.r, hsc);
       l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
       setOp(l.c, cOp); setOp(l.x, xOp);
@@ -3238,7 +3278,7 @@ XP = (() => {
       /* the scrubber stretches from the small one's length to its own (its dot is kept round), so it is one bar all along */
       const kx = q.track ? lerp(q.cw, q.xw, hc) / q.xw : k / q.r, ky = q.track ? lerp(q.ky0, 1, hc) : k / q.r;
       q.x.style.transform = `translate(${(X - q.x1[0]).toFixed(2)}px,${(Y - q.x1[1]).toFixed(2)}px) scale(${kx.toFixed(4)},${ky.toFixed(4)})`;
-      if (q.thumb) q.thumb.style.transform = P > 0 && P < 1 ? `translate(-50%,-50%) scale(${(1 / kx).toFixed(4)},${(1 / ky).toFixed(4)})` : "";
+      if (q.track) bow(q, X, Y, kx, ky, P);
       if (q.icon && q.ik !== 1) q.icon.style.transform = P > 0 && P < 1 ? `scale(${lerp(q.ik, 1, hc).toFixed(4)})` : "";   // icons match the small ones' size at first
       /* same as the lines: the big copy takes over in place; a time whose text differs ("4:22" / "-2:04") swaps over quickly */
       setOp(q.c, q.same ? (P > 0 ? 0 : 1) : 1 - fade(P, 0, .12)); setOp(q.x, q.same ? (P > 0 ? 1 : 0) : fade(P, .12, .32));
@@ -3280,7 +3320,7 @@ XP = (() => {
     if (RM) { render(target); settle(target); return; }
     /* critically damped both ways: it lands on the open / compact layout and never swings past it. p is kept inside
        0..1; the only "give" is st.over, a few px of panel stretch from a pull past the open end, which melts away. */
-    const K = target ? 190 : 200, C = 2 * Math.sqrt(K);
+    const K = target ? 150 : 170, C = 2 * Math.sqrt(K);
     let last = 0;
     const step = now => {
       const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;   // a slow frame moves it further (up to 50 ms), so it doesn't turn to slow motion
