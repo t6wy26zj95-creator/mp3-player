@@ -572,14 +572,16 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;text-shadow:0 2px 6px rgba(0,0,0,.45)}
 .xp-sub{margin-top:5px;font-size:13.5px;line-height:1.3;color:rgba(255,255,255,.55);overflow:hidden;overflow-wrap:anywhere;text-wrap:balance;
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;text-shadow:0 1px 3px rgba(0,0,0,.4)}
-.xp-artist{color:rgba(255,255,255,.85);cursor:pointer}
+.xp-artist{color:rgba(255,255,255,.85);cursor:pointer;position:relative}
+/* the small line's " ›" rides along while the big line takes over, fading out as the album writes itself in (and back) */
+.xp-artist::after{content:" ›";position:absolute;left:100%;top:0;white-space:pre;opacity:calc(var(--chev,0) * .5);pointer-events:none}
 .xp-scrub{margin-top:24px}
 /* while the player opens / closes the playback line is drawn here instead: it bends like a string being carried */
 .xp-bow{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none;display:none}
 .xp-bow.on{display:block}
 .xp-bow path{fill:none;stroke-linecap:round;stroke-linejoin:round}
 .xp-bow .bow-bg{stroke:rgba(255,255,255,.15)}
-.xp-bow .bow-fill{stroke:#fff;filter:drop-shadow(0 0 4px rgba(255,255,255,.55))}
+.xp-bow .bow-fill{stroke:#fff;filter:drop-shadow(0 0 4px rgba(255,255,255,.5))}   /* the same glow as the bars it stands in for (.slider-fill) */
 .xp-scrub .custom-range-slider{height:4px;border-radius:3px}
 .xp-times{display:flex;justify-content:space-between;margin-top:9px;font-size:11px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
 .xp-ctrls{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:0 4px}
@@ -3159,13 +3161,16 @@ XP = (() => {
     const on = P > 0 && P < 1;
     BOW.classList.toggle("on", on); xpBar.style.background = on ? "transparent" : ""; xpFill.style.opacity = on ? "0" : "";
     if (!on) { q.thumb.style.transform = ""; return; }
-    const L = q.xw * kx, x0 = xpBar.offsetLeft + q.xw / 2 + (X - q.x1[0]) - L / 2, y0 = xpBar.offsetTop + xpBar.offsetHeight / 2 + (Y - q.x1[1]);
-    const env = Math.sin(Math.PI * P), A = -BOW_A * env, W = 3 * env, ph = P * 2.2;   // carried downwards, its middle trails behind (upwards)
+    const L = q.xw * kx, x0 = q.bx + q.xw / 2 + (X - q.x1[0]) - L / 2, y0 = q.by + (Y - q.x1[1]);
+    /* the bend fades in and out squared: near either end it is already all but straight, so the line it hands over to (or
+       takes over from) looks the same, with no last-moment straightening */
+    const sn = Math.sin(Math.PI * P), env = sn * sn, A = -BOW_A * env, W = 3 * env, ph = P * 2.2;   // carried downwards, its middle trails behind (upwards)
     const dy = t => 4 * t * (1 - t) * (A + W * Math.sin(2 * Math.PI * (1.3 * t - ph)));
-    const f = parseFloat(xpFill.style.width) / 100 || 0, N = 28;
-    const path = upto => { let d = ""; const n = Math.max(1, Math.round(N * upto)); for (let i = 0; i <= n; i++) { const t = upto * i / n; d += (i ? "L" : "M") + (x0 + L * t).toFixed(1) + "," + (y0 + dy(t)).toFixed(1); } return d; };
-    bowBg.setAttribute("d", path(1)); bowFill.setAttribute("d", f > .002 ? path(f) : "");
-    bowBg.style.strokeWidth = bowFill.style.strokeWidth = (xpBar.offsetHeight * ky).toFixed(2);
+    const f = parseFloat(xpFill.style.width) / 100 || 0, N = 28, sw = xpBar.offsetHeight * ky, r = sw / 2;
+    /* drawn between the round ends, not past them: the line is exactly as long as the bar it stands in for */
+    const path = (a, b) => { let d = ""; const n = Math.max(1, Math.round(N * (b - a))); for (let i = 0; i <= n; i++) { const t = a + (b - a) * i / n, x = Math.min(x0 + L - r, Math.max(x0 + r, x0 + L * t)); d += (i ? "L" : "M") + x.toFixed(2) + "," + (y0 + dy(t)).toFixed(2); } return d; };
+    bowBg.setAttribute("d", path(0, 1)); bowFill.setAttribute("d", f > .002 ? path(0, f) : "");
+    bowBg.style.strokeWidth = bowFill.style.strokeWidth = sw.toFixed(2);
     q.thumb.style.transform = `translate(-50%,calc(-50% + ${(dy(f) / ky).toFixed(2)}px)) scale(${(1 / kx).toFixed(4)},${(1 / ky).toFixed(4)})`;   // the dot rides the string
   }
   function clearMoved() { unletters(XA); unletters(XF); BOW.classList.remove("on"); xpBar.style.background = xpFill.style.opacity = ""; if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); });
@@ -3197,6 +3202,11 @@ XP = (() => {
         const r = T || f !== .5 ? 1 : xb.w / (cb.w || 1), ci = c.querySelector("svg"), xi = x.querySelector("svg");
         return { c, x, track: T, cw: cb.w, xw: xb.w, xh: xb.h, r, ky0: T ? cb.h / (xb.h || 1) : 1, thumb: T ? x.querySelector(".slider-thumb") : null, icon: ci && xi ? xi : null,
           ik: ci && xi ? (ci.getBoundingClientRect().width / (cb.w || 1)) / (xi.getBoundingClientRect().width / (xb.w || 1) || 1) : 1, same: T || c.textContent === x.textContent, time: !ci && !T, c0: [cb.x + cb.w * f, cb.y + cb.h / 2], x1: [xb.x + xb.w * f, xb.y + xb.h / 2], origin: f === .5 ? "" : `${f * 100}% 50%` }; }) };
+    barSpot(st.m.pairs.find(q => q.track));
+  }
+  function barSpot(q) {                                              // where the big bar sits in the line's box, to the fraction of a px (offsetLeft/Top round)
+    const pr = BOW.parentElement, a = pr.getBoundingClientRect(), c = xpBar.getBoundingClientRect(), k = pr.offsetWidth / (a.width || 1);
+    q.bx = (c.left - a.left) * k - pr.clientLeft; q.by = (c.top + c.height / 2 - a.top) * k - pr.clientTop;
   }
   function origins(m) {                                              // scale about the text's start / the button's centre (cleared at rest)
     m.lines.forEach(l => { l.c.style.transformOrigin = `${l.cb.off.toFixed(1)}px ${l.cb.oy.toFixed(1)}px`; l.x.style.transformOrigin = `${l.xb.off.toFixed(1)}px ${l.xb.oy.toFixed(1)}px`; });
@@ -3233,7 +3243,6 @@ XP = (() => {
     const m = st.m; if (!m) return;
     if (!m.originsOn) origins(m);
     const P = clamp01(p);                                            // never laid out past either end (the panel only gives a few px, below)
-    wrap.style.height = (lerp(st.h0, st.h1, P) + st.over).toFixed(1) + "px";
     /* exactly one cover on screen at any moment (both kept painted, the other at .001): two at once means two shadows,
        a darker flash around the cover on the frame they overlap */
     artBox.style.opacity = P > 0 ? ".001" : ""; art.style.opacity = P > 0 ? "" : ".001";
@@ -3276,6 +3285,7 @@ XP = (() => {
     const ls = [...letters(XA), ...letters(XF)], n = ls.length, K = 3;
     ls.forEach((el, i) => setOp(el, clamp01((extra * (n + K) - i) / K)));
     XR.style.color = P >= 1 ? "" : `rgba(255,255,255,${lerp(.6, .85, extra).toFixed(3)})`;   // the artist starts as dim as the small one
+    XR.style.setProperty("--chev", (1 - fade(P, 0, .13)).toFixed(3));
     /* buttons, scrubber, times */
     const hc = P * P;
     /* the rows below never run into the text circling down: if the artist line comes lower than the playback line
@@ -3284,7 +3294,7 @@ XP = (() => {
     const subBottom = l => l.Y + (l.xb.h - l.xb.oy) * l.k / l.r, barTop = (Y, q) => Y - q.xh / 2;
     const gapEnd = barTop(bar.x1[1], bar) - (sl.x1[1] + sl.xb.h - sl.xb.oy);
     const push = P > 0 && P < 1 ? Math.max(0, subBottom(sl) + gapEnd * .5 + BOW_A * env - barTop(rowY(bar.c0[1], bar.x1[1]), bar)) : 0;
-    let playDy = 0, playDy0 = 0;
+    let playDy = 0, playDy0 = 0, playY = 0, tail0 = 0, tail1 = 0;
     for (const q of m.pairs) {
       /* like the lines: everything drops to its row first (all rows on the same timing, so they keep their order and never
          meet), then slides across, which makes a rounded path. The times slide only once the buttons are below them. */
@@ -3299,8 +3309,12 @@ XP = (() => {
       /* same as the lines: the big copy takes over in place; a time whose text differs ("4:22" / "-2:04") swaps over quickly */
       setOp(q.c, q.same ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, .12)));   // hidden, but kept painted (.001), so it is back the instant it's needed
       setOp(q.x, q.same ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .12, .32)));
-      if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; }
+      if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; playY = Y; tail0 = st.h0 - q.c0[1]; tail1 = st.h1 - q.x1[1]; }
     }
+    /* the panel is carried by what's in it: its bottom edge keeps to the controls (the same distance below them as at
+       rest at either end), so it grows and shrinks with the content instead of sliding open as a box of its own. The room
+       for what's below (the tabs, Up next) comes and goes with it. */
+    wrap.style.height = (playY + lerp(tail0, tail1, fade(P, .1, 1)) + st.over).toFixed(1) + "px";
     const fo = fade(P, .72, 1);                                      // shuffle / repeat: ride with the big controls' row
     FOLLOW.forEach(el => { el.style.transform = `translateY(${playDy.toFixed(2)}px)`; setOp(el, fo); });
     fm.style.transform = P ? `translateY(${playDy0.toFixed(2)}px)` : ""; setOp(fm, 1 - fade(P, 0, .13));   // the compact tab row leaves with the controls above it
@@ -3338,17 +3352,19 @@ XP = (() => {
   function animateTo(target, v0) {
     cancelAnimationFrame(st.raf); st.target = target; st.v = v0 || 0;
     if (RM) { render(target); settle(target); return; }
-    /* a fixed-length glide that ends exactly at the open / compact layout, at rest: no long creep at the end (that crawl
-       read as things "snapping into place"). It starts briskly and slows down evenly, never past the end. p is kept
+    /* a fixed-length glide that ends exactly at the open / compact layout, at rest. Its curve picks up the speed it is
+       handed (your finger's on release; a moderate start on a tap, never a jolt) and eases down to a stop that is soft
+       but brief: no long crawl at the end, which read as things "snapping into place". Never past the end. p is kept
        inside 0..1; the only "give" is st.over, a few px of panel stretch from a pull past the open end, which melts away. */
     const p0 = st.p, d = target - p0, base = (target ? .62 : .54) * (.45 + .55 * Math.abs(d));
     const fling = (v0 || 0) * Math.sign(d), D = fling > 0 ? Math.max(.2, Math.min(base, 3 * Math.abs(d) / fling)) : base;   // a flick shortens it to match its speed (never past the end)
+    const k0 = Math.max(1.2, Math.min(3, fling > 0 ? fling * D / Math.abs(d || 1) : 0));   // above 3 the curve would overshoot
     let t0 = 0, last = 0;
     const step = now => {
       if (!t0) t0 = now - 16;
       const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
       PERF.frame(now);
-      const u = Math.min(1, (now - t0) / 1000 / D), e = 1 - Math.pow(1 - u, 3);   // ease-out cubic
+      const u = Math.min(1, (now - t0) / 1000 / D), e = k0 * (u - 2 * u * u + u * u * u) + u * u * (3 - 2 * u);   // starts at k0 x the average speed, lands at 0
       const prev = st.p;
       st.p = clamp01(p0 + d * e);
       st.v = dt ? (st.p - prev) / dt : 0;
