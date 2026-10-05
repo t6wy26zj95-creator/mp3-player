@@ -3081,7 +3081,10 @@ XP = (() => {
   let LYR = null;                                                    // the lyrics (set further down)
   const st = { p: 0, v: 0, over: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
   const clamp01 = v => Math.max(0, Math.min(1, v)), lerp = (a, b, t) => a + (b - a) * t, lin = (p, a, b) => clamp01((p - a) / (b - a));
-  const fade = (p, a, b) => { const t = lin(p, a, b); return t * t * (3 - 2 * t); };   // eased in and out, so nothing pops in or stops abruptly
+  const fade = (p, a, b) => { const t = lin(p, a, b); return t * t * (3 - 2 * t); };
+  /* a rounded path instead of a straight line: down first, then across (a quarter of an ellipse). r: how round, 0 = straight.
+     Returns how far along it is across (x) and down (y) at t. Played backwards when closing, so it comes back the same way. */
+  const arc = (t, r) => { const a = t * Math.PI / 2; return [lerp(t, 1 - Math.cos(a), r), lerp(t, Math.sin(a), r)]; };   // eased in and out, so nothing pops in or stops abruptly
   const canExpand = () => pm.style.display !== "none" && curId != null;
   const drawerOpen = () => drawerBox.classList.contains("expanded");
   const shown = () => xp.classList.contains("show");
@@ -3122,7 +3125,13 @@ XP = (() => {
   const FOLLOW = [$("xp-shuffle"), $("xp-repeat")], XA = $("xp-album"), XF = $("xp-fx"), XR = $("xp-artist");
   const MOVED = [...LINES.flatMap(l => l.slice(0, 2)), ...PAIRS.flatMap(p => p.slice(0, 2)), ...FOLLOW, fm];
   const XTRA = [$("xp-album"), $("xp-fx"), $("xp-artist"), $("xp-progress").querySelector(".slider-thumb"), ...PAIRS.map(p => p[1].querySelector("svg")).filter(Boolean)];
-  function clearMoved() { if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); });
+  function letters(el) {                                             // the text as one span per letter (made once per change of text)
+    const t = el.textContent;
+    if (el._lt !== t || el.children.length !== [...t].length) { el.textContent = ""; el._ls = [...t].map(ch => { const sp = document.createElement("span"); sp.textContent = ch; el.appendChild(sp); return sp; }); el._lt = t; }
+    return el._ls;
+  }
+  function unletters(el) { if (el.children.length) el.textContent = el._lt; el._ls = []; el._lt = null; }
+  function clearMoved() { unletters(XA); unletters(XF); if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); });
     XTRA.forEach(el => { el.style.opacity = el.style.color = ""; if (el.classList.contains("slider-thumb") || el.tagName === "svg") el.style.transform = ""; }); }
   function box(el) { const r = rel(el); return { x: r.x, y: r.y, w: el.offsetWidth, h: el.offsetHeight }; }
   function textBox(el) {                                             // where the text's first line starts, and how far the text reaches
@@ -3150,7 +3159,7 @@ XP = (() => {
            their own size (scale only for buttons) and are anchored on the side where their digits line up. */
         const r = T || f !== .5 ? 1 : xb.w / (cb.w || 1), ci = c.querySelector("svg"), xi = x.querySelector("svg");
         return { c, x, track: T, cw: cb.w, xw: xb.w, r, ky0: T ? cb.h / (xb.h || 1) : 1, thumb: T ? x.querySelector(".slider-thumb") : null, icon: ci && xi ? xi : null,
-          ik: ci && xi ? (ci.getBoundingClientRect().width / (cb.w || 1)) / (xi.getBoundingClientRect().width / (xb.w || 1) || 1) : 1, same: T || c.textContent === x.textContent, c0: [cb.x + cb.w * f, cb.y + cb.h / 2], x1: [xb.x + xb.w * f, xb.y + xb.h / 2], origin: f === .5 ? "" : `${f * 100}% 50%` }; }) };
+          ik: ci && xi ? (ci.getBoundingClientRect().width / (cb.w || 1)) / (xi.getBoundingClientRect().width / (xb.w || 1) || 1) : 1, same: T || c.textContent === x.textContent, time: !ci && !T, c0: [cb.x + cb.w * f, cb.y + cb.h / 2], x1: [xb.x + xb.w * f, xb.y + xb.h / 2], origin: f === .5 ? "" : `${f * 100}% 50%` }; }) };
   }
   function origins(m) {                                              // scale about the text's start / the button's centre (cleared at rest)
     m.lines.forEach(l => { l.c.style.transformOrigin = `${l.cb.off.toFixed(1)}px ${l.cb.oy.toFixed(1)}px`; l.x.style.transformOrigin = `${l.xb.off.toFixed(1)}px ${l.xb.oy.toFixed(1)}px`; });
@@ -3187,7 +3196,8 @@ XP = (() => {
     wrap.style.height = (lerp(st.h0, st.h1, P) + st.over).toFixed(1) + "px";
     artBox.style.opacity = P > .0005 ? ".001" : "";                    // kept painted under the big cover (not hidden): the hand-over at the end is instant
     /* the big cover, scaled down onto the small one at p = 0 */
-    const size = lerp(m.aw, st.S, P), s = size / st.S, curX = lerp(m.ax, m.sx, P), curY = lerp(m.ay, m.sy, P);
+    const [ca, cb] = arc(P, .7), coverX = t => lerp(m.ax, m.sx, arc(t, .7)[0]);
+    const size = lerp(m.aw, st.S, P), s = size / st.S, curX = lerp(m.ax, m.sx, ca), curY = lerp(m.ay, m.sy, cb);
     art.style.transform = `translate(${(curX - m.sx).toFixed(2)}px,${(curY - m.sy).toFixed(2)}px) scale(${s.toFixed(4)})`;
     art.style.borderRadius = (lerp(12, 18, P) / s).toFixed(2) + "px";
     art.style.setProperty("--u", (lerp(1, 1.6, P) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
@@ -3197,28 +3207,33 @@ XP = (() => {
     const v = fade(P, 0, .28), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
     const rowY = (y0, y1) => bottom + lerp(y0 - bottom0, y1 - bottom1, v);
     /* title + artist line */
-    const Pr = Math.min(P, .28), ride = lerp(m.ax, m.sx, Pr) + lerp(m.aw, st.S, Pr) - (m.ax + m.aw);   // rides the cover's right edge only until it is below it
-    const h = fade(P, .2, .72), hsc = fade(P, .1, .9), limit = m.W - 14;
+    const Pr = Math.min(P, .28), ride = coverX(Pr) + lerp(m.aw, st.S, Pr) - (m.ax + m.aw);   // rides the cover's right edge only until it is below it
+    const h = 1 - Math.cos(fade(P, .12, .8) * Math.PI / 2), hsc = fade(P, .1, .9), limit = m.W - 14;
     /* each line is shown by ONE copy: the big one takes over in place at once (same text, size and weight) and the small
        one, now hidden under it, fades away. Only what the small line lacks (album, year) fades in. A title that can't take
        over in place (cut short, or wrapping) hands over quickly, one copy fully out before the other comes in. */
-    const extra = fade(P, .12, .45);
+    const extra = fade(P, .14, .72);
     for (const l of m.lines) {
       const cOp = l.swap ? (P > 0 ? (l.c === cTitle ? 0 : 1 - fade(P, 0, .06)) : 1) : 1 - fade(P, 0, .12), xOp = l.swap ? (P > 0 ? 1 : 0) : fade(P, .2, .4);
-      const X = lerp(l.c0[0] + ride, l.x1[0], m.lines.every(n => n.swap) ? h : fade(P, .1, .45)), Y = rowY(l.c0[1], l.x1[1]), k = lerp(1, l.r, hsc);   // lines that hand over go straight to their place (both together)
+      const X = lerp(l.c0[0] + ride, l.x1[0], m.lines.every(n => n.swap) ? h : 1 - Math.cos(fade(P, .08, .5) * Math.PI / 2)), Y = rowY(l.c0[1], l.x1[1]), k = lerp(1, l.r, hsc);   // lines that hand over go straight to their place (both together)
       l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
       setOp(l.c, cOp); setOp(l.x, xOp);
       setMask(l.c, fadeEdge(l.cb, X, k, limit));
       setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit));
     }
-    XA.style.opacity = XF.style.opacity = extra > .999 ? "" : extra.toFixed(3);
+    /* album and year (and the sound effect) write themselves in, letter by letter, and take themselves back the same way */
+    const ls = [...letters(XA), ...letters(XF)], n = ls.length, K = 3;
+    ls.forEach((el, i) => setOp(el, clamp01((extra * (n + K) - i) / K)));
     XR.style.color = P >= 1 ? "" : `rgba(255,255,255,${lerp(.6, .85, extra).toFixed(3)})`;   // the artist starts as dim as the small one
     /* buttons, scrubber, times */
-    const hc = fade(P, 0, .7);
+    const hc = fade(P, 0, .8);
     let playDy = 0, playDy0 = 0;
     for (const q of m.pairs) {
-      const X = lerp(q.c0[0], q.x1[0], hc), Y = rowY(q.c0[1], q.x1[1]), k = lerp(1, q.r, hc);
+      /* like the lines: everything drops to its row first (all rows on the same timing, so they keep their order and never
+         meet), then slides across, which makes a rounded path. The times slide only once the buttons are below them. */
+      const tx = 1 - Math.cos(fade(P, q.time ? .3 : .1, q.time ? .9 : .85) * Math.PI / 2);
+      const X = lerp(q.c0[0], q.x1[0], tx), Y = rowY(q.c0[1], q.x1[1]), k = lerp(1, q.r, hc);
       q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       /* the scrubber stretches from the small one's length to its own (its dot is kept round), so it is one bar all along */
       const kx = q.track ? lerp(q.cw, q.xw, hc) / q.xw : k / q.r, ky = q.track ? lerp(q.ky0, 1, hc) : k / q.r;
@@ -3229,7 +3244,7 @@ XP = (() => {
       setOp(q.c, q.same ? (P > 0 ? 0 : 1) : 1 - fade(P, 0, .12)); setOp(q.x, q.same ? (P > 0 ? 1 : 0) : fade(P, .12, .32));
       if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; }
     }
-    const fo = fade(P, .25, .7);                                      // shuffle / repeat: ride with the big controls' row
+    const fo = fade(P, .6, .95);                                      // shuffle / repeat: ride with the big controls' row
     FOLLOW.forEach(el => { el.style.transform = `translateY(${playDy.toFixed(2)}px)`; setOp(el, fo); });
     fm.style.transform = P ? `translateY(${playDy0.toFixed(2)}px)` : ""; setOp(fm, 1 - fade(P, 0, .13));   // the compact tab row leaves with the controls above it
     const bo = fade(P, .74, 1); bot.style.opacity = bo > .999 ? "" : bo.toFixed(3); bot.style.transform = bo > .999 ? "" : `translateY(${((1 - bo) * 12).toFixed(1)}px)`;
