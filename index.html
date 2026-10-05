@@ -524,6 +524,9 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .player-wrapper.xp-on .xp{pointer-events:auto}
 .player-wrapper.xp-on>#player-main,.player-wrapper.xp-on>#controls-main,.player-wrapper.xp-on>#footer-main{visibility:hidden}
 .player-wrapper.xp-anim>#player-main,.player-wrapper.xp-anim>#controls-main,.player-wrapper.xp-anim>#footer-main{pointer-events:none}
+/* while the player opens / closes, the buttons follow the motion exactly: their own press / fade easing would make them
+   lag a beat behind (and the small and big ones show at once) */
+.player-wrapper.xp-anim .player-btn{transition:none}
 .xp-top{position:absolute;left:0;right:0;top:0;padding:6px 22px 0;display:flex;flex-direction:column}
 .xp-handle{align-self:center;width:72px;height:20px;background:none;border:0;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .xp-handle i{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.38)}
@@ -565,7 +568,7 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
    a 3rd, see fitTitle), the artist · album line up to 2. Past that, "…": a protection for absurdly long names. Words
    longer than the line (no spaces) break anywhere instead of running off. */
 .xp-meta{margin-top:22px;transform-origin:0 0;min-width:0;width:100%;align-self:center;text-align:center}
-.xp-title{font-size:var(--tfs,20px);font-weight:700;line-height:1.25;overflow:hidden;overflow-wrap:anywhere;text-wrap:balance;
+.xp-title{font-size:var(--tfs,20px);font-weight:600;line-height:1.25;overflow:hidden;overflow-wrap:anywhere;text-wrap:balance;
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;text-shadow:0 2px 6px rgba(0,0,0,.45)}
 .xp-sub{margin-top:5px;font-size:13.5px;line-height:1.3;color:rgba(255,255,255,.55);overflow:hidden;overflow-wrap:anywhere;text-wrap:balance;
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;text-shadow:0 1px 3px rgba(0,0,0,.4)}
@@ -3116,9 +3119,11 @@ XP = (() => {
   const LINES = [[cTitle, xTitle, 20 / 17], [cArtist, xSub, 13.5 / 13]];
   const PAIRS = [[$("prev-btn"), $("xp-prev")], [playBtn, $("xp-play")], [$("skip-btn"), $("xp-next")], [$("progress-slider"), $("xp-progress"), "track"],
     [$("current-time"), $("xp-cur"), "start"], [$("total-duration"), $("xp-left"), "end"]];   // times line up on the digits they share ("0:40" / "-0:40")
-  const FOLLOW = [$("xp-shuffle"), $("xp-repeat")];
+  const FOLLOW = [$("xp-shuffle"), $("xp-repeat")], XA = $("xp-album"), XF = $("xp-fx"), XR = $("xp-artist");
   const MOVED = [...LINES.flatMap(l => l.slice(0, 2)), ...PAIRS.flatMap(p => p.slice(0, 2)), ...FOLLOW, fm];
-  function clearMoved() { if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); }); }
+  const XTRA = [$("xp-album"), $("xp-fx"), $("xp-artist"), $("xp-progress").querySelector(".slider-thumb"), ...PAIRS.map(p => p[1].querySelector("svg")).filter(Boolean)];
+  function clearMoved() { if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); });
+    XTRA.forEach(el => { el.style.opacity = el.style.color = ""; if (el.classList.contains("slider-thumb") || el.tagName === "svg") el.style.transform = ""; }); }
   function box(el) { const r = rel(el); return { x: r.x, y: r.y, w: el.offsetWidth, h: el.offsetHeight }; }
   function textBox(el) {                                             // where the text's first line starts, and how far the text reaches
     const b = box(el), rg = document.createRange(); rg.selectNodeContents(el);
@@ -3135,12 +3140,17 @@ XP = (() => {
     clearMoved();
     const a = rel(artBox), s = rel(slot);
     st.m = { ax: a.x, ay: a.y, aw: artBox.offsetWidth || 66, sx: s.x, sy: s.y, W: wrap.clientWidth,
-      lines: LINES.map(([c, x, r]) => { const cb = textBox(c), xb = textBox(x); return { c, x, r, cb, xb, c0: [cb.x + cb.off, cb.y + cb.oy], x1: [xb.x + xb.off, xb.y + xb.oy] }; }),
+      lines: LINES.map(([c, x, r], i) => { const cb = textBox(c), xb = textBox(x), t = c.firstElementChild;
+        /* "swap": the big copy is the same text at the same place and size, so it simply takes over at once (no cross-fade,
+           nothing doubled or grey). Not when the small title is cut short or the big one wraps onto more lines. */
+        const swap = t.scrollWidth <= t.clientWidth + 1 && xb.h <= xb.oy * 3;
+        return { c, x, r, cb, xb, swap, c0: [cb.x + cb.off, cb.y + cb.oy], x1: [xb.x + xb.off, xb.y + xb.oy] }; }),
       pairs: PAIRS.map(([c, x, mode]) => { const cb = box(c), xb = box(x), T = mode === "track", f = mode === "start" ? 0 : mode === "end" ? 1 : .5;
         /* a track isn't scaled (its dot would stretch): the big one opens up from the small one's length. Times keep
            their own size (scale only for buttons) and are anchored on the side where their digits line up. */
-        const r = T || f !== .5 ? 1 : xb.w / (cb.w || 1);
-        return { c, x, track: T, cw: cb.w, xw: xb.w, r, c0: [cb.x + cb.w * f, cb.y + cb.h / 2], x1: [xb.x + xb.w * f, xb.y + xb.h / 2], origin: f === .5 ? "" : `${f * 100}% 50%` }; }) };
+        const r = T || f !== .5 ? 1 : xb.w / (cb.w || 1), ci = c.querySelector("svg"), xi = x.querySelector("svg");
+        return { c, x, track: T, cw: cb.w, xw: xb.w, r, ky0: T ? cb.h / (xb.h || 1) : 1, thumb: T ? x.querySelector(".slider-thumb") : null, icon: ci && xi ? xi : null,
+          ik: ci && xi ? (ci.getBoundingClientRect().width / (cb.w || 1)) / (xi.getBoundingClientRect().width / (xb.w || 1) || 1) : 1, same: T || c.textContent === x.textContent, c0: [cb.x + cb.w * f, cb.y + cb.h / 2], x1: [xb.x + xb.w * f, xb.y + xb.h / 2], origin: f === .5 ? "" : `${f * 100}% 50%` }; }) };
   }
   function origins(m) {                                              // scale about the text's start / the button's centre (cleared at rest)
     m.lines.forEach(l => { l.c.style.transformOrigin = `${l.cb.off.toFixed(1)}px ${l.cb.oy.toFixed(1)}px`; l.x.style.transformOrigin = `${l.xb.off.toFixed(1)}px ${l.xb.oy.toFixed(1)}px`; });
@@ -3189,29 +3199,34 @@ XP = (() => {
     /* title + artist line */
     const Pr = Math.min(P, .28), ride = lerp(m.ax, m.sx, Pr) + lerp(m.aw, st.S, Pr) - (m.ax + m.aw);   // rides the cover's right edge only until it is below it
     const h = fade(P, .2, .72), hsc = fade(P, .1, .9), limit = m.W - 14;
-    const cOp = 1 - fade(P, .12, .42), xOp = fade(P, .04, .34);
+    /* each line is shown by ONE copy: the big one takes over in place at once (same text, size and weight) and the small
+       one, now hidden under it, fades away. Only what the small line lacks (album, year) fades in. A title that can't take
+       over in place (cut short, or wrapping) hands over quickly, one copy fully out before the other comes in. */
+    const extra = fade(P, .12, .45);
     for (const l of m.lines) {
-      const X = lerp(l.c0[0] + ride, l.x1[0], h), Y = rowY(l.c0[1], l.x1[1]), k = lerp(1, l.r, hsc);
+      const cOp = l.swap ? (P > 0 ? (l.c === cTitle ? 0 : 1 - fade(P, 0, .06)) : 1) : 1 - fade(P, 0, .12), xOp = l.swap ? (P > 0 ? 1 : 0) : fade(P, .2, .4);
+      const X = lerp(l.c0[0] + ride, l.x1[0], m.lines.every(n => n.swap) ? h : fade(P, .1, .45)), Y = rowY(l.c0[1], l.x1[1]), k = lerp(1, l.r, hsc);   // lines that hand over go straight to their place (both together)
       l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
       setOp(l.c, cOp); setOp(l.x, xOp);
       setMask(l.c, fadeEdge(l.cb, X, k, limit));
-      let unfold = "";
-      if (l.xb.h > l.xb.oy * 3) {                                    // a name on several lines: its further lines fade in (top down) once it's below the cover
-        const u = fade(P, .26, .66), y = l.xb.oy * 2 + (l.xb.h - l.xb.oy * 2) * u;
-        if (u < .999) unfold = `linear-gradient(180deg,#000 ${(y - 6).toFixed(1)}px,transparent ${(y + 12 - 12 * u).toFixed(1)}px)`;
-      }
-      setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit), unfold);
+      setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit));
     }
+    XA.style.opacity = XF.style.opacity = extra > .999 ? "" : extra.toFixed(3);
+    XR.style.color = P >= 1 ? "" : `rgba(255,255,255,${lerp(.6, .85, extra).toFixed(3)})`;   // the artist starts as dim as the small one
     /* buttons, scrubber, times */
-    const hc = fade(P, 0, .7), pcOp = 1 - fade(P, .14, .44), pxOp = fade(P, .04, .36);
+    const hc = fade(P, 0, .7);
     let playDy = 0, playDy0 = 0;
     for (const q of m.pairs) {
       const X = lerp(q.c0[0], q.x1[0], hc), Y = rowY(q.c0[1], q.x1[1]), k = lerp(1, q.r, hc);
       q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
-      q.x.style.transform = `translate(${(X - q.x1[0]).toFixed(2)}px,${(Y - q.x1[1]).toFixed(2)}px) scale(${(k / q.r).toFixed(4)})`;
-      setOp(q.c, pcOp); setOp(q.x, pxOp);
-      if (q.track) { const cut = Math.max(0, (q.xw - lerp(q.cw, q.xw, hc)) / 2 - 1), cp = cut > .5 ? `inset(-12px ${cut.toFixed(1)}px)` : ""; if (q.x.style.clipPath !== cp) q.x.style.clipPath = cp; }
+      /* the scrubber stretches from the small one's length to its own (its dot is kept round), so it is one bar all along */
+      const kx = q.track ? lerp(q.cw, q.xw, hc) / q.xw : k / q.r, ky = q.track ? lerp(q.ky0, 1, hc) : k / q.r;
+      q.x.style.transform = `translate(${(X - q.x1[0]).toFixed(2)}px,${(Y - q.x1[1]).toFixed(2)}px) scale(${kx.toFixed(4)},${ky.toFixed(4)})`;
+      if (q.thumb) q.thumb.style.transform = P > 0 && P < 1 ? `translate(-50%,-50%) scale(${(1 / kx).toFixed(4)},${(1 / ky).toFixed(4)})` : "";
+      if (q.icon && q.ik !== 1) q.icon.style.transform = P > 0 && P < 1 ? `scale(${lerp(q.ik, 1, hc).toFixed(4)})` : "";   // icons match the small ones' size at first
+      /* same as the lines: the big copy takes over in place; a time whose text differs ("4:22" / "-2:04") swaps over quickly */
+      setOp(q.c, q.same ? (P > 0 ? 0 : 1) : 1 - fade(P, 0, .12)); setOp(q.x, q.same ? (P > 0 ? 1 : 0) : fade(P, .12, .32));
       if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; }
     }
     const fo = fade(P, .25, .7);                                      // shuffle / repeat: ride with the big controls' row
