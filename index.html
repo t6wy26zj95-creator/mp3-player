@@ -71,7 +71,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .controls-cluster .player-btn{width:34px;height:34px}
 #play-btn{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .artist-row{display:flex;align-items:center;min-width:0}
-/* the song / playlist menu (hold a song or swipe it left; hold a playlist tile) */
+/* the song / tile menu (hold a song or swipe it right; hold a Library tile and let go) */
 .pl-pop{position:fixed;z-index:40;width:236px;max-width:calc(100vw - 24px);overflow-y:auto;padding:6px;box-sizing:border-box;border-radius:16px;
   background:rgba(15,23,30,.86);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(255,255,255,.15);
   box-shadow:0 14px 34px rgba(0,0,0,.45);opacity:0;transform:scale(.92) translateY(-6px);transform-origin:top right;pointer-events:none;
@@ -93,18 +93,25 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .pl-song .item-art{width:36px;height:36px;flex-shrink:0}
 .pl-song .t{min-width:0;flex:1}.pl-song .t div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl-song .t .a{font-size:12px;color:rgba(255,255,255,.55)}
+/* choosing a cover: move and zoom the picture inside the square */
+.crop-ov{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;transition:opacity .22s var(--ease)}
+.crop-ov.show{opacity:1}
+.crop-box{width:min(340px,calc(100vw - 32px));padding:16px;box-sizing:border-box;border-radius:22px;background:rgba(15,23,30,.86);border:1px solid rgba(255,255,255,.15);box-shadow:0 18px 40px rgba(0,0,0,.5);color:#fff;
+  transform:scale(.95);transition:transform .26s var(--ease)}
+.crop-ov.show .crop-box{transform:none}
+.crop-h{font-size:13px;font-weight:600;text-align:center;color:rgba(255,255,255,.7);margin-bottom:12px}
+.crop-frame{position:relative;margin:0 auto;border-radius:18px;overflow:hidden;touch-action:none;cursor:grab;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.2)}
+.crop-frame img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;pointer-events:none;-webkit-user-drag:none;user-select:none}
+.crop-zoom{display:flex;align-items:center;gap:10px;margin:14px 2px 4px}
+.crop-zoom svg{width:16px;height:16px;fill:rgba(255,255,255,.55);flex-shrink:0}
+.crop-zoom input{flex:1;accent-color:#fff}
+.crop-btns{display:flex;gap:8px;margin-top:12px}
+.crop-btns button{flex:1;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font:600 14px -apple-system,system-ui,sans-serif;cursor:pointer}
+.crop-btns button.ok{background:#fff;color:#0f171e;border-color:#fff}
 .sw.menu-on>.sw-fg{background:rgba(255,255,255,.12);border-radius:12px}
 .pl-new{display:flex;gap:6px;padding:4px}
 .pl-new input{flex:1;min-width:0;padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:16px;outline:none}
 .pl-new button{padding:0 12px;border-radius:10px;border:0;background:#fff;color:#0f171e;font:600 13px -apple-system,system-ui,sans-serif;cursor:pointer}
-/* playlist tiles in Library: your own cover, or up to four song covers in a square, or a music note; a small playlist mark in the corner */
-.album-card .pl-mosaic{position:relative;display:grid;grid-template-columns:1fr 1fr;background:rgba(255,255,255,.05);width:100%;aspect-ratio:1/1;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 15px rgba(0,0,0,.3);box-sizing:border-box;transition:transform .2s ease}
-.album-card .pl-mosaic.one{grid-template-columns:1fr}
-.album-card .pl-mosaic img{border:0;border-radius:0;box-shadow:none;width:100%;height:100%;aspect-ratio:auto}
-.album-card .pl-mosaic .pl-empty{display:flex;align-items:center;justify-content:center}
-.album-card .pl-mosaic .pl-empty svg{width:40px;height:40px;fill:rgba(255,255,255,.4)}
-.album-card:active .pl-mosaic{transform:scale(.96)}
-.pl-mark{position:absolute;right:6px;bottom:6px;width:18px;height:18px;fill:#fff;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));pointer-events:none}
 .artist-row .track-artist{min-width:0;flex:0 1 auto}
 .shuf-ind{flex-shrink:0;width:0;height:13px;margin-left:0;opacity:0;fill:#fff;transition:width .3s var(--ease),margin .3s var(--ease),opacity .3s var(--ease)}
 .shuf-ind.on{width:13px;margin-left:6px;opacity:.85}
@@ -407,6 +414,8 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 .sw-lab span{opacity:0;transition:opacity .14s ease}
 .sw-lab.fit span{opacity:1}
 .sw-lab.pop{animation:swpop .24s var(--ease)}
+.sw.r .sw-bg{right:auto;left:0;justify-content:flex-start}                /* swiping right: the strip is on the left */
+.sw.r .sw-lab{flex-direction:row}
 @keyframes swpop{0%{transform:scale(.82)}60%{transform:scale(1.07)}100%{transform:none}}
 
 /* ===== touch + motion =====
@@ -840,7 +849,7 @@ const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
 /* Each write to Telegram's storage is a round trip through the app, so a key is sent at most once per its delay (the
    latest value wins), and whatever is still waiting is sent straight away when the app is hidden or closed. The play
    position changes every few seconds while you listen: it goes at most every 30 s (and on pause / hide). */
-const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "plCovers"], mirrorT = {}, mirrorV = {};
+const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName"], mirrorT = {}, mirrorV = {};
 const MIRROR_DELAY = { playState: 3000, playPos: 30000, artistCache: 5000, releaseMap2: 5000 };
 function mirrorSend(k) { clearTimeout(mirrorT[k]); delete mirrorT[k]; if (!(k in mirrorV)) return; const v = mirrorV[k]; delete mirrorV[k]; try { tgStore.setItem(k, v); } catch (e) {} }
 function mirrorFlush() { Object.keys(mirrorV).forEach(mirrorSend); }
@@ -879,8 +888,12 @@ let currentAlbum = "All Tracks";
 let playlists = []; try { playlists = JSON.parse(localStorage.getItem("playlists") || "[]"); if (!Array.isArray(playlists)) playlists = []; } catch (e) {}
 const PL = "pl:", plOf = n => typeof n === "string" && n.startsWith(PL) ? playlists.find(p => PL + p.id === n) : null;
 const albumLabel = n => { const p = plOf(n); return p ? p.name : n; };
-let plCovers = {}; try { plCovers = JSON.parse(localStorage.getItem("plCovers") || "{}") || {}; } catch (e) {}   // your own playlist covers, by playlist id
-const PL_MARK = `<svg class="pl-mark" viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>`;
+/* Library tiles: All Tracks ("@all"), your playlists ("pl:" + id) and albums (their name) are all alike: hold and move
+   to rearrange, hold and let go for the tile's menu. Your own covers are kept by tile ("a:" + name for albums). */
+let tileCovers = {}; try { tileCovers = JSON.parse(localStorage.getItem("tileCovers") || "{}") || {}; } catch (e) {}
+const ALL = "@all", coverKey = k => k === ALL || plOf(k) ? k : "a:" + k;
+const allName = () => store.get("allName") || "All Tracks";
+const NOTES_SVG = `<svg viewBox="0 0 24 24"><path d="M21 3v12.5a3.5 3.5 0 1 1-2-3.16V7.08L9 9.07v8.43a3.5 3.5 0 1 1-2-3.16V5l14-2z"/></svg>`;
 
 const audio = $("audio-element"), playBtn = $("play-btn");
 const playIconSvg = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
@@ -1260,7 +1273,8 @@ function catEntries(cat) {
 }
 const verOf = s => { const m = String(s).match(/\b(live|demo|rough(?: mix| vocal)?|instrumental|acoustic|remix|alternate|session)\b/i); return m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : ""; };
 function albumCover(name) {
-  const pl = plOf(name); if (pl) { if (plCovers[pl.id]) return plCovers[pl.id]; const t = plTracks(pl).find(t => t.art || albumCover(t.album)); return t ? t.art || albumCover(t.album) : null; }
+  if (tileCovers[coverKey(name)]) return tileCovers[coverKey(name)];
+  const pl = plOf(name); if (pl) { const t = plTracks(pl).find(t => t.art || albumCover(t.album)); return t ? t.art || albumCover(t.album) : null; }
   if (currentCat && name === currentCat.key) return currentCat.cover; const t = tracks.find(t => t.album === name && t.art); return t ? t.art : (albumMeta[name] && albumMeta[name].cover) || null; }
 function albumEntries(name) {
   const pl = plOf(name); if (pl) return plTracks(pl).map(t => ({ track: t, title: t.title, num: 0, disc: 1 }));
@@ -1295,38 +1309,36 @@ function saveOrder(keys) {
   keys.forEach((k, i) => { if (!res.includes(k)) res.splice((i ? res.indexOf(keys[i - 1]) : -1) + 1, 0, k); });
   albumOrder = res; store.set("albumOrder", JSON.stringify(res));
 }
+function gridKeys() {                                                // All Tracks, playlists and albums, in your order (new ones: All Tracks, then playlists, first)
+  const items = [ALL, ...playlists.map(p => PL + p.id), ...new Set(tracks.map(t => t.album).filter(isRealAlbum))];
+  const rank = k => { const i = albumOrder.indexOf(k); return i >= 0 ? i : k === ALL ? -3 : plOf(k) ? -2 : 1e6; };
+  return items.map((k, i) => [k, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
+}
 function renderAlbums() {
   if (drag && drag.active) return;
   const shelf = $("albums-shelf"); shelf.innerHTML = "";
-  const mk = (title, inner, onClick, key) => {
-    const c = document.createElement("div"); c.className = "album-card"; c.style.setProperty("--j", Math.floor(Math.random() * 6));
-    c.innerHTML = (key !== undefined ? '<div class="del-badge" aria-label="Hide album"></div>' : "") + inner + `<div class="album-card-title">${esc(title)}</div>`;
-    c.addEventListener("click", () => { if (suppressClick) { suppressClick = false; return; } if (editing) return; onClick(); });
-    if (key !== undefined) { c.dataset.key = key; attachDrag(c); c.querySelector(".del-badge").addEventListener("click", e => { e.stopPropagation(); hideAlbum(c, key); }); }
-    shelf.appendChild(c); return c;
-  };
-  const folder = `<div class="all-tracks-icon"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></div>`;
-  mk("All Tracks", folder, () => { albumOrigin = null; currentCat = null; currentAlbum = "All Tracks"; openTracklist(); }).style.order = 0;
-  playlists.forEach(p => {                                           // your playlists come next and stay there (order 0, not draggable)
-    const covers = plCovers[p.id] ? [plCovers[p.id]] : [...new Set(plTracks(p).map(t => t.art || albumCover(t.album)).filter(Boolean))];
-    const imgs = covers.length >= 4 ? covers.slice(0, 4) : covers.slice(0, 1);
-    const art = imgs.length ? imgs.map(c => `<img src="${c}" alt="">`).join("") : `<div class="pl-empty">${noteSvg}</div>`;
-    const c = mk(p.name, `<div class="pl-mosaic${imgs.length === 4 ? "" : " one"}">${art}${PL_MARK}</div>`,
-      () => { albumOrigin = null; currentCat = null; currentAlbum = PL + p.id; openTracklist(); });
-    c.classList.add("pl-card"); c.style.order = 0; holdFor(c, () => { suppressClick = true; plTileMenu(c, p); });
-  });
-  orderedAlbumNames().forEach((name, i) => {
-    const cover = albumCover(name);
-    const card = mk(name, cover ? `<img src="${cover}" alt="">` : `<div class="all-tracks-icon">${noteSvg}</div>`, () => { albumOrigin = null; currentCat = null; currentAlbum = name; openTracklist(); }, name); card.style.order = i + 1;
-    if (cover) card.style.setProperty("--art", `url("${String(cover).replace(/"/g, "%22")}")`);
+  const icon = svg => `<div class="all-tracks-icon">${svg}</div>`;
+  const folder = icon(`<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>`);
+  gridKeys().forEach((key, i) => {
+    const pl = plOf(key), all = key === ALL, name = all ? allName() : pl ? pl.name : key;
+    const cover = tileCovers[coverKey(key)] || (all || pl ? null : albumCover(key));
+    const c = document.createElement("div"); c.className = "album-card" + (pl ? " pl-card" : ""); c.style.setProperty("--j", Math.floor(Math.random() * 6));
+    c.innerHTML = (all ? "" : `<div class="del-badge" aria-label="${pl ? "Delete playlist" : "Hide album"}"></div>`)
+      + (cover ? `<img src="${cover}" alt="">` : all ? folder : icon(NOTES_SVG)) + `<div class="album-card-title">${esc(name)}</div>`;
+    c.addEventListener("click", () => { if (suppressClick) { suppressClick = false; return; } if (editing) return;
+      albumOrigin = null; currentCat = null; currentAlbum = all ? "All Tracks" : key; openTracklist(); });
+    c.dataset.key = key; c.style.order = i + 1; attachDrag(c);
+    if (!all) c.querySelector(".del-badge").addEventListener("click", e => { e.stopPropagation(); if (pl) deletePlaylist(pl); else hideAlbum(c, key); });
+    if (cover) c.style.setProperty("--art", `url("${String(cover).replace(/"/g, "%22")}")`);
+    shelf.appendChild(c);
   });
 }
 
 /* ---------- PLAYLISTS ----------
-   Hold a song (anywhere in Library, or on an artist page) or swipe it left: a menu with Play next / Play last, your
+   Hold a song (anywhere in Library, or on an artist page) or swipe it right: a menu with Play next / Play last, your
    playlists (tick one to put the song in it, tap again to take it out) and New playlist. Inside one of your playlists,
    hold a song and move your finger to reorder (or drag the handle); hold and let go without moving for the menu.
-   Playlists show up in Library right after All Tracks; hold a tile to choose its cover, rename or delete it. */
+   New playlists show up in Library right after All Tracks; see gridKeys / tileMenu for the tiles. */
 function plTracks(p) { const byKey = new Map(tracks.map(t => [tkey(t), t])); return p.keys.map(k => byKey.get(k)).filter(Boolean); }
 function savePl() {
   store.set("playlists", JSON.stringify(playlists));
@@ -1420,40 +1432,80 @@ function songMenu(t, row) {
     }, "danger") : null;
   });
 }
-function plTileMenu(card, p) {
+function deletePlaylist(p) {
+  const go = ok => { if (!ok) return; playlists = playlists.filter(x => x !== p); delete tileCovers[PL + p.id]; store.set("tileCovers", JSON.stringify(tileCovers)); savePl(); toast("Playlist deleted"); };
+  const q = `Delete the playlist "${p.name}"? The songs stay in your library.`;
+  if (tgAt("6.2")) TG.showConfirm(q, go); else go(confirm(q));
+}
+function tileMenu(card, key) {                                       // All Tracks: cover, rename · playlist: cover, rename, delete · album: cover, hide
+  const pl = plOf(key), all = key === ALL, ck = coverKey(key);
+  const setCover = v => { if (v) tileCovers[ck] = v; else delete tileCovers[ck]; store.set("tileCovers", JSON.stringify(tileCovers)); renderAlbums(); };
   plMenu(card, ({ el, item, sep, ask }) => {
-    el.insertAdjacentHTML("beforeend", '<div class="pl-h"></div>'); el.lastChild.textContent = p.name;
-    item("Choose cover", ICON_PHOTO, () => { plPopClose(); pickCover(p); });
-    if (plCovers[p.id]) item("Use song covers", ICON_UNDO, () => { plPopClose(); delete plCovers[p.id]; store.set("plCovers", JSON.stringify(plCovers)); savePl(); });
-    const rn = item("Rename", ICON_EDIT, () => {
+    el.insertAdjacentHTML("beforeend", '<div class="pl-h"></div>'); el.lastChild.textContent = all ? allName() : pl ? pl.name : key;
+    item("Choose cover", ICON_PHOTO, () => { plPopClose(); pickImage(url => { setCover(url); toast("Cover changed"); }); });
+    if (tileCovers[ck]) item(all || pl ? "Use the standard cover" : "Use the album's cover", ICON_UNDO, () => { plPopClose(); setCover(null); });
+    if (all || pl) item("Rename", ICON_EDIT, () => {
       [...el.querySelectorAll(".pl-row,.pl-sep")].forEach(x => x.remove());
-      ask("Playlist name", p.name, "Save", name => { if (name) { p.name = name; savePl(); } plPopClose(); });
+      ask("Name", all ? allName() : pl.name, "Save", name => {
+        if (name) { if (all) store.set("allName", name === "All Tracks" ? "" : name); else pl.name = name; savePl(); renderAlbums(); }
+        plPopClose();
+      });
     });
-    sep();
-    item("Delete playlist", ICON_REMOVE, () => {
-      plPopClose();
-      const go = ok => { if (!ok) return; playlists = playlists.filter(x => x !== p); delete plCovers[p.id]; store.set("plCovers", JSON.stringify(plCovers)); savePl(); toast("Playlist deleted"); };
-      const q = `Delete the playlist "${p.name}"? The songs stay in your library.`;
-      if (tgAt("6.2")) TG.showConfirm(q, go); else go(confirm(q));
-    }, "danger");
+    if (!all) { sep(); item(pl ? "Delete playlist" : "Hide album", ICON_REMOVE, () => { plPopClose(); if (pl) deletePlaylist(pl); else hideAlbum(card, key); }, "danger"); }
   });
 }
-function pickCover(p) {                                              // your own picture: cut to a square in the middle, 400 px, kept with the playlist
+/* Choosing a cover: the picture opens in a square frame; drag it to move it, pinch (or the slider, or the mouse wheel) to
+   zoom. What's inside the frame becomes the cover, 400 x 400. */
+function pickImage(done) {
   const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
-  inp.addEventListener("change", () => {
-    const f = inp.files[0]; if (!f) return;
-    const img = new Image(), u = URL.createObjectURL(f);
-    img.onload = () => {
-      const side = Math.min(img.width, img.height), S = Math.min(400, side), c = document.createElement("canvas");
-      c.width = c.height = S;
-      c.getContext("2d").drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, S, S);
-      URL.revokeObjectURL(u);
-      plCovers[p.id] = c.toDataURL("image/jpeg", .85); store.set("plCovers", JSON.stringify(plCovers)); savePl(); toast("Cover changed");
-    };
-    img.onerror = () => { URL.revokeObjectURL(u); toast("That picture couldn't be opened"); };
-    img.src = u;
-  });
+  inp.addEventListener("change", () => { const f = inp.files[0]; if (f) cropImage(f, done); });
   inp.click();
+}
+function cropImage(file, done) {
+  const u = URL.createObjectURL(file), img = new Image();
+  img.onerror = () => { URL.revokeObjectURL(u); toast("That picture couldn't be opened"); };
+  img.onload = () => {
+    const ov = document.createElement("div"); ov.className = "crop-ov";
+    ov.innerHTML = `<div class="crop-box"><div class="crop-h">Move and zoom</div><div class="crop-frame"></div>
+      <div class="crop-zoom">${ICON_PHOTO}<input type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom">${ICON_PHOTO}</div>
+      <div class="crop-btns"><button type="button" class="no">Cancel</button><button type="button" class="ok">Use</button></div></div>`;
+    document.body.appendChild(ov);
+    const fr = ov.querySelector(".crop-frame"), zr = ov.querySelector("input"), S = Math.round(Math.min(300, ov.querySelector(".crop-box").clientWidth - 32));
+    ov.querySelectorAll(".crop-zoom svg")[1].style.cssText = "width:22px;height:22px";
+    fr.style.width = fr.style.height = S + "px"; fr.appendChild(img);
+    const base = Math.max(S / img.width, S / img.height); let z = 1, x = (S - img.width * base) / 2, y = (S - img.height * base) / 2;
+    const draw = () => {
+      const w = img.width * base * z, h = img.height * base * z;
+      x = Math.min(0, Math.max(S - w, x)); y = Math.min(0, Math.max(S - h, y));   // the picture always fills the frame
+      img.style.transform = `translate(${x}px,${y}px) scale(${base * z})`; zr.value = z;
+    };
+    const zoomAt = (nz, cx, cy) => { nz = Math.max(1, Math.min(4, nz)); const f = nz / z; x = cx - (cx - x) * f; y = cy - (cy - y) * f; z = nz; draw(); };
+    const pts = new Map(); let last = null;
+    const state = () => { const p = [...pts.values()], r = fr.getBoundingClientRect();
+      return p.length > 1 ? { cx: (p[0].x + p[1].x) / 2 - r.left, cy: (p[0].y + p[1].y) / 2 - r.top, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) } : { cx: p[0].x - r.left, cy: p[0].y - r.top, d: 0 }; };
+    fr.addEventListener("pointerdown", e => { try { fr.setPointerCapture(e.pointerId); } catch (er) {} pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); last = state(); });
+    fr.addEventListener("pointermove", e => {
+      if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const n = state(); x += n.cx - last.cx; y += n.cy - last.cy;
+      if (n.d && last.d) zoomAt(z * n.d / last.d, n.cx, n.cy); else draw();
+      last = n;
+    });
+    const up = e => { pts.delete(e.pointerId); last = pts.size ? state() : null; };
+    fr.addEventListener("pointerup", up); fr.addEventListener("pointercancel", up);
+    fr.addEventListener("wheel", e => { e.preventDefault(); const r = fr.getBoundingClientRect(); zoomAt(z * Math.exp(-e.deltaY / 400), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+    zr.addEventListener("input", () => zoomAt(+zr.value, S / 2, S / 2));
+    const close = () => { ov.classList.remove("show"); setTimeout(() => { ov.remove(); URL.revokeObjectURL(u); }, 240); };
+    ov.querySelector(".no").addEventListener("click", close);
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    ov.querySelector(".ok").addEventListener("click", () => {
+      const k = base * z, c = document.createElement("canvas"), O = Math.min(400, Math.round(S / k));
+      c.width = c.height = Math.max(64, O);
+      c.getContext("2d").drawImage(img, -x / k, -y / k, S / k, S / k, 0, 0, c.width, c.height);
+      done(c.toDataURL("image/jpeg", .86)); close();
+    });
+    draw(); void ov.offsetWidth; ov.classList.add("show");
+  };
+  img.src = u;
 }
 function plReorder(from, to) {                                       // rows from -> to (indexes among the songs on screen)
   const p = plOf(currentAlbum); if (!p) return;
@@ -1515,14 +1567,14 @@ function attachDrag(card) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     if (e.target.closest(".del-badge")) return;
     const shelf = $("albums-shelf");
-    drag = { card, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, active: false };
+    drag = { card, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, active: false, wasEditing: editing };
     drag.timer = setTimeout(() => {
       if (!drag) return;
       if (!editing) setEdit(true);
       const gr = shelf.getBoundingClientRect();
       drag.active = true; drag.follow = false;
       drag.grabX = drag.x - gr.left - card.offsetLeft; drag.grabY = drag.y - gr.top - card.offsetTop;
-      drag.keys = [...cardsOf()].sort((a, b) => a.style.order - b.style.order).map(c => c.dataset.key);
+      drag.keys = [...cardsOf()].sort((a, b) => a.style.order - b.style.order).map(c => c.dataset.key); drag.keys0 = drag.keys.join("\n");
       card.classList.add("lifted"); card.style.zIndex = 20;
       card.style.transition = "transform .22s var(--ease)";
       $("albums-grid-wrapper").style.overflowY = "hidden";
@@ -1571,6 +1623,8 @@ function endDrag() {
   const c = d.card;
   c.style.transition = "transform .3s var(--ease)"; c.style.transform = ""; c.classList.remove("lifted");
   setTimeout(() => { c.style.transition = ""; c.style.zIndex = ""; }, 280);
+  const still = !d.wasEditing && Math.hypot(d.cx - d.x, d.cy - d.y) < 10 && d.keys.join("\n") === d.keys0;
+  if (still) { setEdit(false); tileMenu(c, c.dataset.key); return; }  // held and let go without moving: the tile's menu
   saveOrder(d.keys);
 }
 document.addEventListener("pointerup", endDrag);
@@ -1590,7 +1644,7 @@ function renderPlaylist() {
   const all = currentAlbum === "All Tracks";
   const entries = all ? tracks.map(t => ({ track: t, title: t.title, num: t.num })) : albumEntries(currentAlbum);
   const pl = plOf(currentAlbum); let pi = 0;                          // one of your playlists: its songs can be reordered
-  if (!all && !entries.length) ui.innerHTML = pl ? '<div class="artist-note" style="text-align:center;padding:16px">No songs here yet. Hold a song in Library, or swipe it left, to add it.</div>'
+  if (!all && !entries.length) ui.innerHTML = pl ? '<div class="artist-note" style="text-align:center;padding:16px">No songs here yet. Hold a song in Library, or swipe it right, to add it.</div>'
     : '<div class="artist-note" style="text-align:center;padding:16px">Loading tracks…</div>';
   if (currentCat && !resolving() && !albumEntries(currentAlbum).some(e => e.track)) { const ds = Object.keys(relDebug).filter(n => norm(relDebug[n].split(" · ")[0]) === norm(currentCat.artist)).map(n => n + " → " + relDebug[n].split(" · ").slice(1).join(" · ")); if (ds.length) { const n = document.createElement("div"); n.className = "artist-note"; n.style.fontSize = "10px"; n.textContent = "Matching: " + ds.join(" | "); ui.appendChild(n); } }
   if (currentCat && resolving()) { const n = document.createElement("div"); n.className = "artist-note"; n.textContent = "Checking your library…"; ui.appendChild(n); }
@@ -1606,7 +1660,7 @@ function renderPlaylist() {
     }
     item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : "")) + (pl ? `<div class="q-handle" aria-label="Move">${ICON_HANDLE}</div>` : "");
     item.addEventListener("click", () => { if (item._swiped) { item._swiped = false; return; } startContext(t.id); });
-    const row = swShell(item); row.classList.add("can"); libSwipe(row, t.id);   // swipe left: the song's menu
+    const row = swShell(item); row.classList.add("can"); libSwipe(row, t.id);   // swipe left: Play next / Play last; right: the song's menu
     if (pl) {                                                        // hold and move (or drag the handle): reorder; hold and let go: the menu
       item.classList.add("q-fg"); row.classList.add("q-row"); row.dataset.group = "pl"; row._qi = pi;
       const art = t.art || albumCover(t.album); if (art) row.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
@@ -1716,7 +1770,8 @@ function applyShuffle() {                                            // shuffle 
      (12 px of slack, so it doesn't flicker on the line) undoes it the same way; back near the start = nothing happens.
    - Past the last stage the row gets heavy (rubber band), so there's no stage 3 to hunt for. */
 const SW_TONE = { next: "88,196,178", last: "126,146,255", remove: "255,99,99" };
-const LIB_STAGES = [{ min: 64, f: .2, label: "More", icon: ICON_MORE, tone: SW_TONE.next }];   // swipe left past ~66 px: the song's menu
+const LIB_STAGES = [{ min: 64, f: .2, label: "Play next", icon: ICON_NEXT, tone: SW_TONE.next }, { min: 170, f: .52, label: "Play last", icon: ICON_LAST, tone: SW_TONE.last }];   // on a phone: ~66 px and ~172 px
+const MENU_STAGES = [{ min: 64, f: .2, label: "More", icon: ICON_MORE, tone: "160,170,190" }];   // swipe right: the song's menu
 const Q_STAGES = [{ min: 90, f: .35, label: "Remove", icon: ICON_REMOVE, tone: SW_TONE.remove }];
 let swActive = null; const swLater = new Set();                     // swActive: the row being swiped or dragged; lists wait for it before rebuilding
 function swRelease() { swActive = null; setTimeout(() => { if (swActive) return; const l = [...swLater]; swLater.clear(); l.forEach(f => f()); }, 420); }
@@ -1741,33 +1796,35 @@ function swBack(row, keepTone) {                                     // spring b
   fg.style.transition = "transform .34s var(--ease)"; fg.style.transform = "";
   bg.style.transition = "width .34s var(--ease),background .3s ease"; bg.style.width = "0px";
   if (!keepTone) row.dataset.stage = "0";
-  setTimeout(() => { if (!row._sw) { row.dataset.stage = "0"; fg.style.transition = bg.style.transition = ""; } }, 360);
+  setTimeout(() => { if (!row._sw) { row.dataset.stage = "0"; row.classList.remove("r"); fg.style.transition = bg.style.transition = ""; } }, 360);
 }
-function attachSwipe(row, stages, onCommit) {
+function attachSwipe(row, stages, onCommit, rStages, onRight) {     // left: stages / onCommit; right (optional): rStages / onRight
   const fg = row.querySelector(".sw-fg"), bg = row.querySelector(".sw-bg"); let s = null;
   const at = st => Math.max(st.min, st.f * fg.offsetWidth);
-  const stageOf = (d, prev) => { let k = 0; stages.forEach((st, i) => { if (d >= at(st) - (prev > i ? 12 : 0)) k = i + 1; }); return k; };
+  const stageOf = (st, d, prev) => { let k = 0; st.forEach((x, i) => { if (d >= at(x) - (prev > i ? 12 : 0)) k = i + 1; }); return k; };
   fg.addEventListener("pointerdown", e => {
     if ((e.pointerType === "mouse" && e.button) || e.target.closest(".q-handle") || swActive) return;
-    s = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false, k: 0, d: 0 };
+    s = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false, k: 0, d: 0, dir: -1 };
   });
   fg.addEventListener("pointermove", e => {
     if (!s || e.pointerId !== s.id) return;
     if (row._dragging || plPop) { s = null; return; }
     const dx = e.clientX - s.x, dy = e.clientY - s.y;
     if (!s.on) {
-      if (dx < -12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-        s.on = true; s.x0 = e.clientX; swActive = row; row._sw = true;
+      const side = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5 ? (dx < 0 ? -1 : rStages ? 1 : 0) : 0;
+      if (side) {
+        s.on = true; s.dir = side; s.x0 = e.clientX; swActive = row; row._sw = true; row.classList.toggle("r", side > 0);
         try { fg.setPointerCapture(e.pointerId); } catch (er) {}
-        fg.style.transition = bg.style.transition = "none"; swPaint(row, stages, 0, 0);
-      } else { if (Math.abs(dy) > 10 || dx > 10) s = null; return; }
+        fg.style.transition = bg.style.transition = "none"; swPaint(row, side > 0 ? rStages : stages, 0, 0);
+      } else { if (Math.abs(dy) > 10 || (dx > 10 && !rStages)) s = null; return; }
     }
-    let d = Math.max(0, s.x0 - e.clientX);
-    const lim = at(stages[stages.length - 1]) + 70; if (d > lim) d = lim + (d - lim) * .3;
-    const k = stageOf(d, s.k);
+    const st = s.dir > 0 ? rStages : stages;
+    let d = Math.max(0, s.dir > 0 ? e.clientX - s.x0 : s.x0 - e.clientX);
+    const lim = at(st[st.length - 1]) + 70; if (d > lim) d = lim + (d - lim) * .3;
+    const k = stageOf(st, d, s.k);
     if (k !== s.k) haptic("select");
     s.k = k; s.d = d;
-    fg.style.transform = `translateX(${-d}px)`; bg.style.width = d + "px"; swPaint(row, stages, k, d);
+    fg.style.transform = `translateX(${s.dir * d}px)`; bg.style.width = d + "px"; swPaint(row, st, k, d);
   });
   const end = () => {
     if (!s) return; const w = s; s = null; if (!w.on) return;
@@ -1775,7 +1832,7 @@ function attachSwipe(row, stages, onCommit) {
     fg._swiped = true; setTimeout(() => { fg._swiped = false; }, 400);
     if (!w.k) { swBack(row); return; }
     haptic("light");
-    onCommit(w.k, row);
+    (w.dir > 0 ? onRight : onCommit)(w.k, row);
   };
   fg.addEventListener("pointerup", end); fg.addEventListener("pointercancel", end);
 }
@@ -1791,8 +1848,9 @@ function swOut(row, cb) {                                            // Queue: t
   setTimeout(() => { row.style.height = "0px"; row.style.opacity = "0"; }, 150);
   setTimeout(cb, 380);
 }
-function libSwipe(row, id) {
-  attachSwipe(row, LIB_STAGES, () => { swBack(row); setTimeout(() => songMenu(trackById(id), row), 90); });
+function libSwipe(row, id) {                                         // left: Play next, further: Play last; right: the song's menu
+  attachSwipe(row, LIB_STAGES, k => { enqueue(id, k === 2); swDone(row, k === 2 ? "Added" : "Plays next"); },
+    MENU_STAGES, () => { swBack(row); setTimeout(() => songMenu(trackById(id), row), 90); });
 }
 function swipeHint() {                                               // once ever: the first song peeks left to show there's something behind it
   if (store.get("hintSwipe")) return;
@@ -1804,7 +1862,7 @@ function swipeHint() {                                               // once eve
     fg.style.transition = bg.style.transition = "transform .5s var(--ease),width .5s var(--ease)";
     fg.style.transform = "translateX(-76px)"; bg.style.width = "76px"; swPaint(row, LIB_STAGES, 1, 76);
     setTimeout(() => swBack(row), 1100);
-    toast("Hold a song or swipe it left for more");
+    toast("Swipe a song left to queue it, right for more");
   }, 650);
 }
 
@@ -1845,7 +1903,7 @@ function renderQueue(scrollToNow) {
     up.slice(0, n).forEach((id, i) => { const t = trackById(id); if (t) row(t, "ctx", i, "ctx"); });
     if (up.length > n) note(`Show all ${up.length}`, "q-more q-link", () => { renderQueue.all = true; renderQueue(); });
     else if (ctxList().length) note(repeatMode === "off" ? (up.length ? `Then ${ctx.name} stops` : `${ctx.name} stops after this song`) : up.length ? `Then ${ctx.name} starts again` : `${ctx.name} starts again from the top`, "q-more");
-  } else if (!queue.length) note("Nothing after this song. Hold a song in Library, or swipe it left, to queue it.", "q-empty");
+  } else if (!queue.length) note("Nothing after this song. Swipe a song left in Library to queue it.", "q-empty");
   ui.scrollTop = scrollToNow ? nowSec.offsetTop : keep;
 }
 function removeRow(kind, i) {
@@ -2646,7 +2704,7 @@ const bubble = (() => {
   const wrap = document.querySelector(".player-wrapper"), NS = "http://www.w3.org/2000/svg";
   const GLASS_BLUR = 2;                                              // px; keep in step with --bubble-blur below
   const RAD = 36, GRAB = 26, MAXT = 9, LEAN = .8, STRETCH = .018, GIVE = .009, PRESS = .011;
-  const NO_PULL = "button,input,a,label,.custom-range-slider,.sw,.album-card,.playlist-container,.queue-container,.albums-grid-container,.artist-scroll,.track-artist,.chip,.gear-btn,.floating-customizer,.toast,.drop-zone,.album-art,.xp,.xp-strip,.xp-artist";
+  const NO_PULL = "button,input,a,label,.custom-range-slider,.sw,.album-card,.playlist-container,.queue-container,.albums-grid-container,.artist-scroll,.track-artist,.chip,.gear-btn,.floating-customizer,.toast,.drop-zone,.album-art,.xp,.xp-strip,.xp-artist,.crop-ov,.pl-pop";
   let on = false, skin = null, svg = null, W = 0, H = 0, raf = 0, last = 0, drag = null;
   let x = 0, y = 0, vx = 0, vy = 0, e = 0, ve = 0, q = 0, vq = 0, ux = 0, uy = 1;   // lean (px), stretch 0..1, press 0..1, stretch direction
   const M = { a: 1, b: 0, c: 0, d: 1 };                             // the current stretch/press matrix (about the panel's centre)
