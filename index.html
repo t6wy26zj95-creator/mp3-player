@@ -3234,15 +3234,20 @@ XP = (() => {
     if (!m.originsOn) origins(m);
     const P = clamp01(p);                                            // never laid out past either end (the panel only gives a few px, below)
     wrap.style.height = (lerp(st.h0, st.h1, P) + st.over).toFixed(1) + "px";
-    artBox.style.opacity = P > .0005 ? ".001" : "";                    // kept painted under the big cover (not hidden): the hand-over at the end is instant
+    /* exactly one cover on screen at any moment (both kept painted, the other at .001): two at once means two shadows,
+       a darker flash around the cover on the frame they overlap */
+    artBox.style.opacity = P > 0 ? ".001" : ""; art.style.opacity = P > 0 ? "" : ".001";
     /* the big cover, scaled down onto the small one at p = 0 */
     const G = grow(P), [ca, cb] = [G, G];
     const size = lerp(m.aw, st.S, G), s = size / st.S, curX = lerp(m.ax, m.sx, ca), curY = lerp(m.ay, m.sy, cb);
     art.style.transform = `translate(${(curX - m.sx).toFixed(2)}px,${(curY - m.sy).toFixed(2)}px) scale(${s.toFixed(4)})`;
     art.style.borderRadius = (lerp(12, 18, G) / s).toFixed(2) + "px";
     art.style.setProperty("--u", (lerp(1, 1.6, G) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
+    /* its shadow too: the small cover's own shadow at p = 0 (in its px), the big one's open, so nothing darkens or jumps at the hand-over */
+    const sh = (y0, y1, b0, b1, a0, a1) => `0 ${(lerp(y0, y1, G) / s).toFixed(2)}px ${(lerp(b0, b1, G) / s).toFixed(2)}px rgba(0,0,0,${lerp(a0, a1, G).toFixed(3)})`;
+    clip.style.boxShadow = `${sh(7, 18, 18, 40, .32, .34)},${sh(2, 4, 5, 12, .18, .2)},0 0 0 ${(.5 / s).toFixed(3)}px rgba(0,0,0,${(.45 * (1 - G)).toFixed(3)})`;
     /* glows: both covers show the same bitmaps at the same place at p = 0, so the hand-over is a quick, invisible swap */
-    const hm = P > .0005 ? 1 : 0, hs = Math.max(.004, hm).toFixed(3), hr = (1 - hm).toFixed(3);   // a swap, not a cross-fade (two half glows add up darker); never exactly 0: keeps the big glow's layer painted, ready
+    const hm = P > 0 ? 1 : 0, hs = Math.max(.004, hm).toFixed(3), hr = (1 - hm).toFixed(3);   // a swap, not a cross-fade (two half glows add up darker); never exactly 0: keeps the big glow's layer painted, ready
     if (st.hm !== hs) { st.hm = hs; bloom.style.setProperty("--hm", hs); glight.style.setProperty("--hm", hs); smBloom.style.setProperty("--hm", hr); smLight.style.setProperty("--hm", hr); }
     const v = 1 - (1 - P) * (1 - P), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
     const rowY = (y0, y1) => bottom + lerp(y0 - bottom0, y1 - bottom1, v);
@@ -4757,7 +4762,7 @@ let pEls = null;
 function pulseLoop(now) {
   pRaf = 0;
   if (document.hidden) { PERF.gap(); pulseLoop.t = 0; return; }       // restarted by visibilitychange
-  if (!pEls) pEls = { pm: $("player-main"), glow: $("glow-layer"), thumb: $("progress-slider").querySelector(".slider-thumb"), xpPlay: $("xp-play"), xp: $("xp"), xa: $("xp-art"), xThumb: $("xp-progress").querySelector(".slider-thumb") };
+  if (!pEls) pEls = { pm: $("player-main"), glow: $("glow-layer"), thumb: $("progress-slider").querySelector(".slider-thumb"), xpPlay: $("xp-play"), xp: $("xp"), xa: $("xp-art"), wrap: $("xp-art").closest(".player-wrapper"), xThumb: $("xp-progress").querySelector(".slider-thumb") };
   const playing = !audio.paused, pmOn = pEls.pm.style.display !== "none";
   const idle = !playing && energy < .02 && flare === 0 && pulse < .003 && now - tiltAt > 600;
   if (!idle) {
@@ -4772,13 +4777,14 @@ function pulseLoop(now) {
   }
   pulse += (target - pulse) * (1 - Math.pow(target > pulse ? .86 : .96, dt * 60));   // quick-ish rise, slow fall (the same curve as before at 60 fps)
   if (pulse < .003 && !playing) pulse = 0;
-  const pv = pulse.toFixed(2), xpOn = pEls.xp.classList.contains("show"), big = !!(XP && XP.expanded);
+  const pv = pulse.toFixed(2), xpOn = pEls.xp.classList.contains("show"), moving = xpOn && pEls.wrap.classList.contains("xp-anim");
+  const big = !!(XP && XP.expanded) && !moving;                      // while it moves, both covers stay live: the one left at the end then shows the same light, not where it was before
   if (!big) { pset(pEls.pm, "--pulse", pv); pset(pEls.thumb, "--pulse", pv); }
   if (drawerBox.classList.contains("expanded")) pset(pEls.glow, "--pulse", pv);
   if (xpOn) { pset(pEls.xa, "--pulse", pv); pset(pEls.xThumb, "--pulse", pv); }
   sparkTick(playing, dt);
   if (flare > .003) { flare *= Math.exp(-dt / .45); rimA += flare * 260 * dt; } else flare = 0;   // song change: the cover light swings round quickly, then settles
-  breathe(now, dt, big);
+  breathe(now, dt, big, xpOn);
   energy += ((playing ? 1 : 0) - energy) * (1 - Math.exp(-dt / (playing ? .4 : 1.8)));   // one smooth "how alive" level: quick up, slow settle down
   if (!playing && energy < .005) energy = 0;
   rimA = (rimA + (4 + energy * (5 + pulse * 14)) * dt) % 360;                              // the light slowly orbits the cover on its own; a little livelier with the music
@@ -4812,12 +4818,12 @@ let rimA = 0, energy = 0, tilt = 0;
 const bpHist = [], bpLast = [-1, -1, -1];
 let bpBtns = null;
 let bpXp = null;
-function breathe(now, dt, big) {
+function breathe(now, dt, big, xpOn) {
   bpHist.push(pulse); while (bpHist.length > Math.max(2, Math.round(.1 / (dt || .016)) + 1)) bpHist.shift();   // the sides follow ~0.1 s later, at any frame rate
   const lag = bpHist[0], idle = (1 - energy) * (.16 + .14 * Math.sin(now / 1500));
   const v = [lag * .7, Math.max(pulse, idle), lag * .7];
   if (!bpBtns) { bpBtns = [$("prev-btn"), playBtn, $("skip-btn")]; bpXp = [$("xp-prev"), $("xp-play"), $("xp-next")]; }
-  (big ? bpXp : bpBtns).forEach((b, i) => { if (Math.abs(v[i] - (b._bp ?? -1)) > .006) { b._bp = v[i]; b.style.setProperty("--bp", v[i].toFixed(3)); } });
+  (big ? bpXp : xpOn ? bpBtns.concat(bpXp) : bpBtns).forEach((b, j) => { const i = j % 3; if (Math.abs(v[i] - (b._bp ?? -1)) > .006) { b._bp = v[i]; b.style.setProperty("--bp", v[i].toFixed(3)); } });
 }
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
