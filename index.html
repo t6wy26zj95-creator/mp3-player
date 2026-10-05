@@ -3244,22 +3244,22 @@ XP = (() => {
     /* glows: both covers show the same bitmaps at the same place at p = 0, so the hand-over is a quick, invisible swap */
     const hm = fade(P, 0, .04), hs = Math.max(.004, hm).toFixed(3), hr = (1 - hm).toFixed(3);   // never exactly 0: keeps the big glow's layer painted, ready
     if (st.hm !== hs) { st.hm = hs; bloom.style.setProperty("--hm", hs); glight.style.setProperty("--hm", hs); smBloom.style.setProperty("--hm", hr); smLight.style.setProperty("--hm", hr); }
-    const v = fade(P, 0, .28), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
+    const v = 1 - (1 - P) * (1 - P), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
     const rowY = (y0, y1) => bottom + lerp(y0 - bottom0, y1 - bottom1, v);
     /* title + artist line */
     const ccx = curX + size / 2, ccy = curY + size / 2;
-    const hsc = fade(P, .1, .9), limit = m.W - 14;
+    const hsc = P, limit = m.W - 14;
     /* each line is shown by ONE copy: the big one takes over in place at once (same text, size and weight) and the small
        one, now hidden under it, fades away. Only what the small line lacks (album, year) fades in. A title that can't take
        over in place (cut short, or wrapping) hands over quickly, one copy fully out before the other comes in. */
     const extra = fade(P, .14, .72);
     for (const l of m.lines) {
-      const cOp = l.swap ? (P > 0 ? (l.c === cTitle ? 0 : 1 - fade(P, 0, .06)) : 1) : 1 - fade(P, 0, .12), xOp = l.swap ? (P > 0 ? 1 : 0) : fade(P, .2, .4);
+      const cOp = l.swap ? (P > 0 ? 0 : 1) : 1 - fade(P, 0, .12), xOp = l.swap ? (P > 0 ? 1 : 0) : fade(P, .2, .4);
       /* the title circles round the growing cover: from beside it, round its corner, to under it (see orbit) */
       const t = P, lead = m.lines[0];
       let X, Y;
       if (l === lead) [X, Y] = orbit(l.c0, l.x1, ccx, ccy, size / 2, t);
-      else { const u = fade(P, 0, .22); X = lead.X + lerp(l.c0[0] - lead.c0[0], l.x1[0] - lead.x1[0], u); Y = lead.Y + lerp(l.c0[1] - lead.c0[1], l.x1[1] - lead.x1[1], u); }   // the artist line keeps under the title
+      else { const u = Math.max(t, fade(P, 0, .22) * !(l.swap && lead.swap)); X = lead.X + lerp(l.c0[0] - lead.c0[0], l.x1[0] - lead.x1[0], u); Y = lead.Y + lerp(l.c0[1] - lead.c0[1], l.x1[1] - lead.x1[1], u); }   // the artist line keeps under the title
       const k = lerp(1, l.r, hsc); l.X = X; l.Y = Y; l.k = k;
       l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
@@ -3272,7 +3272,7 @@ XP = (() => {
     ls.forEach((el, i) => setOp(el, clamp01((extra * (n + K) - i) / K)));
     XR.style.color = P >= 1 ? "" : `rgba(255,255,255,${lerp(.6, .85, extra).toFixed(3)})`;   // the artist starts as dim as the small one
     /* buttons, scrubber, times */
-    const hc = fade(P, 0, .8);
+    const hc = P * P;
     /* the rows below never run into the text circling down: if the artist line comes lower than the playback line
        allows, the rows give way (they are pushed down together, keeping a clear gap; none at either end) */
     const sl = m.lines[m.lines.length - 1], bar = m.pairs.find(q => q.track), env = Math.sin(Math.PI * P);
@@ -3283,7 +3283,7 @@ XP = (() => {
     for (const q of m.pairs) {
       /* like the lines: everything drops to its row first (all rows on the same timing, so they keep their order and never
          meet), then slides across, which makes a rounded path. The times slide only once the buttons are below them. */
-      const tx = 1 - Math.cos(fade(P, q.time ? .3 : .1, q.time ? .9 : .85) * Math.PI / 2);
+      const tx = 1 - Math.cos(fade(P, q.time ? .3 : .1, 1) * Math.PI / 2);
       const X = lerp(q.c0[0], q.x1[0], tx), Y = rowY(q.c0[1], q.x1[1]) + push, k = lerp(1, q.r, hc);
       q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       /* the scrubber stretches from the small one's length to its own (its dot is kept round), so it is one bar all along */
@@ -3295,7 +3295,7 @@ XP = (() => {
       setOp(q.c, q.same ? (P > 0 ? 0 : 1) : 1 - fade(P, 0, .12)); setOp(q.x, q.same ? (P > 0 ? 1 : 0) : fade(P, .12, .32));
       if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; }
     }
-    const fo = fade(P, .6, .95);                                      // shuffle / repeat: ride with the big controls' row
+    const fo = fade(P, .72, 1);                                      // shuffle / repeat: ride with the big controls' row
     FOLLOW.forEach(el => { el.style.transform = `translateY(${playDy.toFixed(2)}px)`; setOp(el, fo); });
     fm.style.transform = P ? `translateY(${playDy0.toFixed(2)}px)` : ""; setOp(fm, 1 - fade(P, 0, .13));   // the compact tab row leaves with the controls above it
     const bo = fade(P, .74, 1); bot.style.opacity = bo > .999 ? "" : bo.toFixed(3); bot.style.transform = bo > .999 ? "" : `translateY(${((1 - bo) * 12).toFixed(1)}px)`;
