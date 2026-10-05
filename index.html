@@ -2308,7 +2308,7 @@ $("skip-btn").addEventListener("click", () => { nudge($("skip-btn"), 1); playNex
 /* song change. songDir: 1 = Next (and songs that follow on their own), -1 = Previous, 0 = picked from a list */
 let songDir = 0, coverWait = null, flare = 0;
 function songOut(dir) {                                              // before the new title is written: the old one leaves, the cover dips
-  const pm = $("player-main"); if (RM || pm.style.display === "none" || !pm.animate || (XP && XP.expanded)) return false;
+  const pm = $("player-main"); if (RM || pm.style.display === "none" || !pm.animate || (XP && XP.expanded) || $("xp").classList.contains("show")) return false;   // not while the big player is open or moving
   const tt = pm.querySelector(".track-text"), g = tt.cloneNode(true), dx = dir * 22, dy = dir ? 0 : -10;
   g.querySelectorAll("[id]").forEach(x => x.removeAttribute("id")); g.classList.add("tt-ghost"); g.setAttribute("aria-hidden", "true");
   Object.assign(g.style, { left: tt.offsetLeft + "px", top: tt.offsetTop + "px", width: tt.offsetWidth + "px", height: tt.offsetHeight + "px" });
@@ -3135,13 +3135,14 @@ XP = (() => {
   /* a point travelling round the cover from a (small layout) to b (big layout): its angle round the cover's centre and
      its gap from the cover's edge both ease from one layout's to the other's. The edge is taken as a rounded square, so
      the path hugs the cover in a smooth curve and can't touch it however the cover grows. */
+  const ANG = t => t * t;                                           // the angle trails: it is carried out to the right first, then sweeps round under the cover
   const edge = (a, half) => half / Math.pow(Math.pow(Math.abs(Math.cos(a)), 4) + Math.pow(Math.abs(Math.sin(a)), 4), .25);
   function orbit(a, b, cx, cy, half, t) {
     const m = st.m, c0x = m.ax + m.aw / 2, c0y = m.ay + m.aw / 2, c1x = m.sx + st.S / 2, c1y = m.sy + st.S / 2;
     const a0 = Math.atan2(a[1] - c0y, a[0] - c0x); let a1 = Math.atan2(b[1] - c1y, b[0] - c1x);
     while (a1 - a0 > Math.PI) a1 -= 2 * Math.PI; while (a0 - a1 > Math.PI) a1 += 2 * Math.PI;
     const g0 = Math.hypot(a[0] - c0x, a[1] - c0y) - edge(a0, m.aw / 2), g1 = Math.hypot(b[0] - c1x, b[1] - c1y) - edge(a1, st.S / 2);
-    const ang = lerp(a0, a1, 1 - (1 - t) * (1 - t)), r = edge(ang, half) + lerp(g0, g1, t);   // the angle runs ahead: it rounds the corner early, without running past the panel's edge
+    const ang = lerp(a0, a1, ANG(t)), r = edge(ang, half) + lerp(g0, g1, t);
     return [cx + r * Math.cos(ang), cy + r * Math.sin(ang)];
   }
   function letters(el) {                                             // the text as one span per letter (made once per change of text)
@@ -3153,12 +3154,13 @@ XP = (() => {
   /* the playback line while moving: a string carried along. It sags in the middle and a soft ripple runs along it, both
      strongest halfway and gone at either end (its ends stay put), so it lands as the straight line it is at rest */
   const BOW = $("xp-bow"), bowBg = BOW.querySelector(".bow-bg"), bowFill = BOW.querySelector(".bow-fill"), xpBar = $("xp-progress"), xpFill = xpBar.querySelector(".slider-fill");
+  const BOW_A = 9;                                                   // how far the line bows at most (px)
   function bow(q, X, Y, kx, ky, P) {
     const on = P > 0 && P < 1;
     BOW.classList.toggle("on", on); xpBar.style.background = on ? "transparent" : ""; xpFill.style.opacity = on ? "0" : "";
     if (!on) { q.thumb.style.transform = ""; return; }
     const L = q.xw * kx, x0 = xpBar.offsetLeft + q.xw / 2 + (X - q.x1[0]) - L / 2, y0 = xpBar.offsetTop + xpBar.offsetHeight / 2 + (Y - q.x1[1]);
-    const env = Math.sin(Math.PI * P), A = -11 * env, W = 3 * env, ph = P * 2.2;   // carried downwards, its middle trails behind (upwards)
+    const env = Math.sin(Math.PI * P), A = -BOW_A * env, W = 3 * env, ph = P * 2.2;   // carried downwards, its middle trails behind (upwards)
     const dy = t => 4 * t * (1 - t) * (A + W * Math.sin(2 * Math.PI * (1.3 * t - ph)));
     const f = parseFloat(xpFill.style.width) / 100 || 0, N = 28;
     const path = upto => { let d = ""; const n = Math.max(1, Math.round(N * upto)); for (let i = 0; i <= n; i++) { const t = upto * i / n; d += (i ? "L" : "M") + (x0 + L * t).toFixed(1) + "," + (y0 + dy(t)).toFixed(1); } return d; };
@@ -3193,7 +3195,7 @@ XP = (() => {
         /* a track isn't scaled (its dot would stretch): the big one opens up from the small one's length. Times keep
            their own size (scale only for buttons) and are anchored on the side where their digits line up. */
         const r = T || f !== .5 ? 1 : xb.w / (cb.w || 1), ci = c.querySelector("svg"), xi = x.querySelector("svg");
-        return { c, x, track: T, cw: cb.w, xw: xb.w, r, ky0: T ? cb.h / (xb.h || 1) : 1, thumb: T ? x.querySelector(".slider-thumb") : null, icon: ci && xi ? xi : null,
+        return { c, x, track: T, cw: cb.w, xw: xb.w, xh: xb.h, r, ky0: T ? cb.h / (xb.h || 1) : 1, thumb: T ? x.querySelector(".slider-thumb") : null, icon: ci && xi ? xi : null,
           ik: ci && xi ? (ci.getBoundingClientRect().width / (cb.w || 1)) / (xi.getBoundingClientRect().width / (xb.w || 1) || 1) : 1, same: T || c.textContent === x.textContent, time: !ci && !T, c0: [cb.x + cb.w * f, cb.y + cb.h / 2], x1: [xb.x + xb.w * f, xb.y + xb.h / 2], origin: f === .5 ? "" : `${f * 100}% 50%` }; }) };
   }
   function origins(m) {                                              // scale about the text's start / the button's centre (cleared at rest)
@@ -3206,6 +3208,9 @@ XP = (() => {
     xp.classList.add("show"); xp.setAttribute("aria-hidden", "false");
     st.warm = !!warm;                                                 // warm: shown but not yet moving, the compact row still takes taps
     if (!warm) { wrap.classList.add("xp-anim"); wrap.classList.remove("xp-on"); }   // moving: the compact copies fade in/out along the way (render below places them first)
+    /* a song change's own slide-in on the small title / artist would override the motion's placement (a faded copy left
+       standing beside the cover): finish it now */
+    [cTitle, cArtist].forEach(el => el.getAnimations().forEach(an => an.finish())); pm.querySelectorAll(".tt-ghost").forEach(g => g.remove());
     sync(true, true);
     layout();
     if (!drawerOpen()) st.compactH = naturalH();
@@ -3231,7 +3236,7 @@ XP = (() => {
     wrap.style.height = (lerp(st.h0, st.h1, P) + st.over).toFixed(1) + "px";
     artBox.style.opacity = P > .0005 ? ".001" : "";                    // kept painted under the big cover (not hidden): the hand-over at the end is instant
     /* the big cover, scaled down onto the small one at p = 0 */
-    const G = grow(P), [ca, cb] = arc(G, .7);
+    const G = grow(P), [ca, cb] = [G, G];
     const size = lerp(m.aw, st.S, G), s = size / st.S, curX = lerp(m.ax, m.sx, ca), curY = lerp(m.ay, m.sy, cb);
     art.style.transform = `translate(${(curX - m.sx).toFixed(2)}px,${(curY - m.sy).toFixed(2)}px) scale(${s.toFixed(4)})`;
     art.style.borderRadius = (lerp(12, 18, G) / s).toFixed(2) + "px";
@@ -3251,11 +3256,11 @@ XP = (() => {
     for (const l of m.lines) {
       const cOp = l.swap ? (P > 0 ? (l.c === cTitle ? 0 : 1 - fade(P, 0, .06)) : 1) : 1 - fade(P, 0, .12), xOp = l.swap ? (P > 0 ? 1 : 0) : fade(P, .2, .4);
       /* the title circles round the growing cover: from beside it, round its corner, to under it (see orbit) */
-      const t = fade(P, 0, .9), lead = m.lines[0];
+      const t = P, lead = m.lines[0];
       let X, Y;
       if (l === lead) [X, Y] = orbit(l.c0, l.x1, ccx, ccy, size / 2, t);
       else { const u = fade(P, 0, .22); X = lead.X + lerp(l.c0[0] - lead.c0[0], l.x1[0] - lead.x1[0], u); Y = lead.Y + lerp(l.c0[1] - lead.c0[1], l.x1[1] - lead.x1[1], u); }   // the artist line keeps under the title
-      l.X = X; l.Y = Y; const k = lerp(1, l.r, hsc);
+      const k = lerp(1, l.r, hsc); l.X = X; l.Y = Y; l.k = k;
       l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
       setOp(l.c, cOp); setOp(l.x, xOp);
@@ -3268,12 +3273,18 @@ XP = (() => {
     XR.style.color = P >= 1 ? "" : `rgba(255,255,255,${lerp(.6, .85, extra).toFixed(3)})`;   // the artist starts as dim as the small one
     /* buttons, scrubber, times */
     const hc = fade(P, 0, .8);
+    /* the rows below never run into the text circling down: if the artist line comes lower than the playback line
+       allows, the rows give way (they are pushed down together, keeping a clear gap; none at either end) */
+    const sl = m.lines[m.lines.length - 1], bar = m.pairs.find(q => q.track), env = Math.sin(Math.PI * P);
+    const subBottom = l => l.Y + (l.xb.h - l.xb.oy) * l.k / l.r, barTop = (Y, q) => Y - q.xh / 2;
+    const gapEnd = barTop(bar.x1[1], bar) - (sl.x1[1] + sl.xb.h - sl.xb.oy);
+    const push = P > 0 && P < 1 ? Math.max(0, subBottom(sl) + gapEnd * .5 + BOW_A * env - barTop(rowY(bar.c0[1], bar.x1[1]), bar)) : 0;
     let playDy = 0, playDy0 = 0;
     for (const q of m.pairs) {
       /* like the lines: everything drops to its row first (all rows on the same timing, so they keep their order and never
          meet), then slides across, which makes a rounded path. The times slide only once the buttons are below them. */
       const tx = 1 - Math.cos(fade(P, q.time ? .3 : .1, q.time ? .9 : .85) * Math.PI / 2);
-      const X = lerp(q.c0[0], q.x1[0], tx), Y = rowY(q.c0[1], q.x1[1]), k = lerp(1, q.r, hc);
+      const X = lerp(q.c0[0], q.x1[0], tx), Y = rowY(q.c0[1], q.x1[1]) + push, k = lerp(1, q.r, hc);
       q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       /* the scrubber stretches from the small one's length to its own (its dot is kept round), so it is one bar all along */
       const kx = q.track ? lerp(q.cw, q.xw, hc) / q.xw : k / q.r, ky = q.track ? lerp(q.ky0, 1, hc) : k / q.r;
@@ -3318,20 +3329,23 @@ XP = (() => {
   function animateTo(target, v0) {
     cancelAnimationFrame(st.raf); st.target = target; st.v = v0 || 0;
     if (RM) { render(target); settle(target); return; }
-    /* critically damped both ways: it lands on the open / compact layout and never swings past it. p is kept inside
-       0..1; the only "give" is st.over, a few px of panel stretch from a pull past the open end, which melts away. */
-    const K = target ? 150 : 170, C = 2 * Math.sqrt(K);
-    let last = 0;
+    /* a fixed-length glide that ends exactly at the open / compact layout, at rest: no long creep at the end (that crawl
+       read as things "snapping into place"). It starts briskly and slows down evenly, never past the end. p is kept
+       inside 0..1; the only "give" is st.over, a few px of panel stretch from a pull past the open end, which melts away. */
+    const p0 = st.p, d = target - p0, base = (target ? .62 : .54) * (.45 + .55 * Math.abs(d));
+    const fling = (v0 || 0) * Math.sign(d), D = fling > 0 ? Math.max(.2, Math.min(base, 3 * Math.abs(d) / fling)) : base;   // a flick shortens it to match its speed (never past the end)
+    let t0 = 0, last = 0;
     const step = now => {
-      const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;   // a slow frame moves it further (up to 50 ms), so it doesn't turn to slow motion
+      if (!t0) t0 = now - 16;
+      const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
       PERF.frame(now);
-      for (let i = 0, n = Math.max(4, Math.ceil(dt / .006)), h = dt / n; i < n; i++) {
-        st.v += (K * (target - st.p) - C * st.v) * h; st.p += st.v * h;
-        if (st.p > 1) { st.p = 1; st.v = Math.min(0, st.v); } else if (st.p < 0) { st.p = 0; st.v = Math.max(0, st.v); }
-      }
+      const u = Math.min(1, (now - t0) / 1000 / D), e = 1 - Math.pow(1 - u, 3);   // ease-out cubic
+      const prev = st.p;
+      st.p = clamp01(p0 + d * e);
+      st.v = dt ? (st.p - prev) / dt : 0;
       st.over *= Math.exp(-dt / .07); if (st.over < .2) st.over = 0;
       render(st.p);
-      if (Math.abs(target - st.p) < .001 && Math.abs(st.v) < .02 && !st.over) { settle(target); return; }
+      if (u >= 1 && !st.over) { st.p = target; settle(target); return; }
       st.raf = requestAnimationFrame(step);
     };
     st.raf = requestAnimationFrame(step);
