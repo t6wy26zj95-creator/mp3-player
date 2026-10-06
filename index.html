@@ -3269,16 +3269,19 @@ XP = (() => {
        over in place (cut short, or wrapping) hands over quickly, one copy fully out before the other comes in. */
     const extra = fade(P, .14, .72);
     for (const l of m.lines) {
-      const cOp = l.swap ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, .12)), xOp = l.swap ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .2, .4));
-      /* the title circles round the growing cover: from beside it, round its corner, to under it (see orbit) */
-      const t = P, lead = m.lines[0];
-      let X, Y;
-      if (l === lead) [X, Y] = orbit(l.c0, l.x1, ccx, ccy, size / 2, t);
-      else { const u = Math.max(t, fade(P, 0, .22) * !(l.swap && lead.swap)); X = lead.X + lerp(l.c0[0] - lead.c0[0], l.x1[0] - lead.x1[0], u); Y = lead.Y + lerp(l.c0[1] - lead.c0[1], l.x1[1] - lead.x1[1], u); }   // the artist line keeps under the title
-      const k = lerp(1, l.r, hsc);
-      /* never over the cover: while a line is still beside it (its top above the cover's bottom), its start keeps a gap to
-         the cover's right edge. A long artist · album line would otherwise cut across the corner on its way round */
-      if (P > 0 && P < 1) { const top = Y - l.xb.oy * k / l.r, w = clamp01((curY + size + 20 - top) / 16); X += w * Math.max(0, curX + size + 12 - (X - (l.xb.off - l.xb.l0) * k / l.r)); }
+      /* a title that can't simply take over (cut short, or wrapping) cross-fades with it in place, quickly: never a moment
+         with neither on screen */
+      const cOp = l.swap ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, .03, .17)), xOp = l.swap ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .06, .2));
+      /* each line circles round the growing cover by the top-left corner of its whole text block (see orbit): the text
+         hangs right and down from that corner, so going round the cover's right side and under it, no part of it (a long
+         wrapped second line included) can cross the cover */
+      const t = P, lead = m.lines[0], k = lerp(1, l.r, hsc), sc = k / l.r, dx = l.xb.off - l.xb.l0, oy = l.xb.oy;
+      const [cx, cy] = orbit([l.c0[0] - dx / l.r, l.c0[1] - oy / l.r], [l.x1[0] - dx, l.x1[1] - oy], ccx, ccy, size / 2, t);
+      let X = cx + dx * sc, Y = cy + oy * sc;
+      if (l !== lead && P > 0 && P < 1) {                            // the artist line keeps below the title on the way
+        const leadBottom = lead.Y + (lead.xb.h - lead.xb.oy) * lead.k / lead.r, need = leadBottom + 2 - (Y - oy * sc);
+        Y += Math.max(0, need) * (lead.swap ? fade(P, 0, .2) : fade(P, 0, .06));   // out of the big title's way before it shows (none at rest: there it already is)
+      }
       l.X = X; l.Y = Y; l.k = k;
       l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
