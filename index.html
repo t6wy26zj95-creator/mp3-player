@@ -527,6 +527,9 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 /* while the player opens / closes, the buttons follow the motion exactly: their own press / fade easing would make them
    lag a beat behind (and the small and big ones show at once) */
 .player-wrapper.xp-anim .player-btn{transition:none}
+/* while it moves, the small title and artist travel with the big ones: their box must not clip them (that cut them off,
+   the name seemed to vanish for a moment). min-width keeps the layout exactly as it is */
+.player-wrapper.xp-anim .track-text{overflow:visible;min-width:0}
 .xp-top{position:absolute;left:0;right:0;top:0;padding:6px 22px 0;display:flex;flex-direction:column}
 .xp-handle{align-self:center;width:72px;height:20px;background:none;border:0;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .xp-handle i{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.38)}
@@ -3271,13 +3274,22 @@ XP = (() => {
     for (const l of m.lines) {
       /* a title that can't simply take over (cut short, or wrapping) cross-fades with it in place, quickly: never a moment
          with neither on screen */
-      const cOp = l.swap ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, .03, .17)), xOp = l.swap ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .06, .2));
+      const cOp = l.swap ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, .1, .22)), xOp = l.swap ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .06, .2));
       /* each line circles round the growing cover by the top-left corner of its whole text block (see orbit): the text
          hangs right and down from that corner, so going round the cover's right side and under it, no part of it (a long
          wrapped second line included) can cross the cover */
       const t = P, lead = m.lines[0], k = lerp(1, l.r, hsc), sc = k / l.r, dx = l.xb.off - l.xb.l0, oy = l.xb.oy;
       const [cx, cy] = orbit([l.c0[0] - dx / l.r, l.c0[1] - oy / l.r], [l.x1[0] - dx, l.x1[1] - oy], ccx, ccy, size / 2, t);
       let X = cx + dx * sc, Y = cy + oy * sc;
+      /* no room beside the cover for the whole line (what of it is showing: the album writes itself in)? Then it goes
+         under the cover and moves in from the right edge, instead of running off it, fading there or vanishing */
+      if (P > 0 && P < 1) {
+        const full = l.xb.right - l.xb.l0, vis = l === lead ? full : lerp(Math.min(full, XR.offsetWidth || full), full, extra);
+        const f0 = fade(P, 0, .06), right = l === lead ? l.xb.right - l.xb.off : vis - dx;   // from the text's start to its (showing) end
+        X -= f0 * Math.max(0, X + right * sc - limit);                // never past the right edge
+        const wd = Math.max(clamp01((vis * sc - (limit - (curX + size + 12)) + 40) / 80), clamp01((curX + size + 12 - (X - dx * sc)) / 16)) * f0;   // eased in before it's needed, so it glides under
+        Y += wd * Math.max(0, curY + size + 12 + oy * sc - Y);         // and under the cover when that brings it over it
+      }
       if (l !== lead && P > 0 && P < 1) {                            // the artist line keeps below the title on the way
         const leadBottom = lead.Y + (lead.xb.h - lead.xb.oy) * lead.k / lead.r, need = leadBottom + 2 - (Y - oy * sc);
         Y += Math.max(0, need) * (lead.swap ? fade(P, 0, .2) : fade(P, 0, .06));   // out of the big title's way before it shows (none at rest: there it already is)
@@ -3287,7 +3299,10 @@ XP = (() => {
       l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
       setOp(l.c, cOp); setOp(l.x, xOp);
       setMask(l.c, fadeEdge(l.cb, X, k, limit));
-      setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit));
+      /* a title that wraps (where the small one is cut short): its lines after the first fade away near the small end, so
+         the cross-fade is between two nearly identical first lines, not over a doubled second line */
+      const more = l.swap || l.xb.h <= l.xb.oy * 3 ? "" : `linear-gradient(#000 ${(l.xb.oy * 2).toFixed(1)}px,rgba(0,0,0,${fade(P, .16, .36).toFixed(3)}) ${(l.xb.oy * 2 + 1).toFixed(1)}px)`;
+      setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit), more);
     }
     /* album and year (and the sound effect) write themselves in, letter by letter, and take themselves back the same way */
     const ls = [...letters(XA), ...letters(XF)], n = ls.length, K = 3;
