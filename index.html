@@ -3183,6 +3183,7 @@ XP = (() => {
     const first = rs.filter(r => Math.abs(r.top - f.top) < 4);             // the first line (several rects when it has spans)
     const fl = Math.min(...first.map(r => r.left)), fr = Math.max(...first.map(r => r.right));
     b.off = Math.max(0, (fl - er.left) * k); b.tw = Math.min(b.w - b.off, (fr - fl) * k);
+    b.l0 = Math.max(0, (Math.min(fl, ...rs.map(r => r.left)) - er.left) * k);   // where the leftmost line starts (centred lines can start left of the first)
     b.oy = Math.max(0, (f.top - er.top + f.height / 2) * k);           // the first line's middle
     b.right = Math.min(b.w, (Math.max(...rs.map(r => r.right), fr) - er.left) * k);   // the widest line's end (for the edge fade)
     return b;
@@ -3274,7 +3275,11 @@ XP = (() => {
       let X, Y;
       if (l === lead) [X, Y] = orbit(l.c0, l.x1, ccx, ccy, size / 2, t);
       else { const u = Math.max(t, fade(P, 0, .22) * !(l.swap && lead.swap)); X = lead.X + lerp(l.c0[0] - lead.c0[0], l.x1[0] - lead.x1[0], u); Y = lead.Y + lerp(l.c0[1] - lead.c0[1], l.x1[1] - lead.x1[1], u); }   // the artist line keeps under the title
-      const k = lerp(1, l.r, hsc); l.X = X; l.Y = Y; l.k = k;
+      const k = lerp(1, l.r, hsc);
+      /* never over the cover: while a line is still beside it (its top above the cover's bottom), its start keeps a gap to
+         the cover's right edge. A long artist · album line would otherwise cut across the corner on its way round */
+      if (P > 0 && P < 1) { const top = Y - l.xb.oy * k / l.r, w = clamp01((curY + size + 20 - top) / 16); X += w * Math.max(0, curX + size + 12 - (X - (l.xb.off - l.xb.l0) * k / l.r)); }
+      l.X = X; l.Y = Y; l.k = k;
       l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
       setOp(l.c, cOp); setOp(l.x, xOp);
