@@ -71,6 +71,47 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .controls-cluster .player-btn{width:34px;height:34px}
 #play-btn{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .artist-row{display:flex;align-items:center;min-width:0}
+/* the song / tile menu (hold a song or swipe it right; hold a Library tile and let go) */
+.pl-pop{position:fixed;z-index:40;width:236px;max-width:calc(100vw - 24px);overflow-y:auto;padding:6px;box-sizing:border-box;border-radius:16px;
+  background:rgba(15,23,30,.86);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(255,255,255,.15);
+  box-shadow:0 14px 34px rgba(0,0,0,.45);opacity:0;transform:scale(.92) translateY(-6px);transform-origin:top right;pointer-events:none;
+  transition:opacity .2s var(--ease),transform .26s var(--ease);font-size:14px;color:#fff}
+.pl-pop.show{opacity:1;transform:none;pointer-events:auto}
+.pl-h{padding:6px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.pl-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;-webkit-user-select:none;user-select:none}
+.pl-row:active{background:rgba(255,255,255,.1)}
+.pl-row .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-row .ck{flex-shrink:0;width:20px;height:20px;border-radius:50%;border:1.5px solid rgba(255,255,255,.45);box-sizing:border-box;display:flex;align-items:center;justify-content:center;transition:background .2s,border-color .2s}
+.pl-row .ck svg{width:14px;height:14px;fill:#0f171e;opacity:0;transition:opacity .2s}
+.pl-row.in .ck{background:#fff;border-color:#fff}
+.pl-row.in .ck svg{opacity:1}
+.pl-row.add{color:rgba(255,255,255,.75)}
+.pl-row>svg{flex-shrink:0;width:18px;height:18px;fill:rgba(255,255,255,.75)}
+.pl-row.danger{color:#ff8a8a}.pl-row.danger>svg{fill:#ff8a8a}
+.pl-sep{height:1px;margin:4px 8px;background:rgba(255,255,255,.12)}
+.pl-song{display:flex;align-items:center;gap:10px;padding:6px 8px 8px}
+.pl-song .item-art{width:36px;height:36px;flex-shrink:0}
+.pl-song .t{min-width:0;flex:1}.pl-song .t div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-song .t .a{font-size:12px;color:rgba(255,255,255,.55)}
+/* choosing a cover: move and zoom the picture inside the square */
+.crop-ov{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;transition:opacity .22s var(--ease)}
+.crop-ov.show{opacity:1}
+.crop-box{width:min(340px,calc(100vw - 32px));padding:16px;box-sizing:border-box;border-radius:22px;background:rgba(15,23,30,.86);border:1px solid rgba(255,255,255,.15);box-shadow:0 18px 40px rgba(0,0,0,.5);color:#fff;
+  transform:scale(.95);transition:transform .26s var(--ease)}
+.crop-ov.show .crop-box{transform:none}
+.crop-h{font-size:13px;font-weight:600;text-align:center;color:rgba(255,255,255,.7);margin-bottom:12px}
+.crop-frame{position:relative;margin:0 auto;border-radius:18px;overflow:hidden;touch-action:none;cursor:grab;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.2)}
+.crop-frame img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;pointer-events:none;-webkit-user-drag:none;user-select:none}
+.crop-zoom{display:flex;align-items:center;gap:10px;margin:14px 2px 4px}
+.crop-zoom svg{width:16px;height:16px;fill:rgba(255,255,255,.55);flex-shrink:0}
+.crop-zoom input{flex:1;accent-color:#fff}
+.crop-btns{display:flex;gap:8px;margin-top:12px}
+.crop-btns button{flex:1;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font:600 14px -apple-system,system-ui,sans-serif;cursor:pointer}
+.crop-btns button.ok{background:#fff;color:#0f171e;border-color:#fff}
+.sw.menu-on>.sw-fg{background:rgba(255,255,255,.12);border-radius:12px}
+.pl-new{display:flex;gap:6px;padding:4px}
+.pl-new input{flex:1;min-width:0;padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:16px;outline:none}
+.pl-new button{padding:0 12px;border-radius:10px;border:0;background:#fff;color:#0f171e;font:600 13px -apple-system,system-ui,sans-serif;cursor:pointer}
 .artist-row .track-artist{min-width:0;flex:0 1 auto}
 .shuf-ind{flex-shrink:0;width:0;height:13px;margin-left:0;opacity:0;fill:#fff;transition:width .3s var(--ease),margin .3s var(--ease),opacity .3s var(--ease)}
 .shuf-ind.on{width:13px;margin-left:6px;opacity:.85}
@@ -107,7 +148,8 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .back-btn svg{width:14px;height:14px;fill:currentColor}
 
 .scroll-container-wrapper{position:relative;max-height:280px;padding-bottom:10px}
-.playlist-container,.queue-container{max-height:240px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.playlist-container,.queue-container{max-height:240px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  padding:6px 10px;margin:-6px -10px}                                 /* room round the edges, so a song lifted to drag isn't cut off */
 .playlist-container::-webkit-scrollbar,.queue-container::-webkit-scrollbar{display:none}
 
 .playlist-item,.queue-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:12px;cursor:pointer;gap:10px}
@@ -331,8 +373,6 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 .q-fg:active{background:rgba(255,255,255,.08)}
 .q-row.hist .q-fg{opacity:.5}
 .q-row.now .q-fg{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.1);cursor:default}
-.q-handle{width:30px;height:30px;margin-right:-6px;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab;flex-shrink:0}
-.q-handle svg{width:16px;height:16px;fill:rgba(255,255,255,.45)}
 /* the held row: a glass card lit by its own cover (same idea as the album glow). Everything fades in and out, nothing
    switches: the card's glass is a layer under the row's content whose opacity animates, the cover glow grows in on
    pick-up and fades on drop. */
@@ -343,7 +383,6 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
   box-shadow:0 14px 30px rgba(0,0,0,.32),0 3px 8px rgba(0,0,0,.18),inset 0 0 2px rgba(255,255,255,.25)}
 .q-row.lifted .q-fg::before{opacity:1}
 .q-row .item-art{transition:transform .26s var(--ease),box-shadow .26s var(--ease)}
-.q-row .q-handle svg{transition:fill .2s ease}
 .q-row.lifted,.q-row.landing{z-index:5;overflow:visible}
 .q-row.lifted::after,.q-row.landing::after{content:'';position:absolute;inset:6px 18px;border-radius:14px;background:var(--art,rgba(255,255,255,.2)) center/cover;
   filter:blur(18px) saturate(1.7);z-index:-1;pointer-events:none}
@@ -352,8 +391,9 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 @keyframes qglow{from{opacity:0;transform:scale(.8)}to{opacity:.5;transform:none}}
 @keyframes qglowOut{from{opacity:.5}to{opacity:0;transform:scale(.9)}}
 .q-row.lifted .item-art{transform:scale(1.08);box-shadow:0 4px 12px rgba(0,0,0,.35)}
-.q-row.lifted .q-handle svg{fill:#fff}
-.queue-container .q-row{transition:opacity .22s ease}
+.queue-container .q-row,.playlist-container .q-row{transition:opacity .22s ease}
+.playlist-container.dragging .q-row:not(.lifted){opacity:.5}
+.playlist-container.dragging{-webkit-overflow-scrolling:auto}
 .queue-container.dragging .q-row:not(.lifted){opacity:.5}
 .queue-container.dragging{-webkit-overflow-scrolling:auto}
 .q-row.collapse{overflow:hidden;transition:height .22s var(--ease),opacity .22s var(--ease)}
@@ -371,6 +411,8 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 .sw-lab span{opacity:0;transition:opacity .14s ease}
 .sw-lab.fit span{opacity:1}
 .sw-lab.pop{animation:swpop .24s var(--ease)}
+.sw.r .sw-bg{right:auto;left:0;justify-content:flex-start}                /* swiping right: the strip is on the left */
+.sw.r .sw-lab{flex-direction:row}
 @keyframes swpop{0%{transform:scale(.82)}60%{transform:scale(1.07)}100%{transform:none}}
 
 /* ===== touch + motion =====
@@ -482,6 +524,12 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .player-wrapper.xp-on .xp{pointer-events:auto}
 .player-wrapper.xp-on>#player-main,.player-wrapper.xp-on>#controls-main,.player-wrapper.xp-on>#footer-main{visibility:hidden}
 .player-wrapper.xp-anim>#player-main,.player-wrapper.xp-anim>#controls-main,.player-wrapper.xp-anim>#footer-main{pointer-events:none}
+/* while the player opens / closes, the buttons follow the motion exactly: their own press / fade easing would make them
+   lag a beat behind (and the small and big ones show at once) */
+.player-wrapper.xp-anim .player-btn{transition:none}
+/* while it moves, the small title and artist travel with the big ones: their box must not clip them (that cut them off,
+   the name seemed to vanish for a moment). min-width keeps the layout exactly as it is */
+.player-wrapper.xp-anim .track-text{overflow:visible;min-width:0}
 .xp-top{position:absolute;left:0;right:0;top:0;padding:6px 22px 0;display:flex;flex-direction:column}
 .xp-handle{align-self:center;width:72px;height:20px;background:none;border:0;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .xp-handle i{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.38)}
@@ -523,12 +571,20 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
    a 3rd, see fitTitle), the artist · album line up to 2. Past that, "…": a protection for absurdly long names. Words
    longer than the line (no spaces) break anywhere instead of running off. */
 .xp-meta{margin-top:22px;transform-origin:0 0;min-width:0;width:100%;align-self:center;text-align:center}
-.xp-title{font-size:var(--tfs,20px);font-weight:700;line-height:1.25;overflow:hidden;overflow-wrap:anywhere;text-wrap:balance;
+.xp-title{font-size:var(--tfs,20px);font-weight:600;line-height:1.25;overflow:hidden;overflow-wrap:anywhere;text-wrap:balance;
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;text-shadow:0 2px 6px rgba(0,0,0,.45)}
 .xp-sub{margin-top:5px;font-size:13.5px;line-height:1.3;color:rgba(255,255,255,.55);overflow:hidden;overflow-wrap:anywhere;text-wrap:balance;
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;text-shadow:0 1px 3px rgba(0,0,0,.4)}
-.xp-artist{color:rgba(255,255,255,.85);cursor:pointer}
+.xp-artist{color:rgba(255,255,255,.85);cursor:pointer;position:relative}
+/* the small line's " ›" rides along while the big line takes over, fading out as the album writes itself in (and back) */
+.xp-artist::after{content:" ›";position:absolute;left:100%;top:0;white-space:pre;opacity:calc(var(--chev,0) * .5);pointer-events:none}
 .xp-scrub{margin-top:24px}
+/* while the player opens / closes the playback line is drawn here instead: it bends like a string being carried */
+.xp-bow{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none;display:none}
+.xp-bow.on{display:block}
+.xp-bow path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.xp-bow .bow-bg{stroke:rgba(255,255,255,.15)}
+.xp-bow .bow-fill{stroke:#fff;filter:drop-shadow(0 0 4px rgba(255,255,255,.5))}   /* the same glow as the bars it stands in for (.slider-fill) */
 .xp-scrub .custom-range-slider{height:4px;border-radius:3px}
 .xp-times{display:flex;justify-content:space-between;margin-top:9px;font-size:11px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
 .xp-ctrls{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:0 4px}
@@ -693,7 +749,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
     <div class="scroll-container-wrapper" id="playlist-wrapper" style="display:none;">
       <button class="back-btn" id="back-to-grid-btn">
         <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-        <span>Back to Albums</span>
+        <span>Back to Library</span>
       </button>
       <div class="playlist-container" id="playlist-ui"></div>
     </div>
@@ -726,6 +782,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
       <div class="xp-meta" id="xp-meta"><div class="xp-title" id="xp-title"></div><div class="xp-sub"><span class="xp-artist" id="xp-artist"></span><span id="xp-album"></span><span class="xp-fx" id="xp-fx"></span></div></div>
       <div class="xp-scrub" id="xp-scrub">
         <div class="custom-range-slider" id="xp-progress"><div class="slider-fill"></div><div class="slider-thumb"></div></div>
+        <svg class="xp-bow" id="xp-bow" aria-hidden="true"><path class="bow-bg"/><path class="bow-fill"/></svg>
         <div class="xp-times"><span id="xp-cur">0:00</span><span id="xp-left">-0:00</span></div>
       </div>
       <div class="xp-ctrls" id="xp-ctrls">
@@ -804,7 +861,7 @@ const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
 /* Each write to Telegram's storage is a round trip through the app, so a key is sent at most once per its delay (the
    latest value wins), and whatever is still waiting is sent straight away when the app is hidden or closed. The play
    position changes every few seconds while you listen: it goes at most every 30 s (and on pause / hide). */
-const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode"], mirrorT = {}, mirrorV = {};
+const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName"], mirrorT = {}, mirrorV = {};
 const MIRROR_DELAY = { playState: 3000, playPos: 30000, artistCache: 5000, releaseMap2: 5000 };
 function mirrorSend(k) { clearTimeout(mirrorT[k]); delete mirrorT[k]; if (!(k in mirrorV)) return; const v = mirrorV[k]; delete mirrorV[k]; try { tgStore.setItem(k, v); } catch (e) {} }
 function mirrorFlush() { Object.keys(mirrorV).forEach(mirrorSend); }
@@ -838,6 +895,17 @@ const LASTFM_API_KEY = "dbe9aea2d4e59436f4b2015d1f0e027a";
 const albumMeta = {};
 let tracks = [], queue = [], curId = null, uid = 0;
 let currentAlbum = "All Tracks";
+/* your own playlists: [{ id, name, keys: [track keys (tkey), in the order they were added] }]. In Library a playlist is
+   opened like an album, under the name "pl:" + id (see plOf). */
+let playlists = []; try { playlists = JSON.parse(localStorage.getItem("playlists") || "[]"); if (!Array.isArray(playlists)) playlists = []; } catch (e) {}
+const PL = "pl:", plOf = n => typeof n === "string" && n.startsWith(PL) ? playlists.find(p => PL + p.id === n) : null;
+const albumLabel = n => { const p = plOf(n); return p ? p.name : n; };
+/* Library tiles: All Tracks ("@all"), your playlists ("pl:" + id) and albums (their name) are all alike: hold and move
+   to rearrange, hold and let go for the tile's menu. Your own covers are kept by tile ("a:" + name for albums). */
+let tileCovers = {}; try { tileCovers = JSON.parse(localStorage.getItem("tileCovers") || "{}") || {}; } catch (e) {}
+const ALL = "@all", coverKey = k => k === ALL || plOf(k) ? k : "a:" + k;
+const allName = () => store.get("allName") || "All Tracks";
+const NOTES_SVG = `<svg viewBox="0 0 24 24"><path d="M21 3v12.5a3.5 3.5 0 1 1-2-3.16V7.08L9 9.07v8.43a3.5 3.5 0 1 1-2-3.16V5l14-2z"/></svg>`;
 
 const audio = $("audio-element"), playBtn = $("play-btn");
 const playIconSvg = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
@@ -1217,8 +1285,11 @@ function catEntries(cat) {
 }
 const verOf = s => { const m = String(s).match(/\b(live|demo|rough(?: mix| vocal)?|instrumental|acoustic|remix|alternate|session)\b/i); return m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : ""; };
 function albumCover(name) {
+  if (tileCovers[coverKey(name)]) return tileCovers[coverKey(name)];
+  const pl = plOf(name); if (pl) { const t = plTracks(pl).find(t => t.art || albumCover(t.album)); return t ? t.art || albumCover(t.album) : null; }
   if (currentCat && name === currentCat.key) return currentCat.cover; const t = tracks.find(t => t.album === name && t.art); return t ? t.art : (albumMeta[name] && albumMeta[name].cover) || null; }
 function albumEntries(name) {
+  const pl = plOf(name); if (pl) return plTracks(pl).map(t => ({ track: t, title: t.title, num: 0, disc: 1 }));
   if (currentCat && name === currentCat.key) return catEntries(currentCat);
   const rid = albumRelease[name];
   if (rid && relTracks[rid]) return catEntries({ id: rid, own: name, list: relTracks[rid] });
@@ -1250,24 +1321,211 @@ function saveOrder(keys) {
   keys.forEach((k, i) => { if (!res.includes(k)) res.splice((i ? res.indexOf(keys[i - 1]) : -1) + 1, 0, k); });
   albumOrder = res; store.set("albumOrder", JSON.stringify(res));
 }
+function gridKeys() {                                                // All Tracks, playlists and albums, in your order (new ones: All Tracks, then playlists, first)
+  const items = [ALL, ...playlists.map(p => PL + p.id), ...new Set(tracks.map(t => t.album).filter(isRealAlbum))];
+  const rank = k => { const i = albumOrder.indexOf(k); return i >= 0 ? i : k === ALL ? -3 : plOf(k) ? -2 : 1e6; };
+  return items.map((k, i) => [k, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
+}
 function renderAlbums() {
   if (drag && drag.active) return;
   const shelf = $("albums-shelf"); shelf.innerHTML = "";
-  const mk = (title, inner, onClick, key) => {
-    const c = document.createElement("div"); c.className = "album-card"; c.style.setProperty("--j", Math.floor(Math.random() * 6));
-    c.innerHTML = (key !== undefined ? '<div class="del-badge" aria-label="Hide album"></div>' : "") + inner + `<div class="album-card-title">${esc(title)}</div>`;
-    c.addEventListener("click", () => { if (suppressClick) { suppressClick = false; return; } if (editing) return; onClick(); });
-    if (key !== undefined) { c.dataset.key = key; attachDrag(c); c.querySelector(".del-badge").addEventListener("click", e => { e.stopPropagation(); hideAlbum(c, key); }); }
-    shelf.appendChild(c); return c;
-  };
-  const folder = `<div class="all-tracks-icon"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></div>`;
-  mk("All Tracks", folder, () => { albumOrigin = null; currentCat = null; currentAlbum = "All Tracks"; openTracklist(); }).style.order = 0;
-  orderedAlbumNames().forEach((name, i) => {
-    const cover = albumCover(name);
-    const card = mk(name, cover ? `<img src="${cover}" alt="">` : `<div class="all-tracks-icon">${noteSvg}</div>`, () => { albumOrigin = null; currentCat = null; currentAlbum = name; openTracklist(); }, name); card.style.order = i + 1;
-    if (cover) card.style.setProperty("--art", `url("${String(cover).replace(/"/g, "%22")}")`);
+  const icon = svg => `<div class="all-tracks-icon">${svg}</div>`;
+  const folder = icon(`<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>`);
+  gridKeys().forEach((key, i) => {
+    const pl = plOf(key), all = key === ALL, name = all ? allName() : pl ? pl.name : key;
+    const cover = tileCovers[coverKey(key)] || (all || pl ? null : albumCover(key));
+    const c = document.createElement("div"); c.className = "album-card" + (pl ? " pl-card" : ""); c.style.setProperty("--j", Math.floor(Math.random() * 6));
+    c.innerHTML = (all ? "" : `<div class="del-badge" aria-label="${pl ? "Delete playlist" : "Hide album"}"></div>`)
+      + (cover ? `<img src="${cover}" alt="">` : all ? folder : icon(NOTES_SVG)) + `<div class="album-card-title">${esc(name)}</div>`;
+    c.addEventListener("click", () => { if (suppressClick) { suppressClick = false; return; } if (editing) return;
+      albumOrigin = null; currentCat = null; currentAlbum = all ? "All Tracks" : key; openTracklist(); });
+    c.dataset.key = key; c.style.order = i + 1; attachDrag(c);
+    if (!all) c.querySelector(".del-badge").addEventListener("click", e => { e.stopPropagation(); if (pl) deletePlaylist(pl); else hideAlbum(c, key); });
+    if (cover) c.style.setProperty("--art", `url("${String(cover).replace(/"/g, "%22")}")`);
+    shelf.appendChild(c);
   });
 }
+
+/* ---------- PLAYLISTS ----------
+   Hold a song (anywhere in Library, or on an artist page) or swipe it right: a menu with Play next / Play last, your
+   playlists (tick one to put the song in it, tap again to take it out) and New playlist. Inside one of your playlists,
+   hold a song and move your finger to reorder (or drag the handle); hold and let go without moving for the menu.
+   New playlists show up in Library right after All Tracks; see gridKeys / tileMenu for the tiles. */
+function plTracks(p) { const byKey = new Map(tracks.map(t => [tkey(t), t])); return p.keys.map(k => byKey.get(k)).filter(Boolean); }
+function savePl() {
+  store.set("playlists", JSON.stringify(playlists));
+  if (gridShown()) renderAlbums();
+  if (playlistWrapper.style.display === "block" && plOf(currentAlbum)) renderPlaylist();
+}
+function holdFor(el, fn) {                                           // a long press (or a right click) runs fn; moving the finger first cancels it
+  let lp = 0, x0 = 0, y0 = 0;
+  const stop = () => { clearTimeout(lp); lp = 0; };
+  el.addEventListener("contextmenu", e => { e.preventDefault(); if (e.pointerType === "mouse" || e.button === 2) fn(); });
+  el.addEventListener("pointerdown", e => {
+    if (editing || swActive || (e.pointerType === "mouse" && e.button !== 0)) return;
+    x0 = e.clientX; y0 = e.clientY;
+    lp = setTimeout(() => { lp = 0; if (swActive) return; haptic("medium"); fn(); }, LONG_PRESS);
+  });
+  el.addEventListener("pointermove", e => { if (lp && Math.hypot(e.clientX - x0, e.clientY - y0) > 8) stop(); });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(k => el.addEventListener(k, stop));
+}
+let plPop = null, plAnchor = null;
+function plPopClose() {
+  if (!plPop) return; const el = plPop; plPop = null;
+  if (plAnchor) { plAnchor.classList.remove("menu-on"); plAnchor = null; }
+  el.classList.remove("show"); setTimeout(() => el.remove(), 260);
+  document.removeEventListener("pointerdown", plOutside, true);
+}
+function plOutside(e) { if (plPop && !plPop.contains(e.target)) { plPopClose(); if (e.target.closest && e.target.closest(".sw,.album-card")) { e.stopPropagation(); e.preventDefault(); plSwallow(); } } }
+function plSwallow() {                                               // the tap that closes the menu doesn't also open the song / album under it
+  const eat = e => { e.stopPropagation(); e.preventDefault(); };
+  document.addEventListener("click", eat, true); setTimeout(() => document.removeEventListener("click", eat, true), 450);
+}
+function plMenu(anchor, draw) {                                      // a menu next to anchor (below it, or above when there's no room)
+  plPopClose();
+  const el = plPop = document.createElement("div"); el.className = "pl-pop";
+  const item = (label, icon, fn, cls) => {
+    const r = document.createElement("div"); r.className = "pl-row" + (cls ? " " + cls : "");
+    r.innerHTML = (icon || "") + '<span class="nm"></span>'; r.querySelector(".nm").textContent = label;
+    r.addEventListener("click", e => { e.stopPropagation(); fn(r); }); el.appendChild(r); return r;
+  };
+  const sep = () => el.insertAdjacentHTML("beforeend", '<div class="pl-sep"></div>');
+  const ask = (ph, val, btn, fn) => {                               // a name field in place of the menu's last row
+    const f = document.createElement("form"); f.className = "pl-new";
+    f.innerHTML = `<input maxlength="40" placeholder="${ph}" enterkeyhint="done" autocomplete="off"><button type="submit">${btn}</button>`;
+    const inp = f.querySelector("input"); inp.value = val;
+    f.addEventListener("submit", e => { e.preventDefault(); fn(inp.value.trim()); });
+    el.appendChild(f); inp.focus(); place();
+  };
+  const place = () => {
+    const r = anchor.getBoundingClientRect(), vh = window.visualViewport ? visualViewport.height : innerHeight;
+    el.style.maxHeight = ""; const h = el.offsetHeight, w = el.offsetWidth;
+    let top = r.bottom + 4;
+    if (top + h > vh - 12) top = r.top - h - 4 >= 12 ? r.top - h - 4 : Math.max(12, vh - 12 - h);
+    el.style.top = Math.round(top) + "px";
+    el.style.left = Math.round(Math.max(12, Math.min(innerWidth - w - 12, r.right - w - 8))) + "px";
+    el.style.maxHeight = (vh - 24) + "px";
+  };
+  document.body.appendChild(el); draw({ el, item, sep, ask });
+  if (anchor.classList.contains("sw")) { plAnchor = anchor; anchor.classList.add("menu-on"); }
+  place(); void el.offsetWidth; el.classList.add("show");
+  setTimeout(() => { if (plPop === el) document.addEventListener("pointerdown", plOutside, true); }, 0);
+}
+function newPlaylist(name, keys) {
+  const p = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: name || "My playlist " + (playlists.length + 1), keys };
+  playlists.push(p); savePl(); return p;
+}
+function songMenu(t, row) {
+  if (!t) return;
+  const k = tkey(t), here = plOf(currentAlbum) && playlistWrapper.style.display === "block" ? plOf(currentAlbum) : null;
+  plMenu(row, ({ el, item, sep, ask }) => {
+    const head = document.createElement("div"); head.className = "pl-song";
+    head.innerHTML = itemHTML(t.art || albumCover(t.album), t.title, t.artist).replace('class="item-text"', 'class="t"').replace('class="item-title"', "").replace('class="item-artist"', 'class="a"');
+    el.appendChild(head);
+    item("Play next", ICON_NEXT, () => { plPopClose(); enqueue(t.id, false); });
+    item("Play last", ICON_LAST, () => { plPopClose(); enqueue(t.id, true); });
+    sep();
+    if (playlists.length) {
+      el.insertAdjacentHTML("beforeend", '<div class="pl-h">Add to playlist</div>');
+      playlists.forEach(p => {
+        const r = item(p.name, "", r => {
+          const i = p.keys.indexOf(k); if (i < 0) p.keys.push(k); else p.keys.splice(i, 1);
+          r.classList.toggle("in", i < 0); haptic("select"); savePl();
+        }, p.keys.includes(k) ? "in" : "");
+        r.insertAdjacentHTML("beforeend", `<span class="ck">${ICON_CHECK}</span>`);
+      });
+    }
+    const nw = item("New playlist", ICON_ADD, () => {
+      nw.remove(); if (rm) rm.remove();
+      ask("Playlist name", "", "Create", name => { const p = newPlaylist(name, [k]); haptic("light"); plPopClose(); toast(`Added to ${p.name}`); });
+    }, "add");
+    const rm = here && here.keys.includes(k) ? item(`Remove from ${here.name}`, ICON_REMOVE, () => {
+      plPopClose(); here.keys = here.keys.filter(x => x !== k); haptic("light"); savePl(); toast(`Removed from ${here.name}`);
+    }, "danger") : null;
+  });
+}
+function deletePlaylist(p) {
+  const go = ok => { if (!ok) return; playlists = playlists.filter(x => x !== p); delete tileCovers[PL + p.id]; store.set("tileCovers", JSON.stringify(tileCovers)); savePl(); toast("Playlist deleted"); };
+  const q = `Delete the playlist "${p.name}"? The songs stay in your library.`;
+  if (tgAt("6.2")) TG.showConfirm(q, go); else go(confirm(q));
+}
+function tileMenu(card, key) {                                       // All Tracks: cover, rename · playlist: cover, rename, delete · album: cover, hide
+  const pl = plOf(key), all = key === ALL, ck = coverKey(key);
+  const setCover = v => { if (v) tileCovers[ck] = v; else delete tileCovers[ck]; store.set("tileCovers", JSON.stringify(tileCovers)); renderAlbums(); };
+  plMenu(card, ({ el, item, sep, ask }) => {
+    el.insertAdjacentHTML("beforeend", '<div class="pl-h"></div>'); el.lastChild.textContent = all ? allName() : pl ? pl.name : key;
+    item("Choose cover", ICON_PHOTO, () => { plPopClose(); pickImage(url => { setCover(url); toast("Cover changed"); }); });
+    if (tileCovers[ck]) item(all || pl ? "Use the standard cover" : "Use the album's cover", ICON_UNDO, () => { plPopClose(); setCover(null); });
+    if (all || pl) item("Rename", ICON_EDIT, () => {
+      [...el.querySelectorAll(".pl-row,.pl-sep")].forEach(x => x.remove());
+      ask("Name", all ? allName() : pl.name, "Save", name => {
+        if (name) { if (all) store.set("allName", name === "All Tracks" ? "" : name); else pl.name = name; savePl(); renderAlbums(); }
+        plPopClose();
+      });
+    });
+    if (!all) { sep(); item(pl ? "Delete playlist" : "Hide album", ICON_REMOVE, () => { plPopClose(); if (pl) deletePlaylist(pl); else hideAlbum(card, key); }, "danger"); }
+  });
+}
+/* Choosing a cover: the picture opens in a square frame; drag it to move it, pinch (or the slider, or the mouse wheel) to
+   zoom. What's inside the frame becomes the cover, 400 x 400. */
+function pickImage(done) {
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+  inp.addEventListener("change", () => { const f = inp.files[0]; if (f) cropImage(f, done); });
+  inp.click();
+}
+function cropImage(file, done) {
+  const u = URL.createObjectURL(file), img = new Image();
+  img.onerror = () => { URL.revokeObjectURL(u); toast("That picture couldn't be opened"); };
+  img.onload = () => {
+    const ov = document.createElement("div"); ov.className = "crop-ov";
+    ov.innerHTML = `<div class="crop-box"><div class="crop-h">Move and zoom</div><div class="crop-frame"></div>
+      <div class="crop-zoom">${ICON_PHOTO}<input type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom">${ICON_PHOTO}</div>
+      <div class="crop-btns"><button type="button" class="no">Cancel</button><button type="button" class="ok">Use</button></div></div>`;
+    document.body.appendChild(ov);
+    const fr = ov.querySelector(".crop-frame"), zr = ov.querySelector("input"), S = Math.round(Math.min(300, ov.querySelector(".crop-box").clientWidth - 32));
+    ov.querySelectorAll(".crop-zoom svg")[1].style.cssText = "width:22px;height:22px";
+    fr.style.width = fr.style.height = S + "px"; fr.appendChild(img);
+    const base = Math.max(S / img.width, S / img.height); let z = 1, x = (S - img.width * base) / 2, y = (S - img.height * base) / 2;
+    const draw = () => {
+      const w = img.width * base * z, h = img.height * base * z;
+      x = Math.min(0, Math.max(S - w, x)); y = Math.min(0, Math.max(S - h, y));   // the picture always fills the frame
+      img.style.transform = `translate(${x}px,${y}px) scale(${base * z})`; zr.value = z;
+    };
+    const zoomAt = (nz, cx, cy) => { nz = Math.max(1, Math.min(4, nz)); const f = nz / z; x = cx - (cx - x) * f; y = cy - (cy - y) * f; z = nz; draw(); };
+    const pts = new Map(); let last = null;
+    const state = () => { const p = [...pts.values()], r = fr.getBoundingClientRect();
+      return p.length > 1 ? { cx: (p[0].x + p[1].x) / 2 - r.left, cy: (p[0].y + p[1].y) / 2 - r.top, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) } : { cx: p[0].x - r.left, cy: p[0].y - r.top, d: 0 }; };
+    fr.addEventListener("pointerdown", e => { try { fr.setPointerCapture(e.pointerId); } catch (er) {} pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); last = state(); });
+    fr.addEventListener("pointermove", e => {
+      if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const n = state(); x += n.cx - last.cx; y += n.cy - last.cy;
+      if (n.d && last.d) zoomAt(z * n.d / last.d, n.cx, n.cy); else draw();
+      last = n;
+    });
+    const up = e => { pts.delete(e.pointerId); last = pts.size ? state() : null; };
+    fr.addEventListener("pointerup", up); fr.addEventListener("pointercancel", up);
+    fr.addEventListener("wheel", e => { e.preventDefault(); const r = fr.getBoundingClientRect(); zoomAt(z * Math.exp(-e.deltaY / 400), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+    zr.addEventListener("input", () => zoomAt(+zr.value, S / 2, S / 2));
+    const close = () => { ov.classList.remove("show"); setTimeout(() => { ov.remove(); URL.revokeObjectURL(u); }, 240); };
+    ov.querySelector(".no").addEventListener("click", close);
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    ov.querySelector(".ok").addEventListener("click", () => {
+      const k = base * z, c = document.createElement("canvas"), O = Math.min(400, Math.round(S / k));
+      c.width = c.height = Math.max(64, O);
+      c.getContext("2d").drawImage(img, -x / k, -y / k, S / k, S / k, 0, 0, c.width, c.height);
+      done(c.toDataURL("image/jpeg", .86)); close();
+    });
+    draw(); void ov.offsetWidth; ov.classList.add("show");
+  };
+  img.src = u;
+}
+function plReorder(from, to) {                                       // rows from -> to (indexes among the songs on screen)
+  const p = plOf(currentAlbum); if (!p) return;
+  const vis = plTracks(p).map(tkey), k = vis[from], target = vis[to];
+  if (k !== target) { p.keys.splice(p.keys.indexOf(k), 1); let j = p.keys.indexOf(target); if (to > from) j++; p.keys.splice(j, 0, k); }
+  savePl();
+}
+document.addEventListener("keydown", e => { if (e.key !== "Escape") return; const c = document.querySelector(".crop-ov .no"); if (c) c.click(); else plPopClose(); });
 
 /* ---- drag to reorder (long-press, then drag) ---- */
 let drag = null, suppressClick = false, editing = false;
@@ -1292,8 +1550,8 @@ function renderHidden() {
     row.innerHTML = itemHTML(albumCover(n), n, "").replace('<div class="item-text">', '<div class="item-text" style="display:none">') + '<div class="nm"></div>';
     row.querySelector(".nm").textContent = n;
     row.style.cursor = "pointer";
-    row.addEventListener("click", () => { settingsPanel.classList.remove("active"); rememberTab(); albumOrigin = null; currentCat = null; currentAlbum = n; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
-      setTab(btnPlaylist); drawerBox.classList.add("expanded"); showOnly(playlistWrapper, 1); renderPlaylist(); });
+    row.addEventListener("click", () => { settingsPanel.classList.remove("active"); rememberTab(); albumOrigin = null; currentCat = null; currentAlbum = n; $("back-to-grid-btn").querySelector("span").textContent = "Back to Library";
+      setTab(btnPlaylist); drawerBox.classList.add("expanded"); renderPlaylist(); $("playlist-ui").scrollTop = 0; showOnly(playlistWrapper, 1); });
     const b = document.createElement("button"); b.textContent = "Unhide";
     b.addEventListener("click", e => { e.stopPropagation(); hiddenSet.delete(n); saveHidden(); renderHidden(); renderAlbums(); if (!curId) { const t = tracks[0]; if (t) loadTrack(t.id, false); } });
     row.appendChild(b); box.appendChild(row);
@@ -1321,14 +1579,14 @@ function attachDrag(card) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     if (e.target.closest(".del-badge")) return;
     const shelf = $("albums-shelf");
-    drag = { card, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, active: false };
+    drag = { card, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, active: false, wasEditing: editing };
     drag.timer = setTimeout(() => {
       if (!drag) return;
       if (!editing) setEdit(true);
       const gr = shelf.getBoundingClientRect();
       drag.active = true; drag.follow = false;
       drag.grabX = drag.x - gr.left - card.offsetLeft; drag.grabY = drag.y - gr.top - card.offsetTop;
-      drag.keys = [...cardsOf()].sort((a, b) => a.style.order - b.style.order).map(c => c.dataset.key);
+      drag.keys = [...cardsOf()].sort((a, b) => a.style.order - b.style.order).map(c => c.dataset.key); drag.keys0 = drag.keys.join("\n");
       card.classList.add("lifted"); card.style.zIndex = 20;
       card.style.transition = "transform .22s var(--ease)";
       $("albums-grid-wrapper").style.overflowY = "hidden";
@@ -1377,14 +1635,16 @@ function endDrag() {
   const c = d.card;
   c.style.transition = "transform .3s var(--ease)"; c.style.transform = ""; c.classList.remove("lifted");
   setTimeout(() => { c.style.transition = ""; c.style.zIndex = ""; }, 280);
+  const still = !d.wasEditing && Math.hypot(d.cx - d.x, d.cy - d.y) < 10 && d.keys.join("\n") === d.keys0;
+  if (still) { setEdit(false); tileMenu(c, c.dataset.key); return; }  // held and let go without moving: the tile's menu
   saveOrder(d.keys);
 }
 document.addEventListener("pointerup", endDrag);
 document.addEventListener("pointercancel", endDrag);
 
-function openTracklist() {
-  showOnly(playlistWrapper, 1);
-  renderPlaylist();
+function openTracklist() {                                           // fill the list first, then the view slides in and the height morphs to it
+  renderPlaylist(); $("playlist-ui").scrollTop = 0;
+  showOnly(playlistWrapper, 1); swipeHint();
 }
 function itemHTML(art, title, sub) {
   return `<div class="item-art">${art ? `<img src="${art}" alt="">` : noteSvg}</div>
@@ -1395,7 +1655,9 @@ function renderPlaylist() {
   const ui = $("playlist-ui"); ui.innerHTML = "";
   const all = currentAlbum === "All Tracks";
   const entries = all ? tracks.map(t => ({ track: t, title: t.title, num: t.num })) : albumEntries(currentAlbum);
-  if (!all && !entries.length) ui.innerHTML = '<div class="artist-note" style="text-align:center;padding:16px">Loading tracks…</div>';
+  const pl = plOf(currentAlbum); let pi = 0;                          // one of your playlists: its songs can be reordered
+  if (!all && !entries.length) ui.innerHTML = pl ? '<div class="artist-note" style="text-align:center;padding:16px">No songs here yet. Hold a song in Library, or swipe it right, to add it.</div>'
+    : '<div class="artist-note" style="text-align:center;padding:16px">Loading tracks…</div>';
   if (currentCat && !resolving() && !albumEntries(currentAlbum).some(e => e.track)) { const ds = Object.keys(relDebug).filter(n => norm(relDebug[n].split(" · ")[0]) === norm(currentCat.artist)).map(n => n + " → " + relDebug[n].split(" · ").slice(1).join(" · ")); if (ds.length) { const n = document.createElement("div"); n.className = "artist-note"; n.style.fontSize = "10px"; n.textContent = "Matching: " + ds.join(" | "); ui.appendChild(n); } }
   if (currentCat && resolving()) { const n = document.createElement("div"); n.className = "artist-note"; n.textContent = "Checking your library…"; ui.appendChild(n); }
   const multi = !all && entries.some(e => e.disc > 1); let lastDisc = null;
@@ -1410,7 +1672,13 @@ function renderPlaylist() {
     }
     item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : ""));
     item.addEventListener("click", () => { if (item._swiped) { item._swiped = false; return; } startContext(t.id); });
-    const row = swShell(item); row.classList.add("can"); libSwipe(row, t.id);   // swipe left: Play Next, further: Play Last
+    const row = swShell(item); row.classList.add("can"); libSwipe(row, t.id);   // swipe left: Play next / Play last; right: the song's menu
+    if (pl) {                                                        // hold and move (or drag the handle): reorder; hold and let go: the menu
+      item.classList.add("q-fg"); row.classList.add("q-row"); row.dataset.group = "pl"; row._qi = pi;
+      const art = t.art || albumCover(t.album); if (art) row.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
+      attachReorder(row, pi++, "pl", { ui, drop: plReorder, still: () => songMenu(t, row) });
+      item.addEventListener("contextmenu", ev => { ev.preventDefault(); if (ev.pointerType === "mouse" || ev.button === 2) songMenu(t, row); });
+    } else holdFor(item, () => { item._swiped = true; setTimeout(() => { item._swiped = false; }, 600); songMenu(t, row); });
     ui.appendChild(row);
   });
   if (playlistWrapper.style.display === "block") swipeHint();
@@ -1430,7 +1698,11 @@ const ICON_NEXT = `<svg viewBox="0 0 24 24"><path d="M2 6h12v2H2zm0 4h12v2H2zm0 
 const ICON_LAST = `<svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg>`;
 const ICON_REMOVE = `<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
 const ICON_CHECK = `<svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>`;
-const ICON_HANDLE = `<svg viewBox="0 0 24 24"><path d="M20 9H4v2h16V9zM4 15h16v-2H4v2z"/></svg>`;
+const ICON_MORE = `<svg viewBox="0 0 24 24"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>`;
+const ICON_ADD = `<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
+const ICON_PHOTO = `<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>`;
+const ICON_EDIT = `<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
+const ICON_UNDO = `<svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>`;
 let history = [], nowFrom = "other", curPlayed = false, shuffle = false;
 let repeatMode = ["all", "one", "off"].includes(store.get("repeatMode")) ? store.get("repeatMode") : "all";
 let ctx = null;                                                      // { name, ids: [..] | null (= whole library, live), order: [..] | null (= the list's own order), at: id }
@@ -1461,7 +1733,7 @@ function ctxNext(commit) {                                           // the next
 }
 function startContext(id) {                                          // a song tapped in Library: that album (or the whole library) becomes the context; your queue stays
   const lib = currentAlbum === "All Tracks";
-  ctx = { name: lib ? "Library" : currentCat ? currentCat.title : currentAlbum, ids: lib ? null : contextList().map(t => t.id), order: null, at: id };
+  ctx = { name: lib ? "Library" : currentCat ? currentCat.title : albumLabel(currentAlbum), ids: lib ? null : contextList().map(t => t.id), order: null, at: id };
   if (shuffle) ctx.order = [id, ...shuffled(ctxList().filter(x => x !== id))];
   renderQueue.all = false;                                           // a new album: show its first songs again, not all of them
   playId(id, "context");
@@ -1510,6 +1782,7 @@ function applyShuffle() {                                            // shuffle 
    - Past the last stage the row gets heavy (rubber band), so there's no stage 3 to hunt for. */
 const SW_TONE = { next: "88,196,178", last: "126,146,255", remove: "255,99,99" };
 const LIB_STAGES = [{ min: 64, f: .2, label: "Play next", icon: ICON_NEXT, tone: SW_TONE.next }, { min: 170, f: .52, label: "Play last", icon: ICON_LAST, tone: SW_TONE.last }];   // on a phone: ~66 px and ~172 px
+const MENU_STAGES = [{ min: 64, f: .2, label: "More", icon: ICON_MORE, tone: "160,170,190" }];   // swipe right: the song's menu
 const Q_STAGES = [{ min: 90, f: .35, label: "Remove", icon: ICON_REMOVE, tone: SW_TONE.remove }];
 let swActive = null; const swLater = new Set();                     // swActive: the row being swiped or dragged; lists wait for it before rebuilding
 function swRelease() { swActive = null; setTimeout(() => { if (swActive) return; const l = [...swLater]; swLater.clear(); l.forEach(f => f()); }, 420); }
@@ -1534,33 +1807,35 @@ function swBack(row, keepTone) {                                     // spring b
   fg.style.transition = "transform .34s var(--ease)"; fg.style.transform = "";
   bg.style.transition = "width .34s var(--ease),background .3s ease"; bg.style.width = "0px";
   if (!keepTone) row.dataset.stage = "0";
-  setTimeout(() => { if (!row._sw) { row.dataset.stage = "0"; fg.style.transition = bg.style.transition = ""; } }, 360);
+  setTimeout(() => { if (!row._sw) { row.dataset.stage = "0"; row.classList.remove("r"); fg.style.transition = bg.style.transition = ""; } }, 360);
 }
-function attachSwipe(row, stages, onCommit) {
+function attachSwipe(row, stages, onCommit, rStages, onRight) {     // left: stages / onCommit; right (optional): rStages / onRight
   const fg = row.querySelector(".sw-fg"), bg = row.querySelector(".sw-bg"); let s = null;
   const at = st => Math.max(st.min, st.f * fg.offsetWidth);
-  const stageOf = (d, prev) => { let k = 0; stages.forEach((st, i) => { if (d >= at(st) - (prev > i ? 12 : 0)) k = i + 1; }); return k; };
+  const stageOf = (st, d, prev) => { let k = 0; st.forEach((x, i) => { if (d >= at(x) - (prev > i ? 12 : 0)) k = i + 1; }); return k; };
   fg.addEventListener("pointerdown", e => {
-    if ((e.pointerType === "mouse" && e.button) || e.target.closest(".q-handle") || swActive) return;
-    s = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false, k: 0, d: 0 };
+    if ((e.pointerType === "mouse" && e.button) || swActive) return;
+    s = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false, k: 0, d: 0, dir: -1 };
   });
   fg.addEventListener("pointermove", e => {
     if (!s || e.pointerId !== s.id) return;
-    if (row._dragging) { s = null; return; }
+    if (row._dragging || plPop) { s = null; return; }
     const dx = e.clientX - s.x, dy = e.clientY - s.y;
     if (!s.on) {
-      if (dx < -12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-        s.on = true; s.x0 = e.clientX; swActive = row; row._sw = true;
+      const side = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5 ? (dx < 0 ? -1 : rStages ? 1 : 0) : 0;
+      if (side) {
+        s.on = true; s.dir = side; s.x0 = e.clientX; swActive = row; row._sw = true; row.classList.toggle("r", side > 0);
         try { fg.setPointerCapture(e.pointerId); } catch (er) {}
-        fg.style.transition = bg.style.transition = "none"; swPaint(row, stages, 0, 0);
-      } else { if (Math.abs(dy) > 10 || dx > 10) s = null; return; }
+        fg.style.transition = bg.style.transition = "none"; swPaint(row, side > 0 ? rStages : stages, 0, 0);
+      } else { if (Math.abs(dy) > 10 || (dx > 10 && !rStages)) s = null; return; }
     }
-    let d = Math.max(0, s.x0 - e.clientX);
-    const lim = at(stages[stages.length - 1]) + 70; if (d > lim) d = lim + (d - lim) * .3;
-    const k = stageOf(d, s.k);
+    const st = s.dir > 0 ? rStages : stages;
+    let d = Math.max(0, s.dir > 0 ? e.clientX - s.x0 : s.x0 - e.clientX);
+    const lim = at(st[st.length - 1]) + 70; if (d > lim) d = lim + (d - lim) * .3;
+    const k = stageOf(st, d, s.k);
     if (k !== s.k) haptic("select");
     s.k = k; s.d = d;
-    fg.style.transform = `translateX(${-d}px)`; bg.style.width = d + "px"; swPaint(row, stages, k, d);
+    fg.style.transform = `translateX(${s.dir * d}px)`; bg.style.width = d + "px"; swPaint(row, st, k, d);
   });
   const end = () => {
     if (!s) return; const w = s; s = null; if (!w.on) return;
@@ -1568,7 +1843,7 @@ function attachSwipe(row, stages, onCommit) {
     fg._swiped = true; setTimeout(() => { fg._swiped = false; }, 400);
     if (!w.k) { swBack(row); return; }
     haptic("light");
-    onCommit(w.k, row);
+    (w.dir > 0 ? onRight : onCommit)(w.k, row);
   };
   fg.addEventListener("pointerup", end); fg.addEventListener("pointercancel", end);
 }
@@ -1584,8 +1859,9 @@ function swOut(row, cb) {                                            // Queue: t
   setTimeout(() => { row.style.height = "0px"; row.style.opacity = "0"; }, 150);
   setTimeout(cb, 380);
 }
-function libSwipe(row, id) {
-  attachSwipe(row, LIB_STAGES, k => { enqueue(id, k === 2); swDone(row, k === 2 ? "Added" : "Plays next"); });
+function libSwipe(row, id) {                                         // left: Play next, further: Play last; right: the song's menu
+  attachSwipe(row, LIB_STAGES, k => { enqueue(id, k === 2); swDone(row, k === 2 ? "Added" : "Plays next"); },
+    MENU_STAGES, () => { swBack(row); setTimeout(() => songMenu(trackById(id), row), 90); });
 }
 function swipeHint() {                                               // once ever: the first song peeks left to show there's something behind it
   if (store.get("hintSwipe")) return;
@@ -1597,7 +1873,7 @@ function swipeHint() {                                               // once eve
     fg.style.transition = bg.style.transition = "transform .5s var(--ease),width .5s var(--ease)";
     fg.style.transform = "translateX(-76px)"; bg.style.width = "76px"; swPaint(row, LIB_STAGES, 1, 76);
     setTimeout(() => swBack(row), 1100);
-    toast("Swipe a song left to queue it");
+    toast("Swipe a song left to queue it, right for more");
   }, 650);
 }
 
@@ -1615,13 +1891,14 @@ function renderQueue(scrollToNow) {
   const note = (t, cls, fn) => { const m = document.createElement(fn ? "button" : "div"); m.className = cls; m.textContent = t; if (fn) m.addEventListener("click", fn); ui.appendChild(m); };
   const row = (t, kind, i, group) => {
     const fg = document.createElement("div"); fg.className = "q-fg";
-    fg.innerHTML = itemHTML(t.art || albumCover(t.album), t.title, t.artist) + (group ? `<div class="q-handle" aria-label="Move">${ICON_HANDLE}</div>` : "");
+    fg.innerHTML = itemHTML(t.art || albumCover(t.album), t.title, t.artist);
     const r = swShell(fg); r.classList.add("q-row", kind);
     if (kind !== "now") {
       fg.addEventListener("click", () => { if (fg._swiped) { fg._swiped = false; return; } playFromQueue(kind, i); });
-      attachSwipe(r, Q_STAGES, () => swOut(r, () => removeRow(kind, i)));
+      attachSwipe(r, Q_STAGES, () => swOut(r, () => removeRow(kind, i)), MENU_STAGES, () => { swBack(r); setTimeout(() => songMenu(t, r), 90); });   // as in Library: right for the song's menu
     }
-    if (group) { r._qi = i; r.dataset.group = group; attachReorder(r, i, group); }
+    if (group) { r._qi = i; r.dataset.group = group; attachReorder(r, i, group, { still: () => songMenu(t, r) }); }   // hold and move: reorder; hold and let go: the menu
+    else if (kind === "hist") holdFor(fg, () => { fg._swiped = true; setTimeout(() => { fg._swiped = false; }, 600); songMenu(t, r); });
     const art = t.art || albumCover(t.album); if (art) r.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
     ui.appendChild(r); return r;
   };
@@ -1653,7 +1930,7 @@ function playFromQueue(kind, i) {
   else playId(ctxUpcoming()[i], "context");                                  // the album jumps there; your queue still plays first
   haptic("light");
 }
-/* Reorder: hold a song anywhere (a long press) or grab its handle (at once), then drag.
+/* Reorder (Queue and your playlists alike): hold a song anywhere (a long press), then drag.
    - The card follows the finger through a light spring (every frame, no CSS transitions to fight), so pick-up and
      movement are smooth; it lifts to 1.03 and its glass and cover glow fade in.
    - The rest of the list dims and makes room. A row moves out of the way once the edge of the card you're moving
@@ -1662,26 +1939,20 @@ function playFromQueue(kind, i) {
 const LONG_PRESS = 380;
 let qDrag = null;
 document.addEventListener("touchmove", e => { if (qDrag) e.preventDefault(); }, { passive: false });   // while holding a song the list mustn't scroll under the finger
-function attachReorder(r, from, group) {
-  const handle = r.querySelector(".q-handle"), fg = r.querySelector(".q-fg");
-  handle.addEventListener("click", e => e.stopPropagation());
-  handle.addEventListener("pointerdown", e => {
-    if ((e.pointerType === "mouse" && e.button) || swActive) return;
-    e.preventDefault(); e.stopPropagation();
-    beginDrag(r, from, group, e, handle);
-  });
+function attachReorder(r, from, group, opt = {}) {      // opt (a playlist): ui, drop(from, to), still() for a hold without a move
+  const fg = r.querySelector(".q-fg");
   fg.addEventListener("pointerdown", e => {                           // long press anywhere on the row
-    if ((e.pointerType === "mouse" && e.button) || swActive || e.target.closest(".q-handle")) return;
+    if ((e.pointerType === "mouse" && e.button) || swActive) return;
     const x0 = e.clientX, y0 = e.clientY, id = e.pointerId;
-    let t = setTimeout(() => { t = 0; cleanup(); if (!swActive) { fg._swiped = true; beginDrag(r, from, group, { clientY: y0, pointerId: id }, fg); } }, LONG_PRESS);
+    let t = setTimeout(() => { t = 0; cleanup(); if (!swActive && !plPop) { fg._swiped = true; beginDrag(r, from, group, { clientY: y0, pointerId: id }, fg, opt); } }, LONG_PRESS);
     const mv = ev => { if (ev.pointerId === id && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) { clearTimeout(t); cleanup(); } };
     const stop = () => { clearTimeout(t); cleanup(); };
     const cleanup = () => { fg.removeEventListener("pointermove", mv); fg.removeEventListener("pointerup", stop); fg.removeEventListener("pointercancel", stop); };
     fg.addEventListener("pointermove", mv); fg.addEventListener("pointerup", stop); fg.addEventListener("pointercancel", stop);
   });
 }
-function beginDrag(r, from, group, e, el) {
-  const ui = $("queue-ui");
+function beginDrag(r, from, group, e, el, opt = {}) {
+  const ui = opt.ui || $("queue-ui");
   try { el.setPointerCapture(e.pointerId); } catch (er) {}
   const rows = [...ui.querySelectorAll(`.q-row[data-group="${group}"]`)], me = rows.indexOf(r), idx = rows.map(x => x._qi);
   const tops = rows.map(x => x.offsetTop), hts = rows.map(x => x.offsetHeight), H = hts[me], mid = j => tops[j] + hts[j] / 2;
@@ -1715,6 +1986,11 @@ function beginDrag(r, from, group, e, el) {
     if (done) return; done = true;
     cancelAnimationFrame(raf); el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up);
     qDrag = null; r._dragging = false;
+    if (opt.still && Math.abs(y - y0) < 7) {                          // held but never moved: the menu instead of a move
+      rows.forEach(x => { x.style.transition = x.style.transform = ""; });
+      r.classList.remove("lifted"); ui.classList.remove("dragging"); swRelease();   // a rebuild that waited for the finger runs now
+      opt.still(); return;
+    }
     let land = 0;                                                     // glide into the gap that opened for it
     if (to > me) for (let j = me + 1; j <= to; j++) land += hts[j];
     else for (let j = to; j < me; j++) land -= hts[j];
@@ -1722,7 +1998,9 @@ function beginDrag(r, from, group, e, el) {
     r.classList.remove("lifted"); r.classList.add("landing"); ui.classList.remove("dragging");
     haptic("light");
     setTimeout(() => {
-      swActive = null; swLater.delete(renderQueue);
+      swActive = null;
+      if (opt.drop) { swLater.delete(renderPlaylist); opt.drop(from, idx[to]); return; }   // the list is rebuilt from the new order
+      swLater.delete(renderQueue);
       if (to !== me) {                                               // lands where row "to" was
         if (group === "queue") { const [e2] = queue.splice(from, 1); queue.splice(idx[to], 0, e2); }
         else { const o = ctxOwnOrder(), base = o.indexOf(ctx.at) + 1, [x] = o.splice(base + from, 1); o.splice(base + idx[to], 0, x); }
@@ -2035,7 +2313,7 @@ $("skip-btn").addEventListener("click", () => { nudge($("skip-btn"), 1); playNex
 /* song change. songDir: 1 = Next (and songs that follow on their own), -1 = Previous, 0 = picked from a list */
 let songDir = 0, coverWait = null, flare = 0;
 function songOut(dir) {                                              // before the new title is written: the old one leaves, the cover dips
-  const pm = $("player-main"); if (RM || pm.style.display === "none" || !pm.animate || (XP && XP.expanded)) return false;
+  const pm = $("player-main"); if (RM || pm.style.display === "none" || !pm.animate || (XP && XP.expanded) || $("xp").classList.contains("show")) return false;   // not while the big player is open or moving
   const tt = pm.querySelector(".track-text"), g = tt.cloneNode(true), dx = dir * 22, dy = dir ? 0 : -10;
   g.querySelectorAll("[id]").forEach(x => x.removeAttribute("id")); g.classList.add("tt-ghost"); g.setAttribute("aria-hidden", "true");
   Object.assign(g.style, { left: tt.offsetLeft + "px", top: tt.offsetTop + "px", width: tt.offsetWidth + "px", height: tt.offsetHeight + "px" });
@@ -2218,7 +2496,7 @@ function renderArtist(d) {
     c.innerHTML = `${own ? '<div class="own-dot"></div>' : ""}<div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>${a.year ? '<div class="year"></div>' : ""}`;
     c.querySelector(".album-card-title").textContent = a.title;
     if (a.year) c.querySelector(".year").textContent = a.year;
-    const slot = c.querySelector(".ph-wrap"), ph = () => { slot.innerHTML = `<div class="all-tracks-icon">${noteSvg}</div>`; };
+    const slot = c.querySelector(".ph-wrap"), ph = () => { slot.innerHTML = `<div class="all-tracks-icon">${NOTES_SVG}</div>`; };
     if (a.cover) { const im = new Image(); im.loading = "lazy"; im.alt = ""; im.onerror = ph; im.src = a.cover; slot.appendChild(im); } else ph();
     c.addEventListener("click", () => openCatalogAlbum(a, d.name));
     grid.appendChild(c);
@@ -2233,7 +2511,7 @@ async function openCatalogAlbum(a, artistName) {
   const cat = currentCat = { key: "cat:" + (a.id || sn(a.title)), id: a.id, title: a.title, artist: artistName, cover: a.cover, list: null };
   currentAlbum = cat.key; albumOrigin = { name: artistName, scroll: $("artist-ui").scrollTop };
   $("back-to-grid-btn").querySelector("span").textContent = "Back";
-  showOnly(playlistWrapper, 1); renderPlaylist(); $("playlist-ui").scrollTop = 0;
+  renderPlaylist(); $("playlist-ui").scrollTop = 0; showOnly(playlistWrapper, 1);
   cat.list = (a.id && await relTrackList(a.id)) || [];
   if (currentCat === cat) renderPlaylist();
 }
@@ -2300,8 +2578,8 @@ $("track-artist").addEventListener("click", () => { const t = trackById(curId); 
 const btnQueue = $("btn-queue"), btnPlaylist = $("btn-playlist"), drawerBox = $("drawer-box");
 const queueWrapper = $("queue-wrapper"), playlistWrapper = $("playlist-wrapper"), albumsGridWrapper = $("albums-grid-wrapper");
 $("back-to-grid-btn").addEventListener("click", () => {
-  if (albumOrigin) { const o = albumOrigin; albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums"; openArtist(o.name, "back", o.scroll); return; }
-  currentCat = null; showOnly(albumsGridWrapper, -1); renderAlbums();
+  if (albumOrigin) { const o = albumOrigin; albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Library"; openArtist(o.name, "back", o.scroll); return; }
+  currentCat = null; renderAlbums(); showOnly(albumsGridWrapper, -1);
 });
 const btnArtists = $("btn-artists"), artistsWrapper = $("artists-wrapper"), artistWrapper = $("artist-wrapper");
 const allWraps = [queueWrapper, playlistWrapper, albumsGridWrapper, artistsWrapper, artistWrapper];
@@ -2332,14 +2610,14 @@ function rememberTab() {
 function restoreTab(btn, m) {
   const backTo = t => { $("back-to-grid-btn").querySelector("span").textContent = t; };
   if (m.el === playlistWrapper) {
-    if (!m.cat && m.album !== "All Tracks" && !tracks.some(t => t.album === m.album)) return false;   // the album has gone since
+    if (!m.cat && m.album !== "All Tracks" && !plOf(m.album) && !tracks.some(t => t.album === m.album)) return false;   // the album (or playlist) has gone since
     currentAlbum = m.album; currentCat = m.cat; albumOrigin = m.origin;
     if (m.origin) { currentArtistName = m.artist; artistStack = m.stack.slice(); }
-    backTo(m.origin ? "Back" : "Back to Albums");
+    backTo(m.origin ? "Back" : "Back to Library");
     renderPlaylist(); showOnly(playlistWrapper); $("playlist-ui").scrollTop = m.scroll;
     return true;
   }
-  albumOrigin = null; currentCat = null; backTo("Back to Albums");
+  albumOrigin = null; currentCat = null; backTo("Back to Library");
   if (m.el === artistWrapper && m.artist) { artistStack = m.stack.slice(); openArtist(m.artist, "restore", m.scroll); return true; }
   if (m.el === artistsWrapper) { renderArtists(); showOnly(artistsWrapper); }
   else { renderAlbums(); showOnly(albumsGridWrapper); }
@@ -2359,7 +2637,7 @@ function toggleTab(btn) {
   if (btn === btnQueue) { renderQueue(); showOnly(queueWrapper); renderQueue(true); }
   else if (m && restoreTab(btn, m)) {}
   else {
-    albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Albums";
+    albumOrigin = null; currentCat = null; $("back-to-grid-btn").querySelector("span").textContent = "Back to Library";
     if (btn === btnPlaylist) { renderAlbums(); showOnly(albumsGridWrapper); }      // fill the view first, so the height morph measures the real content
     else { currentArtistName = ""; artistStack = []; renderArtists(); showOnly(artistsWrapper); }
   }
@@ -2370,7 +2648,7 @@ btnPlaylist.addEventListener("click", () => toggleTab(btnPlaylist));
 btnArtists.addEventListener("click", () => toggleTab(btnArtists));
 $("artist-back").addEventListener("click", () => {
   if (artistStack.length) openArtist(artistStack.pop(), "back");
-  else { currentArtistName = ""; showOnly(artistsWrapper, -1); renderArtists(); }
+  else { currentArtistName = ""; renderArtists(); showOnly(artistsWrapper, -1); }
 });
 
 /* ---------- LIQUID GLASS TAB SLIDER ----------
@@ -2432,7 +2710,7 @@ const bubble = (() => {
   const wrap = document.querySelector(".player-wrapper"), NS = "http://www.w3.org/2000/svg";
   const GLASS_BLUR = 2;                                              // px; keep in step with --bubble-blur below
   const RAD = 36, GRAB = 26, MAXT = 9, LEAN = .8, STRETCH = .018, GIVE = .009, PRESS = .011;
-  const NO_PULL = "button,input,a,label,.custom-range-slider,.sw,.album-card,.playlist-container,.queue-container,.albums-grid-container,.artist-scroll,.track-artist,.chip,.gear-btn,.floating-customizer,.toast,.drop-zone,.album-art,.xp,.xp-strip,.xp-artist";
+  const NO_PULL = "button,input,a,label,.custom-range-slider,.sw,.album-card,.playlist-container,.queue-container,.albums-grid-container,.artist-scroll,.track-artist,.chip,.gear-btn,.floating-customizer,.toast,.drop-zone,.album-art,.xp,.xp-strip,.xp-artist,.crop-ov,.pl-pop";
   let on = false, skin = null, svg = null, W = 0, H = 0, raf = 0, last = 0, drag = null;
   let x = 0, y = 0, vx = 0, vy = 0, e = 0, ve = 0, q = 0, vq = 0, ux = 0, uy = 1;   // lean (px), stretch 0..1, press 0..1, stretch direction
   const M = { a: 1, b: 0, c: 0, d: 1 };                             // the current stretch/press matrix (about the panel's centre)
@@ -2815,7 +3093,11 @@ XP = (() => {
   let LYR = null;                                                    // the lyrics (set further down)
   const st = { p: 0, v: 0, over: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
   const clamp01 = v => Math.max(0, Math.min(1, v)), lerp = (a, b, t) => a + (b - a) * t, lin = (p, a, b) => clamp01((p - a) / (b - a));
-  const fade = (p, a, b) => { const t = lin(p, a, b); return t * t * (3 - 2 * t); };   // eased in and out, so nothing pops in or stops abruptly
+  const fade = (p, a, b) => { const t = lin(p, a, b); return t * t * (3 - 2 * t); };
+  /* a rounded path instead of a straight line: down first, then across (a quarter of an ellipse). r: how round, 0 = straight.
+     Returns how far along it is across (x) and down (y) at t. Played backwards when closing, so it comes back the same way. */
+  const grow = p => p * p * (1.6 - .6 * p);                          // the cover grows a little behind the rest, so the text can sweep around it
+  const arc = (t, r) => { const a = t * Math.PI / 2; return [lerp(t, 1 - Math.cos(a), r), lerp(t, Math.sin(a), r)]; };   // eased in and out, so nothing pops in or stops abruptly
   const canExpand = () => pm.style.display !== "none" && curId != null;
   const drawerOpen = () => drawerBox.classList.contains("expanded");
   const shown = () => xp.classList.contains("show");
@@ -2839,23 +3121,63 @@ XP = (() => {
     art.style.setProperty("--k", (S / (artBox.offsetWidth || 66)).toFixed(4));
   }
   /* ---- one continuous motion for everything that moves ----
-     Each moving thing exists twice: in the compact layout and in the big one. While the panel opens, both copies travel
-     the SAME path, so they sit exactly on top of each other and cross-fade: it reads as one title (one Play button, one
-     scrubber...) moving and growing, never as two, never a jump.
-     - Vertically every path is tied to the growing cover: y = cover bottom + an offset that eases (over the first third)
-       from the compact layout's offset to the big layout's. All rows use the same easing, so they keep their order and
-       can never run into the cover or into each other.
-     - The title and artist start beside the cover: until they are below it they ride along its right edge (they can't
-       touch it), then they glide to their centred place. A line that would run past the panel's right edge on the way
-       fades out there instead of spilling over.
-     - The rest (buttons, scrubber, times) starts under the cover and simply moves and grows to its big place. */
+     Each moving thing exists twice, in the compact layout and in the big one. Only ONE copy is ever seen: the big copy
+     takes over in place on the first frame (same text, size and weight) and carries the whole motion, so it reads as
+     one title, one Play button, one scrubber moving and growing.
+     - The cover grows a little behind the rest.
+     - The title and artist circle round the growing cover: from beside it, round its corner, to under it (orbit).
+       A line that would run past the panel's right edge on the way fades out there instead of spilling over.
+     - The rest (buttons, scrubber, times) is tied to the cover's bottom edge: every row drops to its place on the same
+       timing (so rows keep their order and never meet), then slides across, a rounded path. The times slide last.
+     - The playback line bends like a carried string on the way (bow). */
   const cTitle = pm.querySelector(".title-box"), cArtist = pm.querySelector(".artist-row"), xTitle = $("xp-title"), xSub = meta.querySelector(".xp-sub");
   const LINES = [[cTitle, xTitle, 20 / 17], [cArtist, xSub, 13.5 / 13]];
   const PAIRS = [[$("prev-btn"), $("xp-prev")], [playBtn, $("xp-play")], [$("skip-btn"), $("xp-next")], [$("progress-slider"), $("xp-progress"), "track"],
     [$("current-time"), $("xp-cur"), "start"], [$("total-duration"), $("xp-left"), "end"]];   // times line up on the digits they share ("0:40" / "-0:40")
-  const FOLLOW = [$("xp-shuffle"), $("xp-repeat")];
+  const FOLLOW = [$("xp-shuffle"), $("xp-repeat")], XA = $("xp-album"), XF = $("xp-fx"), XR = $("xp-artist");
   const MOVED = [...LINES.flatMap(l => l.slice(0, 2)), ...PAIRS.flatMap(p => p.slice(0, 2)), ...FOLLOW, fm];
-  function clearMoved() { if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); }); }
+  const XTRA = [$("xp-album"), $("xp-fx"), $("xp-artist"), $("xp-progress").querySelector(".slider-thumb"), ...PAIRS.map(p => p[1].querySelector("svg")).filter(Boolean)];
+  /* a point travelling round the cover from a (small layout) to b (big layout): its angle round the cover's centre and
+     its gap from the cover's edge both ease from one layout's to the other's. The edge is taken as a rounded square, so
+     the path hugs the cover in a smooth curve and can't touch it however the cover grows. */
+  const ANG = t => t * t;                                           // the angle trails: it is carried out to the right first, then sweeps round under the cover
+  const edge = (a, half) => half / Math.pow(Math.pow(Math.abs(Math.cos(a)), 4) + Math.pow(Math.abs(Math.sin(a)), 4), .25);
+  function orbit(a, b, cx, cy, half, t) {
+    const m = st.m, c0x = m.ax + m.aw / 2, c0y = m.ay + m.aw / 2, c1x = m.sx + st.S / 2, c1y = m.sy + st.S / 2;
+    const a0 = Math.atan2(a[1] - c0y, a[0] - c0x); let a1 = Math.atan2(b[1] - c1y, b[0] - c1x);
+    while (a1 - a0 > Math.PI) a1 -= 2 * Math.PI; while (a0 - a1 > Math.PI) a1 += 2 * Math.PI;
+    const g0 = Math.hypot(a[0] - c0x, a[1] - c0y) - edge(a0, m.aw / 2), g1 = Math.hypot(b[0] - c1x, b[1] - c1y) - edge(a1, st.S / 2);
+    const ang = lerp(a0, a1, ANG(t)), r = edge(ang, half) + lerp(g0, g1, t);
+    return [cx + r * Math.cos(ang), cy + r * Math.sin(ang)];
+  }
+  function letters(el) {                                             // the text as one span per letter (made once per change of text)
+    const t = el.textContent;
+    if (el._lt !== t || el.children.length !== [...t].length) { el.textContent = ""; el._ls = [...t].map(ch => { const sp = document.createElement("span"); sp.textContent = ch; el.appendChild(sp); return sp; }); el._lt = t; }
+    return el._ls;
+  }
+  function unletters(el) { if (el.children.length) el.textContent = el._lt; el._ls = []; el._lt = null; }
+  /* the playback line while moving: a string carried along. It sags in the middle and a soft ripple runs along it, both
+     strongest halfway and gone at either end (its ends stay put), so it lands as the straight line it is at rest */
+  const BOW = $("xp-bow"), bowBg = BOW.querySelector(".bow-bg"), bowFill = BOW.querySelector(".bow-fill"), xpBar = $("xp-progress"), xpFill = xpBar.querySelector(".slider-fill");
+  const BOW_A = 9;                                                   // how far the line bows at most (px)
+  function bow(q, X, Y, kx, ky, P) {
+    const on = P > 0 && P < 1;
+    BOW.classList.toggle("on", on); xpBar.style.background = on ? "transparent" : ""; xpFill.style.opacity = on ? "0" : "";
+    if (!on) { q.thumb.style.transform = ""; return; }
+    const L = q.xw * kx, x0 = q.bx + q.xw / 2 + (X - q.x1[0]) - L / 2, y0 = q.by + (Y - q.x1[1]);
+    /* the bend fades in and out squared: near either end it is already all but straight, so the line it hands over to (or
+       takes over from) looks the same, with no last-moment straightening */
+    const sn = Math.sin(Math.PI * P), env = sn * sn, A = -BOW_A * env, W = 3 * env, ph = P * 2.2;   // carried downwards, its middle trails behind (upwards)
+    const dy = t => 4 * t * (1 - t) * (A + W * Math.sin(2 * Math.PI * (1.3 * t - ph)));
+    const f = parseFloat(xpFill.style.width) / 100 || 0, N = 28, sw = xpBar.offsetHeight * ky, r = sw / 2;
+    /* drawn between the round ends, not past them: the line is exactly as long as the bar it stands in for */
+    const path = (a, b) => { let d = ""; const n = Math.max(1, Math.round(N * (b - a))); for (let i = 0; i <= n; i++) { const t = a + (b - a) * i / n, x = Math.min(x0 + L - r, Math.max(x0 + r, x0 + L * t)); d += (i ? "L" : "M") + x.toFixed(2) + "," + (y0 + dy(t)).toFixed(2); } return d; };
+    bowBg.setAttribute("d", path(0, 1)); bowFill.setAttribute("d", f > .002 ? path(0, f) : "");
+    bowBg.style.strokeWidth = bowFill.style.strokeWidth = sw.toFixed(2);
+    q.thumb.style.transform = `translate(-50%,calc(-50% + ${(dy(f) / ky).toFixed(2)}px)) scale(${(1 / kx).toFixed(4)},${(1 / ky).toFixed(4)})`;   // the dot rides the string
+  }
+  function clearMoved() { unletters(XA); unletters(XF); BOW.classList.remove("on"); xpBar.style.background = xpFill.style.opacity = ""; if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); });
+    XTRA.forEach(el => { el.style.opacity = el.style.color = ""; if (el.classList.contains("slider-thumb") || el.tagName === "svg") el.style.transform = ""; }); }
   function box(el) { const r = rel(el); return { x: r.x, y: r.y, w: el.offsetWidth, h: el.offsetHeight }; }
   function textBox(el) {                                             // where the text's first line starts, and how far the text reaches
     const b = box(el), rg = document.createRange(); rg.selectNodeContents(el);
@@ -2864,6 +3186,7 @@ XP = (() => {
     const first = rs.filter(r => Math.abs(r.top - f.top) < 4);             // the first line (several rects when it has spans)
     const fl = Math.min(...first.map(r => r.left)), fr = Math.max(...first.map(r => r.right));
     b.off = Math.max(0, (fl - er.left) * k); b.tw = Math.min(b.w - b.off, (fr - fl) * k);
+    b.l0 = Math.max(0, (Math.min(fl, ...rs.map(r => r.left)) - er.left) * k);   // where the leftmost line starts (centred lines can start left of the first)
     b.oy = Math.max(0, (f.top - er.top + f.height / 2) * k);           // the first line's middle
     b.right = Math.min(b.w, (Math.max(...rs.map(r => r.right), fr) - er.left) * k);   // the widest line's end (for the edge fade)
     return b;
@@ -2872,12 +3195,22 @@ XP = (() => {
     clearMoved();
     const a = rel(artBox), s = rel(slot);
     st.m = { ax: a.x, ay: a.y, aw: artBox.offsetWidth || 66, sx: s.x, sy: s.y, W: wrap.clientWidth,
-      lines: LINES.map(([c, x, r]) => { const cb = textBox(c), xb = textBox(x); return { c, x, r, cb, xb, c0: [cb.x + cb.off, cb.y + cb.oy], x1: [xb.x + xb.off, xb.y + xb.oy] }; }),
+      lines: LINES.map(([c, x, r], i) => { const cb = textBox(c), xb = textBox(x), t = c.firstElementChild;
+        /* "swap": the big copy is the same text at the same place and size, so it simply takes over at once (no cross-fade,
+           nothing doubled or grey). Not when the small title is cut short or the big one wraps onto more lines. */
+        const swap = t.scrollWidth <= t.clientWidth + 1 && xb.h <= xb.oy * 3;
+        return { c, x, r, cb, xb, swap, c0: [cb.x + cb.off, cb.y + cb.oy], x1: [xb.x + xb.off, xb.y + xb.oy] }; }),
       pairs: PAIRS.map(([c, x, mode]) => { const cb = box(c), xb = box(x), T = mode === "track", f = mode === "start" ? 0 : mode === "end" ? 1 : .5;
         /* a track isn't scaled (its dot would stretch): the big one opens up from the small one's length. Times keep
            their own size (scale only for buttons) and are anchored on the side where their digits line up. */
-        const r = T || f !== .5 ? 1 : xb.w / (cb.w || 1);
-        return { c, x, track: T, cw: cb.w, xw: xb.w, r, c0: [cb.x + cb.w * f, cb.y + cb.h / 2], x1: [xb.x + xb.w * f, xb.y + xb.h / 2], origin: f === .5 ? "" : `${f * 100}% 50%` }; }) };
+        const r = T || f !== .5 ? 1 : xb.w / (cb.w || 1), ci = c.querySelector("svg"), xi = x.querySelector("svg");
+        return { c, x, track: T, cw: cb.w, xw: xb.w, xh: xb.h, r, ky0: T ? cb.h / (xb.h || 1) : 1, thumb: T ? x.querySelector(".slider-thumb") : null, icon: ci && xi ? xi : null,
+          ik: ci && xi ? (ci.getBoundingClientRect().width / (cb.w || 1)) / (xi.getBoundingClientRect().width / (xb.w || 1) || 1) : 1, same: T || c.textContent === x.textContent, time: !ci && !T, c0: [cb.x + cb.w * f, cb.y + cb.h / 2], x1: [xb.x + xb.w * f, xb.y + xb.h / 2], origin: f === .5 ? "" : `${f * 100}% 50%` }; }) };
+    barSpot(st.m.pairs.find(q => q.track));
+  }
+  function barSpot(q) {                                              // where the big bar sits in the line's box, to the fraction of a px (offsetLeft/Top round)
+    const pr = BOW.parentElement, a = pr.getBoundingClientRect(), c = xpBar.getBoundingClientRect(), k = pr.offsetWidth / (a.width || 1);
+    q.bx = (c.left - a.left) * k - pr.clientLeft; q.by = (c.top + c.height / 2 - a.top) * k - pr.clientTop;
   }
   function origins(m) {                                              // scale about the text's start / the button's centre (cleared at rest)
     m.lines.forEach(l => { l.c.style.transformOrigin = `${l.cb.off.toFixed(1)}px ${l.cb.oy.toFixed(1)}px`; l.x.style.transformOrigin = `${l.xb.off.toFixed(1)}px ${l.xb.oy.toFixed(1)}px`; });
@@ -2887,7 +3220,11 @@ XP = (() => {
   function prep(h0, warm) {                                          // before any move: show the layer, size it, measure both layouts
     clearTimeout(st.shT); wrap.style.transition = "";
     xp.classList.add("show"); xp.setAttribute("aria-hidden", "false");
-    st.warm = !!warm; if (!warm) wrap.classList.add("xp-anim");      // warm: shown but not yet moving, the compact row still takes taps
+    st.warm = !!warm;                                                 // warm: shown but not yet moving, the compact row still takes taps
+    if (!warm) { wrap.classList.add("xp-anim"); wrap.classList.remove("xp-on"); }   // moving: the compact copies fade in/out along the way (render below places them first)
+    /* a song change's own slide-in on the small title / artist would override the motion's placement (a faded copy left
+       standing beside the cover): finish it now */
+    [cTitle, cArtist].forEach(el => el.getAnimations().forEach(an => an.finish())); pm.querySelectorAll(".tt-ghost").forEach(g => g.remove());
     sync(true, true);
     layout();
     if (!drawerOpen()) st.compactH = naturalH();
@@ -2910,47 +3247,98 @@ XP = (() => {
     const m = st.m; if (!m) return;
     if (!m.originsOn) origins(m);
     const P = clamp01(p);                                            // never laid out past either end (the panel only gives a few px, below)
-    wrap.style.height = (lerp(st.h0, st.h1, P) + st.over).toFixed(1) + "px";
-    artBox.style.visibility = P > .0005 ? "hidden" : "";
+    /* exactly one cover on screen at any moment (both kept painted, the other at .001): two at once means two shadows,
+       a darker flash around the cover on the frame they overlap */
+    artBox.style.opacity = P > 0 ? ".001" : ""; art.style.opacity = P > 0 ? "" : ".001";
     /* the big cover, scaled down onto the small one at p = 0 */
-    const size = lerp(m.aw, st.S, P), s = size / st.S, curX = lerp(m.ax, m.sx, P), curY = lerp(m.ay, m.sy, P);
+    const G = grow(P), [ca, cb] = [G, G];
+    const size = lerp(m.aw, st.S, G), s = size / st.S, curX = lerp(m.ax, m.sx, ca), curY = lerp(m.ay, m.sy, cb);
     art.style.transform = `translate(${(curX - m.sx).toFixed(2)}px,${(curY - m.sy).toFixed(2)}px) scale(${s.toFixed(4)})`;
-    art.style.borderRadius = (lerp(12, 18, P) / s).toFixed(2) + "px";
-    art.style.setProperty("--u", (lerp(1, 1.6, P) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
+    art.style.borderRadius = (lerp(12, 18, G) / s).toFixed(2) + "px";
+    art.style.setProperty("--u", (lerp(1, 1.6, G) / s).toFixed(4));   // glass details: identical to the small cover at p = 0
+    /* its shadow too: the small cover's own shadow at p = 0 (in its px), the big one's open, so nothing darkens or jumps at the hand-over */
+    const sh = (y0, y1, b0, b1, a0, a1) => `0 ${(lerp(y0, y1, G) / s).toFixed(2)}px ${(lerp(b0, b1, G) / s).toFixed(2)}px rgba(0,0,0,${lerp(a0, a1, G).toFixed(3)})`;
+    clip.style.boxShadow = `${sh(7, 18, 18, 40, .32, .34)},${sh(2, 4, 5, 12, .18, .2)},0 0 0 ${(.5 / s).toFixed(3)}px rgba(0,0,0,${(.45 * (1 - G)).toFixed(3)})`;
     /* glows: both covers show the same bitmaps at the same place at p = 0, so the hand-over is a quick, invisible swap */
-    const hm = fade(P, 0, .04), hs = Math.max(.004, hm).toFixed(3), hr = (1 - hm).toFixed(3);   // never exactly 0: keeps the big glow's layer painted, ready
+    const hm = P > 0 ? 1 : 0, hs = Math.max(.004, hm).toFixed(3), hr = (1 - hm).toFixed(3);   // a swap, not a cross-fade (two half glows add up darker); never exactly 0: keeps the big glow's layer painted, ready
     if (st.hm !== hs) { st.hm = hs; bloom.style.setProperty("--hm", hs); glight.style.setProperty("--hm", hs); smBloom.style.setProperty("--hm", hr); smLight.style.setProperty("--hm", hr); }
-    const v = fade(P, 0, .28), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
+    const v = 1 - (1 - P) * (1 - P), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
     const rowY = (y0, y1) => bottom + lerp(y0 - bottom0, y1 - bottom1, v);
     /* title + artist line */
-    const Pr = Math.min(P, .28), ride = lerp(m.ax, m.sx, Pr) + lerp(m.aw, st.S, Pr) - (m.ax + m.aw);   // rides the cover's right edge only until it is below it
-    const h = fade(P, .2, .72), hsc = fade(P, .1, .9), limit = m.W - 14;
-    const cOp = 1 - fade(P, .12, .42), xOp = fade(P, .04, .34);
+    const ccx = curX + size / 2, ccy = curY + size / 2;
+    const hsc = P, limit = m.W - 14;
+    /* each line is shown by ONE copy: the big one takes over in place at once (same text, size and weight) and the small
+       one, now hidden under it, fades away. Only what the small line lacks (album, year) fades in. A title that can't take
+       over in place (cut short, or wrapping) hands over quickly, one copy fully out before the other comes in. */
+    const extra = fade(P, .14, .72);
     for (const l of m.lines) {
-      const X = lerp(l.c0[0] + ride, l.x1[0], h), Y = rowY(l.c0[1], l.x1[1]), k = lerp(1, l.r, hsc);
+      /* a title that can't simply take over (cut short, or wrapping) cross-fades with it in place, quickly: never a moment
+         with neither on screen */
+      const cOp = l.swap ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, .1, .22)), xOp = l.swap ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .06, .2));
+      /* each line circles round the growing cover by the top-left corner of its whole text block (see orbit): the text
+         hangs right and down from that corner, so going round the cover's right side and under it, no part of it (a long
+         wrapped second line included) can cross the cover */
+      const t = P, lead = m.lines[0], k = lerp(1, l.r, hsc), sc = k / l.r, dx = l.xb.off - l.xb.l0, oy = l.xb.oy;
+      const [cx, cy] = orbit([l.c0[0] - dx / l.r, l.c0[1] - oy / l.r], [l.x1[0] - dx, l.x1[1] - oy], ccx, ccy, size / 2, t);
+      let X = cx + dx * sc, Y = cy + oy * sc;
+      /* no room beside the cover for the whole line (what of it is showing: the album writes itself in)? Then it goes
+         under the cover and moves in from the right edge, instead of running off it, fading there or vanishing */
+      if (P > 0 && P < 1) {
+        const full = l.xb.right - l.xb.l0, vis = l === lead ? full : lerp(Math.min(full, XR.offsetWidth || full), full, extra);
+        const f0 = fade(P, 0, .06), right = l === lead ? l.xb.right - l.xb.off : vis - dx;   // from the text's start to its (showing) end
+        X -= f0 * Math.max(0, X + right * sc - limit);                // never past the right edge
+        const wd = Math.max(clamp01((vis * sc - (limit - (curX + size + 12)) + 40) / 80), clamp01((curX + size + 12 - (X - dx * sc)) / 16)) * f0;   // eased in before it's needed, so it glides under
+        Y += wd * Math.max(0, curY + size + 12 + oy * sc - Y);         // and under the cover when that brings it over it
+      }
+      if (l !== lead && P > 0 && P < 1) {                            // the artist line keeps below the title on the way
+        const leadBottom = lead.Y + (lead.xb.h - lead.xb.oy) * lead.k / lead.r, need = leadBottom + 2 - (Y - oy * sc);
+        Y += Math.max(0, need) * (lead.swap ? fade(P, 0, .2) : fade(P, 0, .06));   // out of the big title's way before it shows (none at rest: there it already is)
+      }
+      l.X = X; l.Y = Y; l.k = k;
       l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
       setOp(l.c, cOp); setOp(l.x, xOp);
       setMask(l.c, fadeEdge(l.cb, X, k, limit));
-      let unfold = "";
-      if (l.xb.h > l.xb.oy * 3) {                                    // a name on several lines: its further lines fade in (top down) once it's below the cover
-        const u = fade(P, .26, .66), y = l.xb.oy * 2 + (l.xb.h - l.xb.oy * 2) * u;
-        if (u < .999) unfold = `linear-gradient(180deg,#000 ${(y - 6).toFixed(1)}px,transparent ${(y + 12 - 12 * u).toFixed(1)}px)`;
-      }
-      setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit), unfold);
+      /* a title that wraps (where the small one is cut short): its lines after the first fade away near the small end, so
+         the cross-fade is between two nearly identical first lines, not over a doubled second line */
+      const more = l.swap || l.xb.h <= l.xb.oy * 3 ? "" : `linear-gradient(#000 ${(l.xb.oy * 2).toFixed(1)}px,rgba(0,0,0,${fade(P, .16, .36).toFixed(3)}) ${(l.xb.oy * 2 + 1).toFixed(1)}px)`;
+      setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit), more);
     }
+    /* album and year (and the sound effect) write themselves in, letter by letter, and take themselves back the same way */
+    const ls = [...letters(XA), ...letters(XF)], n = ls.length, K = 3;
+    ls.forEach((el, i) => setOp(el, clamp01((extra * (n + K) - i) / K)));
+    XR.style.color = P >= 1 ? "" : `rgba(255,255,255,${lerp(.6, .85, extra).toFixed(3)})`;   // the artist starts as dim as the small one
+    XR.style.setProperty("--chev", (1 - fade(P, 0, .13)).toFixed(3));
     /* buttons, scrubber, times */
-    const hc = fade(P, 0, .7), pcOp = 1 - fade(P, .14, .44), pxOp = fade(P, .04, .36);
-    let playDy = 0, playDy0 = 0;
+    const hc = P * P;
+    /* the rows below never run into the text circling down: if the artist line comes lower than the playback line
+       allows, the rows give way (they are pushed down together, keeping a clear gap; none at either end) */
+    const sl = m.lines[m.lines.length - 1], bar = m.pairs.find(q => q.track), env = Math.sin(Math.PI * P);
+    const subBottom = l => l.Y + (l.xb.h - l.xb.oy) * l.k / l.r, barTop = (Y, q) => Y - q.xh / 2;
+    const gapEnd = barTop(bar.x1[1], bar) - (sl.x1[1] + sl.xb.h - sl.xb.oy);
+    const push = P > 0 && P < 1 ? Math.max(0, subBottom(sl) + gapEnd * .5 + BOW_A * env - barTop(rowY(bar.c0[1], bar.x1[1]), bar)) : 0;
+    let playDy = 0, playDy0 = 0, playY = 0, tail0 = 0, tail1 = 0;
     for (const q of m.pairs) {
-      const X = lerp(q.c0[0], q.x1[0], hc), Y = rowY(q.c0[1], q.x1[1]), k = lerp(1, q.r, hc);
+      /* like the lines: everything drops to its row first (all rows on the same timing, so they keep their order and never
+         meet), then slides across, which makes a rounded path. The times slide only once the buttons are below them. */
+      const tx = 1 - Math.cos(fade(P, q.time ? .3 : .1, 1) * Math.PI / 2);
+      const X = lerp(q.c0[0], q.x1[0], tx), Y = rowY(q.c0[1], q.x1[1]) + push, k = lerp(1, q.r, hc);
       q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
-      q.x.style.transform = `translate(${(X - q.x1[0]).toFixed(2)}px,${(Y - q.x1[1]).toFixed(2)}px) scale(${(k / q.r).toFixed(4)})`;
-      setOp(q.c, pcOp); setOp(q.x, pxOp);
-      if (q.track) { const cut = Math.max(0, (q.xw - lerp(q.cw, q.xw, hc)) / 2 - 1), cp = cut > .5 ? `inset(-12px ${cut.toFixed(1)}px)` : ""; if (q.x.style.clipPath !== cp) q.x.style.clipPath = cp; }
-      if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; }
+      /* the scrubber stretches from the small one's length to its own (its dot is kept round), so it is one bar all along */
+      const kx = q.track ? lerp(q.cw, q.xw, hc) / q.xw : k / q.r, ky = q.track ? lerp(q.ky0, 1, hc) : k / q.r;
+      q.x.style.transform = `translate(${(X - q.x1[0]).toFixed(2)}px,${(Y - q.x1[1]).toFixed(2)}px) scale(${kx.toFixed(4)},${ky.toFixed(4)})`;
+      if (q.track) bow(q, X, Y, kx, ky, P);
+      if (q.icon && q.ik !== 1) q.icon.style.transform = P > 0 && P < 1 ? `scale(${lerp(q.ik, 1, hc).toFixed(4)})` : "";   // icons match the small ones' size at first
+      /* same as the lines: the big copy takes over in place; a time whose text differs ("4:22" / "-2:04") swaps over quickly */
+      setOp(q.c, q.same ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, .12)));   // hidden, but kept painted (.001), so it is back the instant it's needed
+      setOp(q.x, q.same ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .12, .32)));
+      if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; playY = Y; tail0 = st.h0 - q.c0[1]; tail1 = st.h1 - q.x1[1]; }
     }
-    const fo = fade(P, .25, .7);                                      // shuffle / repeat: ride with the big controls' row
+    /* the panel is carried by what's in it: its bottom edge keeps to the controls (the same distance below them as at
+       rest at either end), so it grows and shrinks with the content instead of sliding open as a box of its own. The room
+       for what's below (the tabs, Up next) comes and goes with it. */
+    wrap.style.height = (playY + lerp(tail0, tail1, fade(P, .1, 1)) + st.over).toFixed(1) + "px";
+    const fo = fade(P, .72, 1);                                      // shuffle / repeat: ride with the big controls' row
     FOLLOW.forEach(el => { el.style.transform = `translateY(${playDy.toFixed(2)}px)`; setOp(el, fo); });
     fm.style.transform = P ? `translateY(${playDy0.toFixed(2)}px)` : ""; setOp(fm, 1 - fade(P, 0, .13));   // the compact tab row leaves with the controls above it
     const bo = fade(P, .74, 1); bot.style.opacity = bo > .999 ? "" : bo.toFixed(3); bot.style.transform = bo > .999 ? "" : `translateY(${((1 - bo) * 12).toFixed(1)}px)`;
@@ -2961,16 +3349,19 @@ XP = (() => {
     st.raf = 0; st.p = t; st.v = 0; st.over = 0;
     if (t === 1) {
       render(1); st.expanded = true; LYR.song(); svRender();
-      clearMoved();                                                  // at rest: the big layout as laid out, the compact one hidden
-      wrap.classList.remove("xp-anim"); wrap.classList.add("xp-on");
+      wrap.classList.add("xp-on"); clearMoved();                     // at rest: the big layout as laid out, the compact one hidden
+      void getComputedStyle(playBtn).opacity; wrap.classList.remove("xp-anim");   // (styles settle while the buttons' own fades are still off)
       if (stripDirty) renderStrip();
       return;
     }
     st.expanded = false; st.m = null; viewReset();
     xp.classList.remove("show"); xp.setAttribute("aria-hidden", "true");
-    wrap.classList.remove("xp-on", "xp-anim");
+    wrap.classList.remove("xp-on");
     clearMoved(); [pm, cm, fm, bot].forEach(el => { el.style.opacity = ""; el.style.transform = ""; });
-    tText.style.transform = ""; artBox.style.visibility = ""; st.hm = null; smBloom.style.removeProperty("--hm"); smLight.style.removeProperty("--hm"); gear.style.opacity = ""; gear.style.pointerEvents = "";
+    /* the small buttons come back at full strength at once: their own fade (for presses) stays off until the styles are
+       applied, otherwise they would fade in again from nothing, a visible blink after the motion */
+    void getComputedStyle(playBtn).opacity; wrap.classList.remove("xp-anim");
+    tText.style.transform = ""; artBox.style.opacity = ""; st.hm = null; smBloom.style.removeProperty("--hm"); smLight.style.removeProperty("--hm"); gear.style.opacity = ""; gear.style.pointerEvents = "";
     if (st.sheet) { st.shT = setTimeout(settleHeight, Math.max(0, 440 - (performance.now() - st.sheetAt))); }   // let the drawer finish opening first
     else wrap.style.height = "";
   }
@@ -2984,20 +3375,25 @@ XP = (() => {
   function animateTo(target, v0) {
     cancelAnimationFrame(st.raf); st.target = target; st.v = v0 || 0;
     if (RM) { render(target); settle(target); return; }
-    /* critically damped both ways: it lands on the open / compact layout and never swings past it. p is kept inside
-       0..1; the only "give" is st.over, a few px of panel stretch from a pull past the open end, which melts away. */
-    const K = target ? 190 : 200, C = 2 * Math.sqrt(K);
-    let last = 0;
+    /* a fixed-length glide that ends exactly at the open / compact layout, at rest. Its curve picks up the speed it is
+       handed (your finger's on release; a moderate start on a tap, never a jolt) and eases down to a stop that is soft
+       but brief: no long crawl at the end, which read as things "snapping into place". Never past the end. p is kept
+       inside 0..1; the only "give" is st.over, a few px of panel stretch from a pull past the open end, which melts away. */
+    const p0 = st.p, d = target - p0, base = (target ? .62 : .54) * (.45 + .55 * Math.abs(d));
+    const fling = (v0 || 0) * Math.sign(d), D = fling > 0 ? Math.max(.2, Math.min(base, 3 * Math.abs(d) / fling)) : base;   // a flick shortens it to match its speed (never past the end)
+    const k0 = Math.max(1.2, Math.min(3, fling > 0 ? fling * D / Math.abs(d || 1) : 0));   // above 3 the curve would overshoot
+    let t0 = 0, last = 0;
     const step = now => {
-      const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;   // a slow frame moves it further (up to 50 ms), so it doesn't turn to slow motion
+      if (!t0) t0 = now - 16;
+      const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
       PERF.frame(now);
-      for (let i = 0, n = Math.max(4, Math.ceil(dt / .006)), h = dt / n; i < n; i++) {
-        st.v += (K * (target - st.p) - C * st.v) * h; st.p += st.v * h;
-        if (st.p > 1) { st.p = 1; st.v = Math.min(0, st.v); } else if (st.p < 0) { st.p = 0; st.v = Math.max(0, st.v); }
-      }
+      const u = Math.min(1, (now - t0) / 1000 / D), e = k0 * (u - 2 * u * u + u * u * u) + u * u * (3 - 2 * u);   // starts at k0 x the average speed, lands at 0
+      const prev = st.p;
+      st.p = clamp01(p0 + d * e);
+      st.v = dt ? (st.p - prev) / dt : 0;
       st.over *= Math.exp(-dt / .07); if (st.over < .2) st.over = 0;
       render(st.p);
-      if (Math.abs(target - st.p) < .001 && Math.abs(st.v) < .02 && !st.over) { settle(target); return; }
+      if (u >= 1 && !st.over) { st.p = target; settle(target); return; }
       st.raf = requestAnimationFrame(step);
     };
     st.raf = requestAnimationFrame(step);
@@ -3060,8 +3456,9 @@ XP = (() => {
     else if (!st.warm && (!st.expanded || !st.m)) prep();            // already open (or warmed up by the touch): everything is measured, just move
     st.warm = false;
     g.started = true; g.y0 = ev.clientY; g.p0 = st.p; g.travel = Math.max(200, st.h1 - st.h0);
+    wrap.classList.add("xp-anim");                                   // the buttons' own fades off before anything moves
     render(st.p);                                                    // first: the compact copies get their place and fade before they are unhidden
-    wrap.classList.add("xp-anim"); wrap.classList.remove("xp-on");
+    wrap.classList.remove("xp-on");
   }
   document.addEventListener("pointermove", ev => {
     if (!g || ev.pointerId !== g.id) return;
@@ -3075,7 +3472,8 @@ XP = (() => {
       /* decided once, here: opening needs a clearly downward start (steeper than ~35 degrees from vertical); anything
          else is not an expand and never becomes one later in the same touch */
       const vert = g.from < .5 && !g.any ? dy > 0 && dy > Math.abs(dx) * STEEP : Math.abs(dy) > Math.abs(dx) * 1.1;
-      if (!vert || !canExpand() || (g.from < .5 && drawerOpen())) { g.dead = true; return; }
+      if (!vert || !canExpand()) { g.dead = true; return; }
+      if (g.from < .5 && drawerOpen()) { g.dead = true; open(); return; }   // a section is open: it folds away and the player unfolds
       begin(ev); return;
     }
     if (g.scroll) {                                                  // the content follows the finger; past either end it only gives a little
@@ -3119,8 +3517,9 @@ XP = (() => {
     const dx = d.cx - d.sx, dy = d.cy - d.sy;
     if (Math.hypot(dx, dy) < INTENT) return false;
     d.dec = true;
-    if (!d.row || g || st.raf || st.expanded || !canExpand() || drawerOpen()) return false;
+    if (!d.row || g || st.raf || st.expanded || !canExpand()) return false;
     if (!(dy > 0 && dy > Math.abs(dx) * STEEP)) return false;
+    if (drawerOpen()) { open(); return true; }                       // a section is open: it folds away and the player unfolds
     g = { id: d.id, x0: ev.clientX, y0: ev.clientY, t0: performance.now(), from: st.expanded ? 1 : 0, started: false, dead: false, samples: [] };
     begin(ev); return true;
   };
@@ -3851,7 +4250,9 @@ if (TG) (function () {
     const need = () => settingsPanel.classList.contains("active") || editing || open() || wrap.classList.contains("xp-on");
     const sync = () => { need() ? back.show() : back.hide(); };
     back.onClick(() => {
-      if (settingsPanel.classList.contains("active")) settingsPanel.classList.remove("active");
+      if (document.querySelector(".crop-ov")) document.querySelector(".crop-ov .no").click();
+      else if (plPop) plPopClose();
+      else if (settingsPanel.classList.contains("active")) settingsPanel.classList.remove("active");
       else if (editing) setEdit(false);
       else if (open() && shown(playlistWrapper)) $("back-to-grid-btn").click();
       else if (open() && shown(artistWrapper)) $("artist-back").click();
@@ -4400,7 +4801,7 @@ let pEls = null;
 function pulseLoop(now) {
   pRaf = 0;
   if (document.hidden) { PERF.gap(); pulseLoop.t = 0; return; }       // restarted by visibilitychange
-  if (!pEls) pEls = { pm: $("player-main"), glow: $("glow-layer"), thumb: $("progress-slider").querySelector(".slider-thumb"), xpPlay: $("xp-play"), xp: $("xp"), xa: $("xp-art"), xThumb: $("xp-progress").querySelector(".slider-thumb") };
+  if (!pEls) pEls = { pm: $("player-main"), glow: $("glow-layer"), thumb: $("progress-slider").querySelector(".slider-thumb"), xpPlay: $("xp-play"), xp: $("xp"), xa: $("xp-art"), wrap: $("xp-art").closest(".player-wrapper"), xThumb: $("xp-progress").querySelector(".slider-thumb") };
   const playing = !audio.paused, pmOn = pEls.pm.style.display !== "none";
   const idle = !playing && energy < .02 && flare === 0 && pulse < .003 && now - tiltAt > 600;
   if (!idle) {
@@ -4415,13 +4816,14 @@ function pulseLoop(now) {
   }
   pulse += (target - pulse) * (1 - Math.pow(target > pulse ? .86 : .96, dt * 60));   // quick-ish rise, slow fall (the same curve as before at 60 fps)
   if (pulse < .003 && !playing) pulse = 0;
-  const pv = pulse.toFixed(2), xpOn = pEls.xp.classList.contains("show"), big = !!(XP && XP.expanded);
+  const pv = pulse.toFixed(2), xpOn = pEls.xp.classList.contains("show"), moving = xpOn && pEls.wrap.classList.contains("xp-anim");
+  const big = !!(XP && XP.expanded) && !moving;                      // while it moves, both covers stay live: the one left at the end then shows the same light, not where it was before
   if (!big) { pset(pEls.pm, "--pulse", pv); pset(pEls.thumb, "--pulse", pv); }
   if (drawerBox.classList.contains("expanded")) pset(pEls.glow, "--pulse", pv);
   if (xpOn) { pset(pEls.xa, "--pulse", pv); pset(pEls.xThumb, "--pulse", pv); }
   sparkTick(playing, dt);
   if (flare > .003) { flare *= Math.exp(-dt / .45); rimA += flare * 260 * dt; } else flare = 0;   // song change: the cover light swings round quickly, then settles
-  breathe(now, dt, big);
+  breathe(now, dt, big, xpOn);
   energy += ((playing ? 1 : 0) - energy) * (1 - Math.exp(-dt / (playing ? .4 : 1.8)));   // one smooth "how alive" level: quick up, slow settle down
   if (!playing && energy < .005) energy = 0;
   rimA = (rimA + (4 + energy * (5 + pulse * 14)) * dt) % 360;                              // the light slowly orbits the cover on its own; a little livelier with the music
@@ -4455,12 +4857,12 @@ let rimA = 0, energy = 0, tilt = 0;
 const bpHist = [], bpLast = [-1, -1, -1];
 let bpBtns = null;
 let bpXp = null;
-function breathe(now, dt, big) {
+function breathe(now, dt, big, xpOn) {
   bpHist.push(pulse); while (bpHist.length > Math.max(2, Math.round(.1 / (dt || .016)) + 1)) bpHist.shift();   // the sides follow ~0.1 s later, at any frame rate
   const lag = bpHist[0], idle = (1 - energy) * (.16 + .14 * Math.sin(now / 1500));
   const v = [lag * .7, Math.max(pulse, idle), lag * .7];
   if (!bpBtns) { bpBtns = [$("prev-btn"), playBtn, $("skip-btn")]; bpXp = [$("xp-prev"), $("xp-play"), $("xp-next")]; }
-  (big ? bpXp : bpBtns).forEach((b, i) => { if (Math.abs(v[i] - (b._bp ?? -1)) > .006) { b._bp = v[i]; b.style.setProperty("--bp", v[i].toFixed(3)); } });
+  (big ? bpXp : xpOn ? bpBtns.concat(bpXp) : bpBtns).forEach((b, j) => { const i = j % 3; if (Math.abs(v[i] - (b._bp ?? -1)) > .006) { b._bp = v[i]; b.style.setProperty("--bp", v[i].toFixed(3)); } });
 }
 audio.addEventListener("pause", startPulse);                          // lets the glow settle back down
 document.addEventListener("visibilitychange", () => { if (!document.hidden) startPulse(); });
