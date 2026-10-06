@@ -3372,22 +3372,24 @@ XP = (() => {
     wrap.style.transition = "height .34s var(--ease)"; wrap.style.height = to + "px";
     st.shT = setTimeout(() => { wrap.style.transition = ""; wrap.style.height = ""; }, 360);
   }
+  /* cubic-bezier(.22,1,.36,1), the --ease every panel in the app uses (x solved by Newton steps, then y) */
+  const easeApp = u => { if (u <= 0 || u >= 1) return u; const bz = (a, b, s) => 3 * a * s * (1 - s) * (1 - s) + 3 * b * s * s * (1 - s) + s * s * s;
+    let s = u; for (let i = 0; i < 6; i++) { const x = bz(.22, .36, s) - u, dx = 3 * .22 * (1 - s) * (1 - s) + 6 * (.36 - .22) * s * (1 - s) + 3 * (1 - .36) * s * s; if (Math.abs(x) < 1e-5 || !dx) break; s = clamp01(s - x / dx); }
+    return bz(1, 1, s); };
   function animateTo(target, v0) {
     cancelAnimationFrame(st.raf); st.target = target; st.v = v0 || 0;
     if (RM) { render(target); settle(target); return; }
-    /* a fixed-length glide that ends exactly at the open / compact layout, at rest. Its curve picks up the speed it is
-       handed (your finger's on release; a moderate start on a tap, never a jolt) and eases down to a stop that is soft
-       but brief: no long crawl at the end, which read as things "snapping into place". Never past the end. p is kept
+    /* a fixed-length glide that ends exactly at the open / compact layout, at rest, never past the end. p is kept
        inside 0..1; the only "give" is st.over, a few px of panel stretch from a pull past the open end, which melts away. */
-    const p0 = st.p, d = target - p0, base = (target ? .62 : .54) * (.45 + .55 * Math.abs(d));
-    const fling = (v0 || 0) * Math.sign(d), D = fling > 0 ? Math.max(.2, Math.min(base, 3 * Math.abs(d) / fling)) : base;   // a flick shortens it to match its speed (never past the end)
-    const k0 = Math.max(1.2, Math.min(3, fling > 0 ? fling * D / Math.abs(d || 1) : 0));   // above 3 the curve would overshoot
+    /* the same timing as the Library opening: 0.4 s (less for part of the way) on the app's own curve, --ease */
+    const p0 = st.p, d = target - p0, base = .4 * (.45 + .55 * Math.abs(d));
+    const fling = (v0 || 0) * Math.sign(d), D = fling > 0 ? Math.max(.2, Math.min(base, 4.5 * Math.abs(d) / fling)) : base;   // a fast flick shortens it to match its speed
     let t0 = 0, last = 0;
     const step = now => {
       if (!t0) t0 = now - 16;
       const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
       PERF.frame(now);
-      const u = Math.min(1, (now - t0) / 1000 / D), e = k0 * (u - 2 * u * u + u * u * u) + u * u * (3 - 2 * u);   // starts at k0 x the average speed, lands at 0
+      const u = Math.min(1, (now - t0) / 1000 / D), e = easeApp(u);
       const prev = st.p;
       st.p = clamp01(p0 + d * e);
       st.v = dt ? (st.p - prev) / dt : 0;
