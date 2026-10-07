@@ -422,6 +422,11 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
   box-shadow:0 4px 14px rgba(0,0,0,.22),inset 0 0 2px rgba(255,255,255,.3),0 0 calc(var(--pv,0) * 16px) rgba(var(--lc,200,215,225),calc(var(--pv,0) * .5));
   opacity:0;scale:.55;transition:opacity .22s var(--ease),scale .5s cubic-bezier(.34,1.56,.64,1)}
 .tab-pill.on{opacity:1;scale:1}
+/* drag the open tab's pill sideways to switch tabs: the pill lifts a little, the label under it lights up */
+.tab-buttons .tab-btn{touch-action:none}
+.tab-pill.on.held{scale:1.1}
+.tab-buttons.dragging .tab-btn.active{color:rgba(255,255,255,.4);text-shadow:none}
+.tab-buttons.dragging .tab-btn.hot{color:#fff;text-shadow:0 0 10px rgba(255,255,255,.3)}
 /* ===== Liquid Bubble theme (html.bubble) =====
    The panel's own glass, border and corner highlight step aside. Three layers behind the content, all exactly the panel's
    rounded rectangle (the whole panel moves as one; its edge never bends):
@@ -2402,17 +2407,66 @@ const tabPill = (() => {
     if (Math.abs(vL) + Math.abs(vR) > 2 || Math.abs(tL - L) + Math.abs(tR - R) > .4) raf = requestAnimationFrame(step);
     else { L = tL; R = tR; vL = vR = 0; paint(); last = 0; }
   }
-  function to(b) {
+  function to(b, quiet) {
     if (!b) { cur = null; el.classList.remove("on"); return; }
     cur = b; if (!box.offsetWidth) return;
     const [a, z] = edges(b);
     if (!el.classList.contains("on") || RM) { cancelAnimationFrame(raf); raf = 0; L = tL = a; R = tR = z; vL = vR = 0; last = 0; paint(); el.classList.add("on"); return; }
     if (a === tL && z === tR) return;
-    dir = Math.sign(a + z - tL - tR); tL = a; tR = z; landed = false;
+    dir = Math.sign(a + z - tL - tR); tL = a; tR = z; landed = !!quiet;
     if (!raf) { last = 0; raf = requestAnimationFrame(step); }
   }
+  function hold(a, z) { cancelAnimationFrame(raf); raf = 0; L = tL = a; R = tR = z; vL = vR = 0; last = 0; paint(); }   // the finger places the pill directly
   addEventListener("resize", () => { if (!cur || !box.offsetWidth) return; const [a, z] = edges(cur); L = tL = a; R = tR = z; vL = vR = 0; paint(); });
-  return { to, el };
+  return { to, hold, edges, el };
+})();
+
+/* Drag to switch: press the open tab and slide sideways, like an iOS segmented control. The pill follows the finger
+   (its width blends between the tabs it is passing), the tab under it lights up with a tick, and on release it springs
+   into the nearest tab, which opens. Past the first / last tab it gives a little with resistance. A plain tap still
+   works as before (it closes the drawer). */
+(() => {
+  const box = document.querySelector(".tab-buttons"), tabs = [btnQueue, btnPlaylist, btnArtists];
+  let d = null, eatClick = false;
+  const geo = () => tabs.map(b => { const [a, z] = tabPill.edges(b); return { b, c: (a + z) / 2, w: z - a }; });
+  function place(x) {
+    const g = d.g, lo = g[0].c, hi = g[g.length - 1].c;
+    let p = x - d.off;
+    if (p < lo) p = lo - Math.min(14, (lo - p) * .25); else if (p > hi) p = hi + Math.min(14, (p - hi) * .25);
+    let i = 0; while (i < g.length - 2 && p > g[i + 1].c) i++;
+    const t = Math.max(0, Math.min(1, (p - g[i].c) / (g[i + 1].c - g[i].c))), w = g[i].w + (g[i + 1].w - g[i].w) * t;
+    tabPill.hold(p - w / 2, p + w / 2);
+    const near = g.reduce((m, o) => Math.abs(o.c - p) < Math.abs(m.c - p) ? o : m).b;
+    if (near !== d.hot) { if (d.hot) d.hot.classList.remove("hot"); near.classList.add("hot"); if (d.on) haptic("select"); d.hot = near; }
+  }
+  box.addEventListener("pointerdown", e => {
+    const b = e.target.closest(".tab-btn");
+    if (!b || !b.classList.contains("active") || (e.pointerType === "mouse" && e.button)) return;
+    const g = geo(), me = g.find(o => o.b === b), bx = box.getBoundingClientRect().left;
+    d = { id: e.pointerId, b, g, bx, x0: e.clientX, off: e.clientX - bx - me.c, on: false, hot: null };
+    try { b.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  box.addEventListener("pointermove", e => {
+    if (!d || e.pointerId !== d.id) return;
+    if (!d.on) {
+      if (Math.abs(e.clientX - d.x0) < 6) return;
+      d.on = true; pressRelease(); box.classList.add("dragging"); tabPill.el.classList.add("held"); d.hot = d.b; d.b.classList.add("hot");
+    }
+    place(e.clientX - d.bx);
+  });
+  function end(e) {
+    if (!d || e.pointerId !== d.id) return;
+    const s = d; d = null;
+    if (!s.on) return;
+    box.classList.remove("dragging"); tabPill.el.classList.remove("held"); tabs.forEach(b => b.classList.remove("hot"));
+    eatClick = e.type === "pointerup"; setTimeout(() => { eatClick = false; }, 350);   // the tap that ends a drag isn't a tap
+    const to = e.type === "pointerup" ? s.hot : s.b;
+    tabPill.to(to, true);                                             // spring from where the finger left it (the tick already played)
+    if (to !== s.b) toggleTab(to);
+  }
+  box.addEventListener("pointerup", end);
+  box.addEventListener("pointercancel", end);
+  box.addEventListener("click", e => { if (eatClick) { eatClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
 })();
 
 /* ---------- LIQUID BUBBLE (theme, Settings) ----------
