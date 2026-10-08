@@ -792,7 +792,7 @@ const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { r
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
 const APP_VERSION = "v37";                                        // shown while loading: tells which copy of the player is running
-const API_BASE = "https://macawp3.duckdns.org";
+const API_BASE = "https://macawp3.duckdns.org:8443";
 let botMode = !!TG && !!TG.initData;                   // switches off if the server can't be reached, so the phone's files still work
 function haptic(kind) {                               // "light" | "medium" | "select". Telegram's haptics also work on iPhone; navigator.vibrate is the fallback (Android browsers)
   if (tgAt("6.1")) { try { kind === "select" ? TG.HapticFeedback.selectionChanged() : TG.HapticFeedback.impactOccurred(kind); } catch (e) {} return; }
