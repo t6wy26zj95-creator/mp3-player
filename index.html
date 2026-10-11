@@ -57,6 +57,54 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .album-card .all-tracks-icon svg{width:40px;height:40px;fill:rgba(255,255,255,.4)}
 .album-card-title{width:100%;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,.8)}
 
+/* ===== Cover Flow library: one row of record sleeves (see COVER FLOW in the script). --fw = sleeve size ===== */
+.albums-grid-container.flow{max-height:none!important;overflow:hidden}
+.cf{display:flex;flex-direction:column;padding-bottom:16px}
+.cf[hidden],.cf-empty[hidden],.cf-idx[hidden]{display:none}
+.cf-stage{position:relative;height:calc(var(--fw,118px) * 1.66);margin:0 -20px;overflow:hidden;
+  touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:grab;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent);mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent)}
+#cf-row{position:absolute;inset:0;perspective:calc(var(--fw,118px) * 4);perspective-origin:50% 45%}
+.cf-stage::after{content:'';position:absolute;left:0;right:0;top:calc(var(--fw,118px) * 1.33);bottom:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 70%);border-top:1px solid rgba(255,255,255,.06)}   /* the shelf they stand on */
+.cf-it{position:absolute;left:50%;top:calc(var(--fw,118px) * .32);width:var(--fw,118px);height:var(--fw,118px);margin-left:calc(var(--fw,118px) / -2);will-change:transform;
+  -webkit-box-reflect:below 2px linear-gradient(transparent 62%,rgba(255,255,255,.28))}
+.cf-disc{position:absolute;left:4%;top:4%;width:92%;height:92%;border-radius:50%;transform:translateY(calc(var(--pk,0) * -1px));box-shadow:0 3px 10px rgba(0,0,0,.55)}
+.cf-spin{position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle,transparent 0 31%,#09090a 31.5% 33%,transparent 33.5% 47%,#0c0c0d 47.5% 48.2%,transparent 48.7% 96%,#0b0b0c 96.5%),
+    repeating-radial-gradient(circle,#161618 0 1.1px,#1f1f22 1.1px 2.2px)}
+.cf-disc::after{content:'';position:absolute;inset:0;border-radius:50%;pointer-events:none;     /* light catching the grooves; stays put while the record turns */
+  background:conic-gradient(from 25deg,rgba(255,255,255,0) 0 6%,rgba(255,255,255,.16) 12%,rgba(255,255,255,0) 19% 50%,rgba(255,255,255,.12) 62%,rgba(255,255,255,0) 69%)}
+.cf-lbl{position:absolute;left:33%;top:33%;width:34%;height:34%;border-radius:50%;background:#b8322a center/cover no-repeat;box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+.cf-lbl::after{content:'';position:absolute;left:45%;top:45%;width:10%;height:10%;border-radius:50%;background:#0b0b0c}
+.cf-it.live .cf-spin{animation:cf-spin 1.8s linear infinite}
+@keyframes cf-spin{to{transform:rotate(360deg)}}
+.cf-sl{position:absolute;inset:0;border-radius:3px;overflow:hidden;background:#2b3038;box-shadow:0 12px 24px rgba(0,0,0,.42),inset 0 0 0 .5px rgba(255,255,255,.14)}
+.cf-sl img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none;-webkit-user-drag:none}
+.cf-sl .ico{display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:linear-gradient(155deg,#46505f,#232831)}
+.cf-sl .ico svg{width:38%;height:38%;fill:rgba(255,255,255,.5)}
+.cf-sl::before{content:'';position:absolute;inset:0;background:#000;opacity:var(--sh,0);pointer-events:none}          /* side sleeves sit in the shade */
+.cf-sl::after{content:'';position:absolute;inset:0;pointer-events:none;                                                   /* the sleeve's opening, and a little gloss */
+  background:linear-gradient(180deg,rgba(0,0,0,.38) 0,rgba(0,0,0,0) 6%),linear-gradient(118deg,rgba(255,255,255,.16),rgba(255,255,255,0) 42%)}
+.cf-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:rgba(255,255,255,.5)}
+.cf-cap{text-align:center;min-height:38px;padding:0 4px}
+.cf-t{font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cf-s{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cf-idx{display:flex;margin:8px 0 0;height:22px;touch-action:none;-webkit-user-select:none;user-select:none;cursor:pointer}
+.cf-idx span{flex:1;min-width:0;text-align:center;font-size:10px;font-weight:600;line-height:22px;color:rgba(255,255,255,.36);border-radius:6px;transition:color .2s,background .2s}
+.cf-idx span.on{color:#fff;background:rgba(255,255,255,.14)}
+.cf-search{display:flex;align-items:center;gap:8px;margin-top:10px;height:38px;padding:0 6px 0 12px;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
+.cf-search>svg{width:17px;height:17px;flex:none;fill:rgba(255,255,255,.5)}
+.cf-search input{flex:1;min-width:0;height:100%;padding:0;background:none;border:0;outline:0;color:#fff;font:inherit;font-size:16px;-webkit-appearance:none;appearance:none}
+.cf-search input::placeholder{color:rgba(255,255,255,.4)}
+.cf-search input::-webkit-search-cancel-button{display:none}
+.cf-x{flex:none;width:26px;height:26px;border:0;border-radius:50%;padding:0;background:rgba(255,255,255,.16);color:#fff;font-size:15px;line-height:26px;cursor:pointer}
+.cf-x[hidden]{display:none}
+.cf-groups{display:flex;gap:6px;margin-top:10px;overflow-x:auto;scrollbar-width:none}
+.cf-groups::-webkit-scrollbar{display:none}
+.cf-g{flex:1 0 auto;padding:7px 10px;border-radius:999px;font:inherit;font-size:12px;font-weight:600;color:rgba(255,255,255,.6);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);cursor:pointer;transition:color .2s,background .2s,border-color .2s}
+.cf-g.on{color:#fff;background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.3)}
+
 .track-info-container{display:flex;align-items:center;gap:16px;padding:2px var(--inset)}
 .album-art{width:64px;height:64px;border-radius:12px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;box-shadow:0 5px 15px rgba(0,0,0,.3)}
 .album-art img{width:100%;height:100%;object-fit:cover}
@@ -749,6 +797,14 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
 
   <div class="collapsible-content" id="drawer-box"><div class="drawer-inner"><div id="view-host">
     <div class="albums-grid-container" id="albums-grid-wrapper" style="display:none;">
+      <div class="cf" id="cf" hidden>
+        <div class="cf-stage" id="cf-stage"><div id="cf-row"></div><div class="cf-empty" id="cf-empty" hidden>No albums match</div></div>
+        <div class="cf-cap"><div class="cf-t" id="cf-t"></div><div class="cf-s" id="cf-s"></div></div>
+        <div class="cf-idx" id="cf-idx"></div>
+        <div class="cf-search"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <input type="search" id="cf-q" placeholder="Search albums and artists" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="cf-x" id="cf-x" aria-label="Clear search" hidden>×</button></div>
+        <div class="cf-groups" id="cf-groups"></div>
+      </div>
       <div class="albums-grid" id="albums-shelf"></div>
     </div>
     <div class="scroll-container-wrapper" id="playlist-wrapper" style="display:none;">
@@ -832,6 +888,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
   <button class="more-toggle" id="more-toggle" aria-expanded="false">More<svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
   <div class="more-box" id="more-box" hidden><div id="retro-sw">
     <div class="set-row"><span>Old panel</span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Old panel"><i></i></button></div>
+    <div class="set-row" style="margin-top:10px"><span>Cover Flow library<small>Off: the album grid, where you drag albums into your order</small></span><button class="switch" id="flow-switch" role="switch" aria-checked="true" aria-label="Cover Flow library"><i></i></button></div>
     <div class="set-row" style="margin-top:10px"><span>Gramophone</span><button class="switch" data-m="gram" role="switch" aria-checked="false" aria-label="Gramophone"><i></i></button></div>
     <div class="set-row" style="margin-top:10px"><span>Old radio</span><button class="switch" data-m="radio" role="switch" aria-checked="false" aria-label="Old radio"><i></i></button></div>
     <div class="set-row" style="margin-top:10px"><span>Vinyl</span><button class="switch" data-m="vinyl" role="switch" aria-checked="false" aria-label="Vinyl"><i></i></button></div>
@@ -866,7 +923,7 @@ const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
 /* Each write to Telegram's storage is a round trip through the app, so a key is sent at most once per its delay (the
    latest value wins), and whatever is still waiting is sent straight away when the app is hidden or closed. The play
    position changes every few seconds while you listen: it goes at most every 30 s (and on pause / hide). */
-const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName"], mirrorT = {}, mirrorV = {};
+const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName", "libView", "flowGroup"], mirrorT = {}, mirrorV = {};
 const MIRROR_DELAY = { playState: 3000, playPos: 30000, artistCache: 5000, releaseMap2: 5000 };
 function mirrorSend(k) { clearTimeout(mirrorT[k]); delete mirrorT[k]; if (!(k in mirrorV)) return; const v = mirrorV[k]; delete mirrorV[k]; try { tgStore.setItem(k, v); } catch (e) {} }
 function mirrorFlush() { Object.keys(mirrorV).forEach(mirrorSend); }
@@ -1333,7 +1390,10 @@ function gridKeys() {                                                // All Trac
 }
 function renderAlbums() {
   if (drag && drag.active) return;
-  const shelf = $("albums-shelf"); shelf.innerHTML = "";
+  const shelf = $("albums-shelf"), fl = flowOn();
+  $("albums-grid-wrapper").classList.toggle("flow", fl); $("cf").hidden = !fl; shelf.style.display = fl ? "none" : "";
+  if (fl) { shelf.innerHTML = ""; flow.render(); return; }
+  shelf.innerHTML = "";
   const icon = svg => `<div class="all-tracks-icon">${svg}</div>`;
   const folder = icon(`<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>`);
   gridKeys().forEach((key, i) => {
@@ -1350,6 +1410,236 @@ function renderAlbums() {
     shelf.appendChild(c);
   });
 }
+
+/* ---------- COVER FLOW ----------
+   Library as one row of record sleeves (Settings > More turns it off for the grid). The middle sleeve faces you with its
+   record pulled half out, turning while that album plays. Swipe and the row glides on and settles on an album; tap the
+   middle one to open it, a side one to bring it to the middle; hold one for its menu (cover, rename, hide). Under the
+   row: the name, an index of the groups (drag along it to jump), search, and the grouping (Artist, A–Z, Year, Recent,
+   My order = the grid's order, which is still where you drag albums around). Groups get a little gap between them.
+   Positions are in "slots": sleeve i sits at items[i].s (whole numbers plus the group gaps); c is the slot in the middle.
+   Only the sleeves near the middle are in the page; a glide is a Hermite curve that starts at the finger's speed and
+   lands with none, so it never creeps or snaps at the end. */
+const flowOn = () => store.get("libView") !== "grid";
+const flow = (() => {
+  const box = $("cf"), stage = $("cf-stage"), row = $("cf-row"), q = $("cf-q"), idxEl = $("cf-idx"), capT = $("cf-t"), capS = $("cf-s");
+  const GROUPS = { artist: "Artist", az: "A–Z", year: "Year", recent: "Recent", mine: "My order" }, GAP = .4;
+  const FOLDER_SVG = `<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>`;
+  let group = GROUPS[store.get("flowGroup")] ? store.get("flowGroup") : "artist";
+  let items = [], idx = [], c = 0, v = 0, raf = 0, glide = null, drag = null, W = 0, CG = 0, SP = 0, half = 180;
+  let atKey = null, shown = -1, tickAt = 0, wheelT = 0, pending = false;
+  const live = new Map();                                            // key -> sleeve element in the page
+  const fold = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const sortName = s => fold(s).replace(/^the\s+/, "").trim();
+  const letter = s => { const ch = sortName(s).charAt(0).toUpperCase(); return /[A-Z]/.test(ch) ? ch : "#"; };
+  const cmp = (a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+  const clampC = x => items.length ? Math.max(items[0].s, Math.min(items[items.length - 1].s, x)) : 0;
+  const nearest = x => { let b = 0, bd = 1e9; items.forEach((it, i) => { const d = Math.abs(it.s - x); if (d < bd) { bd = d; b = i; } }); return b; };
+
+  const groupsBox = $("cf-groups");
+  Object.entries(GROUPS).forEach(([k, label]) => {
+    const b = document.createElement("button"); b.className = "cf-g"; b.dataset.g = k; b.textContent = label;
+    b.addEventListener("click", () => { if (group === k) return; group = k; store.set("flowGroup", k); haptic("select"); paintGroups(); build(); go(); });
+    groupsBox.appendChild(b);
+  });
+  const paintGroups = () => groupsBox.querySelectorAll(".cf-g").forEach(b => b.classList.toggle("on", b.dataset.g === group));
+  paintGroups();
+
+  function measure() {                                               // sleeve size from the row's width (the row is hidden while the Library is closed)
+    const w = stage.clientWidth || (document.querySelector(".player-wrapper").clientWidth || 380);
+    const nw = Math.round(Math.min(150, Math.max(96, w * .34)));
+    half = w / 2; if (nw !== W) { W = nw; box.style.setProperty("--fw", W + "px"); }
+    CG = W * .66; SP = W * .3;                                       // middle -> first side sleeve, then the step between side sleeves
+  }
+  function build() {                                                 // what's in the row, in which order, and where each sleeve sits
+    const per = new Map();
+    tracks.forEach(t => {
+      let a = per.get(t.album); if (!a) per.set(t.album, a = { art: new Map(), aa: new Map(), year: 0, id: 0 });
+      a.art.set(t.artist, (a.art.get(t.artist) || 0) + 1);
+      if (t.albumArtist) a.aa.set(t.albumArtist, (a.aa.get(t.albumArtist) || 0) + 1);
+      if (t.year > a.year) a.year = t.year; if (t.id > a.id) a.id = t.id; if (!a.cover && t.art) a.cover = t.art;
+    });
+    const top = m => [...m].sort((x, y) => y[1] - x[1])[0][0];
+    const special = [], albums = [];
+    gridKeys().forEach((key, i) => {
+      const pl = plOf(key), all = key === ALL;
+      if (all || pl) {
+        const n = all ? tracks.length : plTracks(pl).length;
+        special.push({ key, name: all ? allName() : pl.name, artist: "", sub: n + (n === 1 ? " song" : " songs"), cover: tileCovers[coverKey(key)] || null, icon: all ? FOLDER_SVG : NOTES_SVG, i });
+        return;
+      }
+      const a = per.get(key) || { art: new Map(), aa: new Map(), year: 0, id: 0 };
+      const artist = a.aa.size ? top(a.aa) : a.art.size > 2 ? "Various Artists" : a.art.size ? top(a.art) : (albumMeta[key] && albumMeta[key].artist) || "";
+      albums.push({ key, name: key, artist, year: a.year, id: a.id, sub: [artist, a.year || ""].filter(Boolean).join(" · "), cover: tileCovers[coverKey(key)] || a.cover || (albumMeta[key] && albumMeta[key].cover) || null, icon: NOTES_SVG, i });   // = albumCover(), without a search per album
+    });
+    const qq = fold(q.value.trim()), match = it => !qq || fold(it.name + " " + it.artist).includes(qq);
+    const L = albums.filter(match);
+    let grp = () => "", lab = null;
+    if (group === "artist") { L.sort((x, y) => cmp(sortName(x.artist) || "~", sortName(y.artist) || "~") || (x.year || 1e4) - (y.year || 1e4) || cmp(x.name, y.name)); grp = it => sortName(it.artist); lab = it => letter(it.artist); }
+    else if (group === "az") { L.sort((x, y) => cmp(sortName(x.name), sortName(y.name))); grp = lab = it => letter(it.name); }
+    else if (group === "year") {
+      L.sort((x, y) => (x.year || 1e5) - (y.year || 1e5) || cmp(sortName(x.artist), sortName(y.artist)) || cmp(x.name, y.name));
+      grp = lab = it => it.year ? String(Math.floor(it.year / 10) * 10 % 100).padStart(2, "0") + "s" : "?";
+    }
+    else if (group === "recent") L.sort((x, y) => y.id - x.id);
+    const all = special.filter(match).map(it => ({ ...it, g: "\u0000", l: "♪" })).concat(L.map(it => ({ ...it, g: grp(it), l: lab ? lab(it) : "" })));
+    let s = 0; idx = [];
+    all.forEach((it, i) => {
+      if (i && it.g !== all[i - 1].g) s += GAP;
+      it.s = s; s += 1;
+      if (it.l && (!idx.length || idx[idx.length - 1].l !== it.l)) idx.push({ l: it.l, at: i });
+    });
+    items = all;
+    // keep the same album in the middle; the first time, start at what's playing
+    const cur = trackById(curId), want = atKey || (cur && cur.album);
+    const k = items.findIndex(it => it.key === want);
+    const firstAlbum = items.findIndex(it => !plOf(it.key) && it.key !== ALL);
+    c = items.length ? items[k >= 0 ? k : atKey ? Math.min(shown < 0 ? 0 : shown, items.length - 1) : Math.max(0, firstAlbum)].s : 0;
+    glide = null; v = 0; shown = -1;
+    $("cf-empty").hidden = !!items.length; if (!items.length) capT.textContent = capS.textContent = "";
+    idxEl.hidden = idx.length < 3;
+    idxEl.innerHTML = idx.map(e => `<span>${esc(e.l)}</span>`).join("");
+    live.forEach((el, key) => { if (!items.some(it => it.key === key)) { el.remove(); live.delete(key); } });
+  }
+  function fill(el, it) {
+    el._it = it;
+    const sig = it.name + "\n" + (it.cover || "");
+    if (el._sig === sig) return; el._sig = sig;
+    el.innerHTML = `<div class="cf-disc"><div class="cf-spin"><div class="cf-lbl"></div></div></div><div class="cf-sl">${it.cover ? "<img alt=\"\" draggable=\"false\">" : `<div class="ico">${it.icon}</div>`}</div>`;
+    if (it.cover) { el.querySelector("img").src = it.cover; el.querySelector(".cf-lbl").style.backgroundImage = `url("${String(it.cover).replace(/"/g, "%22")}")`; }
+  }
+  function paint() {
+    const playing = !audio.paused, cur = trackById(curId), curAlbum = cur && cur.album, R = (half - CG) / SP + 2.5;
+    const seen = new Set(); let best = -1, bd = 1e9;
+    items.forEach((it, i) => {
+      const d = it.s - c, a = Math.abs(d);
+      if (a < bd) { bd = a; best = i; }
+      if (a > R) return;
+      let el = live.get(it.key);
+      if (!el) { el = document.createElement("div"); el.className = "cf-it"; row.appendChild(el); live.set(it.key, el); }
+      fill(el, it); seen.add(it.key);
+      const t = Math.min(a, 1), sg = d < 0 ? -1 : 1, far = Math.max(0, a - 1);
+      const x = sg * (t * CG + far * SP), z = -t * W * .6 - far * 3, r = -sg * t * 60;
+      el.style.transform = `translate3d(${x.toFixed(1)}px,0,${z.toFixed(1)}px) rotateY(${r.toFixed(1)}deg)`;
+      el.style.zIndex = String(1000 - Math.round(a * 10));
+      el.style.setProperty("--pk", (W * (.11 + .21 * Math.max(0, 1 - a * 1.5))).toFixed(1));   // the record comes out of the middle sleeve
+      el.style.setProperty("--sh", Math.min(.5, t * .26 + far * .05).toFixed(2));
+      el.classList.toggle("live", playing && it.key === curAlbum);
+    });
+    live.forEach((el, key) => { if (!seen.has(key)) { el.remove(); live.delete(key); } });
+    if (best !== shown) {
+      shown = best; const it = items[best];
+      atKey = it ? it.key : atKey;
+      capT.textContent = it ? it.name : ""; capS.textContent = it ? it.sub : "";
+      let on = -1; idx.forEach((e, j) => { if (e.at <= best) on = j; });
+      [...idxEl.children].forEach((sp, j) => sp.classList.toggle("on", j === on));
+      if ((drag || glide) && performance.now() - tickAt > 45) { tickAt = performance.now(); haptic("select"); }   // a click per album going past, like the wheel
+    }
+  }
+  function step(now) {
+    raf = 0;
+    if (glide && !drag) {
+      const g = glide, u = Math.min(1, (now - g.t0) / g.T), u2 = u * u, u3 = u2 * u;
+      c = (2 * u3 - 3 * u2 + 1) * g.p0 + (u3 - 2 * u2 + u) * g.m0 + (-2 * u3 + 3 * u2) * g.p1;
+      v = ((6 * u2 - 6 * u) * g.p0 + (3 * u2 - 4 * u + 1) * g.m0 + (-6 * u2 + 6 * u) * g.p1) / g.T * 1000;
+      if (u >= 1) { c = g.p1; v = 0; glide = null; }
+    }
+    paint();
+    if (glide || drag) raf = requestAnimationFrame(step);
+    else if (pending) { pending = false; build(); paint(); }         // album info that came in while the row was moving
+  }
+  const go = () => { if (!raf) raf = requestAnimationFrame(step); };
+  function glideTo(p1, vel, T) {                                     // vel in slots/s; T in ms (picked from the distance and speed when left out)
+    const D = p1 - c; vel = vel || 0;
+    if (Math.abs(D) < .001 && Math.abs(vel) < .05) { c = p1; glide = null; go(); return; }
+    if (!T) T = vel * D > 0 ? Math.min(1100, Math.max(260, 2.4 * Math.abs(D) / Math.abs(vel) * 1000)) : 300 + 70 * Math.min(8, Math.sqrt(Math.abs(D)) * 2);
+    let m0 = vel * T / 1000;
+    if (m0 * D > 0 && Math.abs(m0) > 2.6 * Math.abs(D)) m0 = 2.6 * D;  // never overshoot the album it lands on
+    glide = { p0: c, p1, m0, T, t0: performance.now() }; go();
+  }
+  const SPX = () => (CG + SP) / 2;                                   // finger pixels per slot
+
+  stage.addEventListener("pointerdown", e => {
+    if (drag || (e.pointerType === "mouse" && e.button) || !items.length) return;
+    const el = e.target.closest(".cf-it"), moving = !!glide && Math.abs(v) > 1.5;
+    glide = null;                                                    // a touch catches the row where it is
+    drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, c0: c, moved: false, el, caught: moving, s: [[performance.now(), c]] };
+    if (el && !moving) drag.lp = setTimeout(() => {
+      if (!drag || drag.moved) return; drag.held = true; haptic("medium");
+      const it = el._it; if (Math.abs(it.s - c) > .3) glideTo(it.s, 0, 260);
+      tileMenu(el, it.key);
+    }, LONG_PRESS);
+  });
+  stage.addEventListener("pointermove", e => {
+    const d = drag; if (!d || e.pointerId !== d.id || d.held) return;
+    const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+    if (!d.moved) {
+      if (Math.hypot(dx, dy) < 7) return;
+      if (Math.abs(dy) > Math.abs(dx)) { clearTimeout(d.lp); drag = null; glideTo(items[nearest(c)].s); return; }   // a vertical move isn't ours
+      d.moved = true; clearTimeout(d.lp); d.x0 = e.clientX; try { stage.setPointerCapture(e.pointerId); } catch (er) {}
+    }
+    const lo = items[0].s, hi = items[items.length - 1].s;
+    let x = d.c0 - (e.clientX - d.x0) / SPX();
+    if (x < lo) x = lo - (lo - x) * .35; else if (x > hi) x = hi + (x - hi) * .35;   // the ends give a little, then pull back
+    c = x; const now = performance.now(); d.s.push([now, c]); while (d.s.length > 2 && now - d.s[0][0] > 110) d.s.shift();
+    go();
+  });
+  function release(e, cancel) {
+    const d = drag; if (!d || e.pointerId !== d.id) return;
+    clearTimeout(d.lp); drag = null;
+    if (d.held) return;
+    if (!d.moved) {
+      const it = d.el && d.el._it;
+      if (cancel || d.caught || !it) { glideTo(items[nearest(c)].s); return; }
+      if (Math.abs(it.s - c) < .3) open(it, d.el); else { haptic("select"); glideTo(it.s); }
+      return;
+    }
+    const now = performance.now(), a = d.s[0], dt = Math.max(16, now - a[0]);
+    let vel = now - d.s[d.s.length - 1][0] > 90 ? 0 : (c - a[1]) / dt * 1000;   // a finger that stopped before letting go throws nothing
+    vel = Math.max(-60, Math.min(60, vel));
+    glideTo(items[nearest(clampC(c + vel * .3))].s, vel);
+  }
+  stage.addEventListener("pointerup", e => release(e));
+  stage.addEventListener("pointercancel", e => release(e, true));
+  stage.addEventListener("contextmenu", e => e.preventDefault());
+  stage.addEventListener("wheel", e => {                             // trackpads and mouse wheels scroll the row
+    const dl = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY; if (!dl || !items.length) return;
+    e.preventDefault(); glide = null;
+    c = clampC(c + dl * (e.deltaMode ? 24 : 1) / SPX()); go();
+    clearTimeout(wheelT); wheelT = setTimeout(() => glideTo(items[nearest(c)].s), 130);
+  }, { passive: false });
+  function open(it, el) {
+    if (el) el.animate([{ scale: "1" }, { scale: ".95" }, { scale: "1" }], { duration: 220, easing: "ease-out" });
+    albumOrigin = null; currentCat = null; currentAlbum = it.key === ALL ? "All Tracks" : it.key; openTracklist();
+  }
+  // the index: touch a letter (or slide along them) to jump there
+  let idxOn = -1;
+  const idxPick = e => {
+    const r = idxEl.getBoundingClientRect(), k = Math.max(0, Math.min(idx.length - 1, Math.floor((e.clientX - r.left) / r.width * idx.length)));
+    if (k === idxOn || !idx[k]) return; idxOn = k; haptic("select"); glideTo(items[idx[k].at].s, 0, 240);
+  };
+  idxEl.addEventListener("pointerdown", e => { if (!idx.length) return; idxOn = -1; try { idxEl.setPointerCapture(e.pointerId); } catch (er) {} idxPick(e); });
+  idxEl.addEventListener("pointermove", e => { if (idxEl.hasPointerCapture && idxEl.hasPointerCapture(e.pointerId)) idxPick(e); });
+  // search
+  q.addEventListener("input", () => { $("cf-x").hidden = !q.value; build(); paint(); });
+  q.addEventListener("keydown", e => { if (e.key === "Enter") q.blur(); });
+  $("cf-x").addEventListener("click", () => { q.value = ""; $("cf-x").hidden = true; build(); paint(); });
+  const visible = () => !box.hidden && gridShown();
+  document.addEventListener("keydown", e => {
+    if (!visible() || e.target.closest && e.target.closest("input,textarea") || (e.key !== "ArrowLeft" && e.key !== "ArrowRight") || !items.length) return;
+    const i = Math.max(0, Math.min(items.length - 1, nearest(glide ? glide.p1 : c) + (e.key === "ArrowLeft" ? -1 : 1)));
+    e.preventDefault(); glideTo(items[i].s, v);
+  });
+  ["play", "pause", "emptied"].forEach(k => audio.addEventListener(k, () => { if (visible()) paint(); }));
+  new ResizeObserver(() => { if (box.hidden) return; const w = W; measure(); if (W !== w || stage.clientWidth) paint(); }).observe(stage);
+  return {
+    render() { measure(); if (drag || glide) { pending = true; return; } build(); paint(); },
+    drop(el) {                                                       // an album was hidden from its menu: it shrinks away, the row closes the gap
+      el.style.transition = "opacity .22s ease,scale .22s ease"; el.style.opacity = "0"; el.style.scale = ".8";
+      setTimeout(() => { renderAlbums(); }, 220);
+    },
+  };
+})();
 
 /* ---------- PLAYLISTS ----------
    Hold a song (anywhere in Library, or on an artist page) or swipe it right: a menu with Play next / Play last, your
@@ -1381,7 +1671,7 @@ function plPopClose() {
   el.classList.remove("show"); setTimeout(() => el.remove(), 260);
   document.removeEventListener("pointerdown", plOutside, true);
 }
-function plOutside(e) { if (plPop && !plPop.contains(e.target)) { plPopClose(); if (e.target.closest && e.target.closest(".sw,.album-card")) { e.stopPropagation(); e.preventDefault(); plSwallow(); } } }
+function plOutside(e) { if (plPop && !plPop.contains(e.target)) { plPopClose(); if (e.target.closest && e.target.closest(".sw,.album-card,.cf-stage")) { e.stopPropagation(); e.preventDefault(); plSwallow(); } } }
 function plSwallow() {                                               // the tap that closes the menu doesn't also open the song / album under it
   const eat = e => { e.stopPropagation(); e.preventDefault(); };
   document.addEventListener("click", eat, true); setTimeout(() => document.removeEventListener("click", eat, true), 450);
@@ -1538,6 +1828,7 @@ function setEdit(v) { editing = v; $("albums-shelf").classList.toggle("editing",
 $("edit-done").addEventListener("click", () => setEdit(false));
 $("albums-grid-wrapper").addEventListener("click", e => { if (editing && (e.target.id === "albums-grid-wrapper" || e.target.id === "albums-shelf")) setEdit(false); });
 function hideAlbum(card, name) {
+  if (card.classList.contains("cf-it")) { hiddenSet.add(name); saveHidden(); renderHidden(); flow.drop(card); toast("Hidden from Library"); return; }
   card.style.transition = "transform .26s var(--ease),opacity .2s ease"; card.style.transform = "scale(.7)"; card.style.opacity = "0";
   setTimeout(() => {
     hiddenSet.add(name); saveHidden(); renderHidden();
@@ -3020,6 +3311,11 @@ const bubble = (() => {
   return { set, get on() { return on; }, _state: () => ({ x, y, e, q, M: { ...M }, W, H }) };
 })();
 /* Liquid Bubble is the panel; "Old panel" (Settings > More) brings back the previous flat glass panel */
+$("flow-switch").setAttribute("aria-checked", String(flowOn()));
+$("flow-switch").addEventListener("click", () => {                  // Settings > More: Library as Cover Flow, or as the grid
+  store.set("libView", flowOn() ? "grid" : "flow"); $("flow-switch").setAttribute("aria-checked", String(flowOn())); haptic("light");
+  setEdit(false); if (albumsGridWrapper.style.display === "block") { renderAlbums(); showOnly(albumsGridWrapper); }
+});
 $("old-panel-switch").addEventListener("click", () => { const old = bubble.on; store.set("oldPanel", old ? "1" : "0"); bubble.set(!old, true); haptic("light"); });
 $("more-toggle").addEventListener("click", () => { const b = $("more-box"), open = b.hidden; b.hidden = !open; $("more-toggle").setAttribute("aria-expanded", String(open)); haptic("light"); });
 bubble.set(store.get("oldPanel") !== "1", false);
