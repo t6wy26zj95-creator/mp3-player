@@ -46,7 +46,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .drop-zone{border:1px dashed rgba(255,255,255,.2);border-radius:16px;padding:30px;text-align:center;color:rgba(255,255,255,.6);font-size:14px;cursor:pointer;background:rgba(255,255,255,.02)}
 .drop-zone:active{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.4);color:#fff}
 
-.albums-grid-container{max-height:240px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.albums-grid-container{max-height:min(240px,var(--room,240px));overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .albums-grid-container::-webkit-scrollbar{display:none}
 .albums-grid{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:10px;align-items:start}
 .album-card{position:relative;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;width:100%;min-width:0;cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -170,8 +170,8 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .back-btn:active{color:#fff;background:rgba(255,255,255,.05)}
 .back-btn svg{width:14px;height:14px;fill:currentColor}
 
-.scroll-container-wrapper{position:relative;max-height:280px;padding-bottom:10px}
-.playlist-container,.queue-container{max-height:240px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+.scroll-container-wrapper{position:relative;max-height:min(280px,calc(var(--room,280px) + 10px));padding-bottom:10px}
+.playlist-container,.queue-container{max-height:min(240px,calc(var(--room,284px) - 44px));overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
   padding:6px 10px;margin:-6px -10px}                                 /* room round the edges, so a song lifted to drag isn't cut off */
 .playlist-container::-webkit-scrollbar,.queue-container::-webkit-scrollbar{display:none}
 
@@ -192,17 +192,6 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .album-card img{background:rgba(255,255,255,.06)}
 .gear-btn{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);right:20px;width:42px;height:42px;background:rgba(15,23,30,.4);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:11;opacity:.75}
 .gear-btn svg{width:18px;height:18px;fill:rgba(255,255,255,.8)}
-.floating-customizer{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 74px);right:20px;width:min(280px,calc(100% - 40px));background:rgba(15,23,30,.65);backdrop-filter:blur(30px) saturate(160%);-webkit-backdrop-filter:blur(30px) saturate(160%);
-  border:1px solid rgba(255,255,255,.12);border-top:1px solid rgba(255,255,255,.3);border-radius:16px;padding:14px;box-sizing:border-box;box-shadow:0 15px 35px rgba(0,0,0,.4);z-index:10;display:flex;flex-direction:column;gap:12px;
-  opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .2s ease,transform .2s ease}
-.floating-customizer.active{opacity:1;pointer-events:auto;transform:none}
-.wallpaper-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
-.wall-thumb{height:36px;border-radius:8px;cursor:pointer;border:1px solid rgba(255,255,255,.15);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font-size:14px}
-.wall-thumb.active{border-color:#fff;box-shadow:0 0 10px rgba(255,255,255,.3)}
-.upload-btn{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff;font:600 13px -apple-system,system-ui,sans-serif;cursor:pointer}
-.upload-btn:active{background:rgba(255,255,255,.22)}
-.upload-btn:disabled{cursor:default}
-.upload-btn.ghost{background:none;border-color:transparent;color:rgba(255,255,255,.6);font-weight:500;padding:6px}
 .track-artist{cursor:pointer}
 #track-artist::after{content:" ›";opacity:.5}
 
@@ -230,8 +219,6 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .disc-h{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);padding:12px 12px 4px}
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);transform:translateX(-50%) translateY(10px);background:rgba(15,23,30,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);padding:10px 16px;border-radius:14px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:30;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%)}
-.slider-setting{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.6)}
-.slider-setting input{width:130px}
 
 .del-badge{position:absolute;top:-7px;left:-7px;z-index:6;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.2);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);
   border:1px solid rgba(255,255,255,.4);box-shadow:0 3px 8px rgba(0,0,0,.35),inset 0 0 2px rgba(255,255,255,.3);cursor:pointer;
@@ -239,32 +226,26 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .del-badge::before{content:'';position:absolute;left:50%;top:50%;width:10px;height:2px;margin:-1px 0 0 -5px;border-radius:1px;background:#fff}
 .del-badge:active{background:rgba(255,255,255,.38)}
 .albums-grid.editing .del-badge{opacity:1;transform:none;pointer-events:auto;transition-delay:calc(var(--j,0) * 22ms)}
-.hidden-toggle{display:flex;align-items:center;justify-content:center;gap:6px;align-self:flex-start;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:12px;color:#fff;padding:8px 12px;cursor:pointer;font:600 12px -apple-system,system-ui,sans-serif}
-.hidden-toggle svg{width:18px;height:18px;fill:rgba(255,255,255,.85)}
-.hidden-list{max-height:190px;overflow-y:auto;scrollbar-width:none}
-.hidden-row{display:flex;align-items:center;gap:10px;padding:6px 0}
-.hidden-row .item-art{width:34px;height:34px}
-.hidden-row .nm{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hidden-row button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:10px;padding:6px 10px;font:600 11px -apple-system,system-ui,sans-serif;cursor:pointer}
-.hidden-empty{font-size:12px;color:rgba(255,255,255,.45);text-align:center;padding:10px}
 :root{--ease:cubic-bezier(.22,1,.36,1);--dur:.4s}
 @keyframes viewIn{from{opacity:0;transform:translate(var(--dx,0),var(--dy,0))}to{opacity:1;transform:none}}
 .v-in{animation:viewIn .34s var(--ease) both}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:var(--o,1);transform:none}}
 .card-in{animation:cardIn .36s var(--ease) backwards}
-.player-btn,.tab-btn,.chip,.circle-btn,.upload-btn,.back-btn,.hidden-toggle,.done-btn{transition:background .22s var(--ease),color .22s var(--ease),transform .18s var(--ease),border-color .22s var(--ease),opacity .22s var(--ease)}
+.player-btn,.tab-btn,.chip,.circle-btn,.set-pill,.set-x,.back-btn,.done-btn{transition:background .22s var(--ease),color .22s var(--ease),transform .18s var(--ease),border-color .22s var(--ease),opacity .22s var(--ease)}
 .playlist-item,.queue-item,.hidden-row{transition:background .22s var(--ease),opacity .3s var(--ease)}
 .album-card img,.album-card .all-tracks-icon{transition:transform .28s var(--ease),opacity .3s ease,box-shadow .28s var(--ease)}
 #track-art-img{transition:opacity .3s ease}
-.floating-customizer{transition:opacity .26s var(--ease),transform .3s var(--ease)!important}
 .toast{transition:opacity .28s var(--ease),transform .32s var(--ease)!important}
 .albums-grid.editing .album-card[data-key]:not(.lifted)>img,.albums-grid.editing .album-card[data-key]:not(.lifted)>.all-tracks-icon{animation:jig .34s ease-in-out infinite alternate;animation-delay:calc(var(--j,0) * -.13s)}
 @keyframes jig{0%{transform:rotate(-.9deg)}100%{transform:rotate(.9deg)}}
-@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* Reduce Motion: no transitions at all (not a .01ms one: that gave EVERY element a transition on every property, and
+   while one runs the browser reports the old size, so the big player measured its layout wrong and opened too tall) */
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
 
 /* ===== one idea: clear glass + the cover's own glow. Tilt only moves that glow (and the wallpaper a hair). ===== */
 :root{--inset:10px;--glass-blur:blur(3px) saturate(150%) brightness(.92);--cw:114px;--art-x:24px}   /* --cw = prev+play+next width (3x34 + 2x6); cover (66px) is centred over that group */
-.player-wrapper{background:linear-gradient(rgba(6,18,26,.13),rgba(6,18,26,.13)),var(--glass-bg)}
+/* --scrim: a darker tint on a light wallpaper (set by wallTone), so white text stays readable */
+.player-wrapper{background:linear-gradient(rgba(6,18,26,max(.13,var(--scrim,0))),rgba(6,18,26,max(.13,var(--scrim,0)))),var(--glass-bg)}
 .bg-container{transform:scale(1.04);will-change:transform}   /* the tilt parallax is set inline by JS (a plain transform: the compositor moves it, nothing is restyled) */
 /* the two soft glows behind the cover change every frame, but only in transform and opacity: on their own layers they are
    blurred once and then just moved and faded by the GPU instead of being re-blurred 30-60 times a second */
@@ -303,7 +284,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .item-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;overflow:hidden;overflow-wrap:anywhere;line-height:1.25}
 
 /* artist page: fixed viewport so the panel never resizes while data arrives; skeletons hold the space */
-.artist-scroll{height:450px}
+.artist-scroll{height:min(450px,calc(var(--room,494px) - 44px))}
 .artist-hero-img{opacity:0;transition:opacity .5s var(--ease)}
 .artist-hero-img.ready{opacity:1}
 .sk{background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.12),rgba(255,255,255,.05));background-size:200% 100%;animation:skm 1.4s linear infinite;border-radius:12px}
@@ -381,13 +362,12 @@ html.tg .bg-container{height:calc(100% + var(--bgm,0px) * 2)}
 html.tg body{--tg-top:max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px));--tg-bot:max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px));
   padding-top:calc(var(--tg-top) + var(--tg-content-safe-area-inset-top,0px) + 16px);overscroll-behavior:none}
 html.tg .gear-btn{bottom:calc(var(--tg-bot) + 20px)}
-html.tg .floating-customizer{bottom:calc(var(--tg-bot) + 74px)}
 html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 
 /* ===== Queue =====
    History (dimmed) above, the song playing now, then the queue (drag the handle to reorder). */
 #queue-wrapper{max-height:none}
-.queue-container{position:relative;max-height:300px;margin:-10px -20px 0;padding:10px 20px 6px}
+.queue-container{position:relative;max-height:min(300px,calc(var(--room,310px) - 10px));margin:-10px -20px 0;padding:10px 20px 6px}
 .q-sec{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:26px;font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);padding:12px 12px 4px}
 .q-sec:first-child{padding-top:2px}
 .q-sec span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -505,7 +485,7 @@ html.bubble .bubble-skin,html.bubble .bubble-svg,html.bubble .bubble-gl{display:
 .bubble-svg{transition:opacity .7s var(--ease)}
 html.bubble.gl-glass .bubble-gl{opacity:1}
 html.bubble.gl-glass .bubble-svg{opacity:0}
-.bubble-skin{background:linear-gradient(rgba(6,18,26,.1),rgba(6,18,26,.1));   /* clear glass: a light blur and a faint tint, no milky sheen */
+.bubble-skin{background:linear-gradient(rgba(6,18,26,max(.1,var(--scrim,0))),rgba(6,18,26,max(.1,var(--scrim,0))));   /* clear glass: a light blur and a faint tint, no milky sheen */
   backdrop-filter:blur(2px) saturate(135%) brightness(.94);-webkit-backdrop-filter:blur(2px) saturate(135%) brightness(.94)}
 .bubble-svg{overflow:visible;border-radius:0}
 /* once the WebGL glass has faded in it draws the whole glass (blur and tint included), so the CSS backdrop blur beneath it
@@ -519,15 +499,6 @@ html.bubble .player-wrapper{background:transparent;border-color:transparent;back
 html.bubble .player-wrapper::before{display:none}
 html.bubble body{touch-action:none}                                /* a pull that starts just outside the panel must not scroll the page */
 html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-grid-container,.artist-scroll){touch-action:pan-y}
-/* Settings: switch row */
-.set-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:rgba(255,255,255,.75)}
-.set-row small{display:block;font-size:10px;color:rgba(255,255,255,.4);margin-top:2px}
-/* Settings: "More" tucks away rarely used options */
-.more-toggle{display:flex;align-items:center;justify-content:center;gap:2px;align-self:center;background:none;border:0;color:rgba(255,255,255,.4);font:500 11px -apple-system,system-ui,sans-serif;padding:2px 8px;cursor:pointer}
-.more-toggle svg{width:14px;height:14px;fill:currentColor;transition:transform .3s var(--ease)}
-.more-toggle[aria-expanded="true"] svg{transform:rotate(180deg)}
-.more-box{padding-top:2px;border-top:1px solid rgba(255,255,255,.08);padding-top:10px}
-.more-box[hidden]{display:none}
 .switch{position:relative;width:46px;height:28px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);padding:0;cursor:pointer;flex-shrink:0;
   transition:background .3s var(--ease),border-color .3s var(--ease)}
 .switch i{position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:999px;background:linear-gradient(#fff,#e3ecf0);box-shadow:0 2px 6px rgba(0,0,0,.35);
@@ -708,10 +679,10 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .lyr-credit{font-size:10.5px;color:rgba(255,255,255,.35);margin-top:26px}
 /* Library / Artists / Queue opened from the expanded player: the lists grow to fill the tall panel (a sheet under the
    now-playing row); closing the section brings the big player back */
-.player-wrapper.sheet :is(.playlist-container){max-height:var(--sheet-h,240px)}
-.player-wrapper.sheet :is(.albums-grid-container,.queue-container){max-height:calc(var(--sheet-h,240px) + 44px)}
-.player-wrapper.sheet #artists-wrapper{max-height:calc(var(--sheet-h,240px) + 44px)!important}
-.player-wrapper.sheet .artist-scroll{height:var(--sheet-h,450px);max-height:var(--sheet-h,450px)}
+.player-wrapper.sheet :is(.playlist-container){max-height:min(var(--sheet-h,240px),calc(var(--room,2000px) - 44px))}
+.player-wrapper.sheet :is(.albums-grid-container,.queue-container){max-height:min(calc(var(--sheet-h,240px) + 44px),calc(var(--room,2000px) - 10px))}
+.player-wrapper.sheet #artists-wrapper{max-height:min(calc(var(--sheet-h,240px) + 44px),var(--room,2000px))!important}
+.player-wrapper.sheet .artist-scroll{height:min(var(--sheet-h,450px),calc(var(--room,2000px) - 44px));max-height:min(var(--sheet-h,450px),calc(var(--room,2000px) - 44px))}
 .player-wrapper.sheet .scroll-container-wrapper{max-height:none}
 /* Sound (retro) setting: a small segmented control; the big player names the sound after the album line */
 .switch.busy[aria-checked="true"]{animation:swBusy 1.1s ease-in-out infinite alternate}
@@ -719,6 +690,83 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-fx{color:rgb(232,196,140)}
 .safe-probe{position:fixed;left:0;bottom:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom,0px)}
 html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px))}
+/* ===== a phone on its side (short screens) =====
+   Everything has to fit the height: the lists in the drawer are capped to the room left under the player (--room, set
+   by fitRoom), the Library shows five smaller covers a row, and the big player puts its cover beside the controls
+   (.xp.land, laid out by XP's layout()). */
+@media (orientation:landscape) and (max-height:500px){
+  body{padding-top:calc(env(safe-area-inset-top,0px) + 12px)}
+  .albums-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+  .cf{padding-bottom:4px}
+}
+.xp.land .xp-top{display:grid;grid-template-columns:var(--xs,200px) minmax(0,1fr);grid-template-rows:auto auto auto auto 1fr;column-gap:28px;padding:6px 22px 0}
+.xp.land .xp-handle{grid-column:1/-1;justify-self:center}
+.xp.land .xp-slot{grid-column:1;grid-row:2/span 4;margin:4px 0 0}
+.xp.land .xp-meta{grid-column:2;grid-row:2;margin-top:8px}
+.xp.land .xp-scrub{grid-column:2;grid-row:3;margin-top:14px}
+.xp.land .xp-ctrls{grid-column:2;grid-row:4;margin-top:8px}
+.xp.land .xp-bottom{left:calc(var(--xs,200px) + 30px)}
+.xp.land .xp-strip{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent)}
+/* ===== Settings: one titled sheet in the panel's glass =====
+   Sections in the order you set things up (Wallpaper, Library, Sound effect, Appearance), rows of one height and one
+   type scale, grouped in rounded cards. It always fits the screen and scrolls inside itself; the dimmed layer under it
+   takes the tap that closes it, so that tap never presses anything underneath. */
+.set-ov{position:fixed;inset:0;z-index:12;background:rgba(3,10,14,.42);opacity:0;pointer-events:none;transition:opacity .26s var(--ease);touch-action:none}
+.set-ov.show{opacity:1;pointer-events:auto}
+.floating-customizer{position:fixed;z-index:13;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);width:min(420px,calc(100% - 24px));
+  max-height:calc(100% - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 24px);display:flex;flex-direction:column;box-sizing:border-box;
+  border-radius:28px;background:linear-gradient(rgba(10,24,32,max(.72,var(--scrim,0))),rgba(10,24,32,max(.72,var(--scrim,0))));
+  backdrop-filter:blur(30px) saturate(160%);-webkit-backdrop-filter:blur(30px) saturate(160%);
+  border:1px solid rgba(255,255,255,.14);border-top-color:rgba(255,255,255,.34);box-shadow:0 24px 60px rgba(0,0,0,.45),0 4px 16px rgba(0,0,0,.2),inset 0 0 2px rgba(255,255,255,.18);
+  color:#fff;opacity:0;pointer-events:none;transform:translate(-50%,18px) scale(.98);transform-origin:50% 100%;transition:opacity .26s var(--ease),transform .34s var(--ease)}
+.floating-customizer.active{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+html.tg .floating-customizer{bottom:calc(var(--tg-bot) + 12px);max-height:calc(100% - var(--tg-top) - var(--tg-content-safe-area-inset-top,0px) - var(--tg-bot) - 24px)}
+.set-head{display:flex;align-items:center;justify-content:space-between;padding:16px 14px 6px 20px;flex-shrink:0}
+.set-head h2{margin:0;font:600 17px -apple-system,system-ui,sans-serif;letter-spacing:-.2px}
+.set-x{width:30px;height:30px;border-radius:50%;border:0;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.set-x svg{width:16px;height:16px;fill:rgba(255,255,255,.8)}
+.set-x:active{background:rgba(255,255,255,.22)}
+.set-body{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 14px 14px;scrollbar-width:none;touch-action:pan-y}
+.set-body::-webkit-scrollbar{display:none}
+.set-h{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.55);padding:14px 6px 6px}
+.set-group{border-radius:16px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);overflow:hidden}
+.set-row{display:flex;align-items:center;gap:12px;width:100%;min-height:50px;padding:8px 14px;box-sizing:border-box;border:0;background:none;color:#fff;text-align:left;
+  font:500 15px -apple-system,system-ui,sans-serif;cursor:default;position:relative}
+.set-row+.set-row,.set-row+.hidden-list,.hidden-list+.set-row{box-shadow:inset 0 1px rgba(255,255,255,.08)}
+.set-row[hidden]{display:none}
+button.set-row{cursor:pointer}
+button.set-row:active{background:rgba(255,255,255,.08)}
+.set-l{flex:1;min-width:0}
+.set-l small{display:block;font-size:12px;font-weight:400;line-height:1.3;color:rgba(255,255,255,.55);margin-top:2px}
+.set-v{flex-shrink:0;font-size:15px;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
+.set-chev{width:20px;height:20px;flex-shrink:0;margin-left:-6px;fill:rgba(255,255,255,.45);transition:transform .3s var(--ease)}
+[aria-expanded="true"]>.set-chev{transform:rotate(180deg)}
+.set-link{color:rgb(120,222,202)}
+.set-link:disabled{color:rgba(255,255,255,.55);cursor:default}
+.set-pill{flex-shrink:0;height:32px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.12);color:#fff;font:600 13px -apple-system,system-ui,sans-serif;cursor:pointer}
+.set-pill:active{background:rgba(255,255,255,.24)}
+.set-wall{width:34px;height:34px;flex-shrink:0;border-radius:9px;background:#1d4e5f center/cover no-repeat;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+.set-slide{flex-wrap:wrap;row-gap:4px;padding-bottom:12px}
+.set-slide input{flex-basis:100%;margin:0;height:28px;background:none;-webkit-appearance:none;appearance:none;cursor:pointer;touch-action:none}
+.set-slide input::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,#fff var(--v,0%),rgba(255,255,255,.18) var(--v,0%))}
+.set-slide input::-moz-range-track{height:4px;border-radius:2px;background:linear-gradient(90deg,#fff var(--v,0%),rgba(255,255,255,.18) var(--v,0%))}
+.set-slide input::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.set-slide input::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+/* the sound effect: one choice, with a check */
+.set-ck{width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6);transition:opacity .2s var(--ease),transform .3s cubic-bezier(.34,1.56,.64,1)}
+.set-ck svg{width:20px;height:20px;fill:rgb(120,222,202)}
+.set-radio[aria-checked="true"] .set-ck{opacity:1;transform:none}
+.set-radio.busy .set-ck{animation:ckBusy 1.1s ease-in-out infinite alternate}
+@keyframes ckBusy{from{opacity:.35}to{opacity:1}}
+/* hidden albums, listed inside their row's card */
+.hidden-list{max-height:216px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;padding:2px 14px 8px}
+.hidden-list::-webkit-scrollbar{display:none}
+.hidden-row{display:flex;align-items:center;gap:12px;padding:6px 0;cursor:pointer}
+.hidden-row .item-art{width:36px;height:36px;border-radius:8px}
+.hidden-row .nm{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hidden-row button{flex-shrink:0;height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.12);color:#fff;font:600 12px -apple-system,system-ui,sans-serif;cursor:pointer}
+.hidden-empty{font-size:13px;color:rgba(255,255,255,.5);padding:8px 0 4px}
+.gear-btn.on{opacity:1;background:rgba(255,255,255,.18)}
 </style>
 </head>
 <body>
@@ -789,7 +837,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
     <div class="scroll-container-wrapper" id="queue-wrapper" style="display:none;">
       <div class="queue-container" id="queue-ui"></div>
     </div>
-    <div class="albums-grid-container" id="artists-wrapper" style="display:none;max-height:360px;">
+    <div class="albums-grid-container" id="artists-wrapper" style="display:none;max-height:min(360px,var(--room,360px));">
       <div class="albums-grid" id="artists-shelf"></div>
     </div>
     <div class="scroll-container-wrapper" id="artist-wrapper" style="display:none;max-height:none;padding-bottom:0;">
@@ -849,22 +897,36 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
 <div class="gear-btn" id="gear-trigger">
   <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12c0,0.32,0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.5c-1.93,0-3.5-1.57-3.5-3.5 c0-1.93,1.57-3.5,3.5-3.5s3.5,1.57,3.5,3.5C15.5,13.93,13.93,15.5,12,15.5z"/></svg>
 </div>
-<div class="floating-customizer" id="settings-panel">
-  <div class="slider-setting"><span>Bg Blur</span><input type="range" id="blur-slider" min="0" max="30" step="1" value="0"></div>
-  <button class="upload-btn" id="upload-wall">Upload wallpaper</button>
-  <button class="upload-btn ghost" id="reset-wall">Use default wallpaper</button>
-  <button class="upload-btn" id="motion-btn" style="display:none">Enable tilt effect</button>
-  <button class="upload-btn" id="home-btn" style="display:none">Add to Home Screen</button>
-  <button class="hidden-toggle" id="hidden-toggle" aria-label="Hidden Albums" title="Hidden Albums"><svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2z"/></svg><span id="hidden-count"></span></button>
-  <div class="hidden-list" id="hidden-list" style="display:none"></div>
-  <button class="more-toggle" id="more-toggle" aria-expanded="false">More<svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
-  <div class="more-box" id="more-box" hidden><div id="retro-sw">
-    <div class="set-row"><span>Old panel</span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Old panel"><i></i></button></div>
-    <div class="set-row" style="margin-top:10px"><span>Cover Flow library<small>Off: the album grid, where you drag albums into your order</small></span><button class="switch" id="flow-switch" role="switch" aria-checked="false" aria-label="Cover Flow library"><i></i></button></div>
-    <div class="set-row" style="margin-top:10px"><span>Gramophone</span><button class="switch" data-m="gram" role="switch" aria-checked="false" aria-label="Gramophone"><i></i></button></div>
-    <div class="set-row" style="margin-top:10px"><span>Old radio</span><button class="switch" data-m="radio" role="switch" aria-checked="false" aria-label="Old radio"><i></i></button></div>
-    <div class="set-row" style="margin-top:10px"><span>Vinyl</span><button class="switch" data-m="vinyl" role="switch" aria-checked="false" aria-label="Vinyl"><i></i></button></div>
-  </div></div>
+<div class="set-ov" id="settings-ov"></div>
+<div class="floating-customizer" id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="set-title">
+  <div class="set-head"><h2 id="set-title">Settings</h2><button class="set-x" id="settings-close" aria-label="Close settings"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
+  <div class="set-body">
+    <div class="set-h">Wallpaper</div>
+    <div class="set-group">
+      <div class="set-row"><i class="set-wall" id="wall-thumb"></i><span class="set-l">Wallpaper<small id="wall-name">Default</small></span><button class="set-pill" id="upload-wall">Change</button></div>
+      <button class="set-row set-link" id="reset-wall" hidden>Use the default wallpaper</button>
+      <div class="set-row set-slide"><span class="set-l">Blur</span><span class="set-v" id="blur-val">Off</span><input type="range" id="blur-slider" min="0" max="30" step="1" value="0" aria-label="Wallpaper blur"></div>
+    </div>
+    <div class="set-h">Library</div>
+    <div class="set-group">
+      <div class="set-row"><span class="set-l">Cover Flow<small>Albums in one row that you flip through, instead of the grid</small></span><button class="switch" id="flow-switch" role="switch" aria-checked="false" aria-label="Cover Flow"><i></i></button></div>
+      <button class="set-row" id="hidden-toggle" aria-expanded="false" aria-controls="hidden-list"><span class="set-l">Hidden albums</span><span class="set-v" id="hidden-count">None</span><svg class="set-chev" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
+      <div class="hidden-list" id="hidden-list" style="display:none"></div>
+    </div>
+    <div class="set-h">Sound effect</div>
+    <div class="set-group" id="retro-sw" role="radiogroup" aria-label="Sound effect">
+      <button class="set-row set-radio" data-m="off" role="radio" aria-checked="false"><span class="set-l">None<small>Your songs as they are</small></span><i class="set-ck"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></i></button>
+      <button class="set-row set-radio" data-m="gram" role="radio" aria-checked="false"><span class="set-l">Gramophone</span><i class="set-ck"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></i></button>
+      <button class="set-row set-radio" data-m="radio" role="radio" aria-checked="false"><span class="set-l">Old radio</span><i class="set-ck"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></i></button>
+      <button class="set-row set-radio" data-m="vinyl" role="radio" aria-checked="false"><span class="set-l">Vinyl</span><i class="set-ck"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></i></button>
+    </div>
+    <div class="set-h">Appearance</div>
+    <div class="set-group">
+      <div class="set-row"><span class="set-l">Classic panel<small>Plain frosted glass instead of Liquid Glass</small></span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Classic panel"><i></i></button></div>
+      <div class="set-row" id="motion-btn" style="display:none"><span class="set-l">Tilt effect<small>The light on the cover follows your phone</small></span><button class="set-pill">Turn on</button></div>
+      <button class="set-row set-link" id="home-btn" style="display:none">Add to Home Screen</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -983,6 +1045,31 @@ function applyBg() {
     root.backgroundPosition = `center, ${pos}, center`;
   }
   if (window.__bgChanged) window.__bgChanged();                     // the Liquid Glass panel draws the wallpaper itself
+  wallTone(custom || DEFAULT_WALL);
+  $("wall-thumb").style.backgroundImage = `url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;   // Settings: which wallpaper is on
+  $("wall-name").textContent = custom ? "Your photo" : "Default";
+  $("reset-wall").hidden = !custom;
+}
+/* How bright the wallpaper is where you see it: a light photo gets a darker tint on the glass (--scrim), so white text
+   stays readable. The Liquid Glass panel also darkens bright spots pixel by pixel (see glassy in its shader); this is the
+   same idea for the CSS glass (Old panel, and the moment before the Liquid Glass is ready). */
+function wallTone(src) {
+  if (wallTone.src === src) return; wallTone.src = src;
+  const im = new Image(); im.crossOrigin = "anonymous";
+  im.onload = () => {
+    if (wallTone.src !== src) return;
+    try {
+      const W = 40, H = Math.max(20, Math.round(W * innerHeight / Math.max(1, innerWidth))), c = document.createElement("canvas"); c.width = W; c.height = H;
+      const x = c.getContext("2d", { willReadFrequently: true }), k = Math.max(W / im.width, H / im.height);   // the part a "cover" wallpaper shows
+      x.drawImage(im, (W - im.width * k) / 2, (H - im.height * k) / 2, im.width * k, im.height * k);
+      const d = x.getImageData(0, 0, W, H).data, ls = [];
+      for (let i = 0; i < d.length; i += 4) ls.push((.2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2]) / 255 * .94);
+      ls.sort((a, b) => a - b);
+      const hi = ls[Math.floor(ls.length * .85)];                     // the bright parts, not the average: text must read over them too
+      document.documentElement.style.setProperty("--scrim", Math.max(0, Math.min(.72, 1 - .34 / Math.max(hi, .01))).toFixed(3));
+    } catch (e) { document.documentElement.style.removeProperty("--scrim"); }   // a wallpaper we may not read (no CORS): the plain tint
+  };
+  im.src = src;
 }
 /* the wallpaper's tilt parallax (a plain transform, moved by the compositor). Light mode keeps it still: a moving
    wallpaper makes the browser re-blur everything behind the glass panel on every frame. The glass edge (WebGL) is drawn
@@ -1001,7 +1088,7 @@ PERF.on(v => {                                                       // glide th
   requestAnimationFrame(step);
 });
 $("upload-wall").addEventListener("click", () => $("photo-input").click());
-$("reset-wall").addEventListener("click", () => { store.set("photoData", ""); applyBg(); });
+$("reset-wall").addEventListener("click", () => { store.set("photoData", ""); applyBg(); haptic("light"); });
 $("photo-input").addEventListener("change", e => {
   const f = e.target.files[0]; if (!f) return;
   const img = new Image(), u = URL.createObjectURL(f);
@@ -1016,12 +1103,25 @@ $("photo-input").addEventListener("change", e => {
 });
 const blurSlider = $("blur-slider");
 blurSlider.value = store.get("wallpaperBlur") || "0";
-blurSlider.addEventListener("input", e => { store.set("wallpaperBlur", e.target.value); applyBg(); });
-const gearBtn = $("gear-trigger"), settingsPanel = $("settings-panel");
-gearBtn.addEventListener("click", () => settingsPanel.classList.toggle("active"));
-document.addEventListener("click", e => {
-  if (!settingsPanel.contains(e.target) && !gearBtn.contains(e.target)) settingsPanel.classList.remove("active");
-});
+const blurShow = () => { const v = +blurSlider.value; $("blur-val").textContent = v ? String(v) : "Off"; blurSlider.style.setProperty("--v", (v / +blurSlider.max * 100).toFixed(1) + "%"); };
+blurSlider.addEventListener("input", e => { store.set("wallpaperBlur", e.target.value); blurShow(); applyBg(); });
+blurShow();
+/* Settings opens as a sheet over a dimmed layer: a tap on that layer (or ✕, Escape, the gear) closes it, and only closes
+   it: the tap never reaches the player underneath. Anything that opens or closes it just toggles .active on the sheet. */
+const gearBtn = $("gear-trigger"), settingsPanel = $("settings-panel"), settingsOv = $("settings-ov");
+const settingsOpen = v => { settingsPanel.classList.toggle("active", v); };
+gearBtn.addEventListener("click", () => { settingsOpen(!settingsPanel.classList.contains("active")); haptic("light"); });
+settingsOv.addEventListener("click", () => settingsOpen(false));
+settingsOv.addEventListener("pointerdown", e => e.preventDefault());
+$("settings-close").addEventListener("click", () => { settingsOpen(false); haptic("light"); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && settingsPanel.classList.contains("active")) { e.stopImmediatePropagation(); settingsOpen(false); } }, true);
+new MutationObserver(() => {
+  const on = settingsPanel.classList.contains("active");
+  settingsOv.classList.toggle("show", on); gearBtn.classList.toggle("on", on);
+  settingsPanel.setAttribute("aria-hidden", String(!on)); settingsPanel.inert = !on;
+  if (on) settingsPanel.querySelector(".set-body").scrollTop = 0;
+}).observe(settingsPanel, { attributes: true, attributeFilter: ["class"] });
+settingsPanel.setAttribute("aria-hidden", "true"); settingsPanel.inert = true;
 applyBg();
 
 /* ---------- SLIDER (mouse + touch) ---------- */
@@ -1408,7 +1508,8 @@ const flow = (() => {
 
   function measure() {                                               // cover size from the row's width (the row is hidden while the Library is closed)
     const w = stage.clientWidth || (document.querySelector(".player-wrapper").clientWidth || 380);
-    const nw = Math.round(Math.min(150, Math.max(96, w * .34)));
+    const room = parseFloat(document.querySelector(".player-wrapper").style.getPropertyValue("--room")) || 1e4;   // a short screen: covers small enough to fit under the player
+    const nw = Math.round(Math.max(64, Math.min(150, Math.max(96, w * .34), (room - 72) / 1.3)));
     half = w / 2; if (nw !== W) { W = nw; box.style.setProperty("--fw", W + "px"); }
     CG = W * .66; SP = W * .3;                                       // middle -> first side cover, then the step between side covers
   }
@@ -1765,7 +1866,7 @@ function hideAlbum(card, name) {
   }, 230);
 }
 function renderHidden() {
-  const names = [...hiddenSet], box = $("hidden-list"); $("hidden-count").textContent = names.length || "";
+  const names = [...hiddenSet], box = $("hidden-list"); $("hidden-count").textContent = names.length || "None";
   box.innerHTML = ""; if (!names.length) { box.innerHTML = '<div class="hidden-empty">No hidden albums</div>'; return; }
 
   names.forEach(n => {
@@ -1780,7 +1881,7 @@ function renderHidden() {
     row.appendChild(b); box.appendChild(row);
   });
 }
-$("hidden-toggle").addEventListener("click", () => { const l = $("hidden-list"); l.style.display = l.style.display === "none" ? "block" : "none"; renderHidden(); });
+$("hidden-toggle").addEventListener("click", () => { const l = $("hidden-list"), open = l.style.display === "none"; l.style.display = open ? "block" : "none"; $("hidden-toggle").setAttribute("aria-expanded", String(open)); renderHidden(); haptic("light"); });
 renderHidden();
 document.addEventListener("touchmove", e => { if (drag && drag.active) e.preventDefault(); }, { passive: false });
 const cardsOf = () => [...$("albums-shelf").querySelectorAll(".album-card[data-key]")];
@@ -2325,7 +2426,7 @@ function loadTrack(id, autoplay, o = {}) {
   const dir = songDir; songDir = 0;
   const anim = !!autoplay && curId !== null && curId !== id && songOut(dir);   // the old title leaves before the new one is written
   if (curId !== null && curId !== id && curPlayed && !o.back && !o.noHist) pushHistory(curId, nowFrom);
-  nowFrom = o.from || "other"; curPlayed = false; pendingSeek = null;
+  nowFrom = o.from || "other"; curPlayed = false; pendingSeek = null; badFor = null;
   if (resumeAt && resumeAt.id !== id) resumeAt = null;
   curId = id;
   if (curUrl) { URL.revokeObjectURL(curUrl); curUrl = null; }
@@ -2351,8 +2452,25 @@ function loadTrack(id, autoplay, o = {}) {
   if (autoplay && !later) playTrack();
   if (RETRO) RETRO.want(t);                                          // retro sound on: make (or reuse) this song's old-sounding version
 }
-function playTrack() { audio.play().then(() => setPlayIcon(true)).catch(() => { if (audio.paused) setPlayIcon(false); }); }
-function pauseTrack() { audio.pause(); setPlayIcon(false); }
+function playTrack() { playWanted = true; badFor = null; audio.play().then(() => setPlayIcon(true)).catch(() => { if (audio.paused) setPlayIcon(false); if (audio.error) badSong(); }); }
+function pauseTrack() { playWanted = false; audio.pause(); setPlayIcon(false); }
+/* A song that can't be played (a broken or unsupported file): say so and move on to the next one, instead of a Play
+   button that silently does nothing. Said only once you want it to play (pressing Play, or the songs playing on); a
+   run of broken songs in a row stops after a few, so it never loops through a whole broken library. A stream that
+   fails to load (no connection) is not skipped: the song itself may be fine. */
+let playWanted = false, badFor = null, badRun = 0;
+function badSong() {
+  const t = trackById(curId), e = audio.error;
+  if (!t || !e || e.code === 1 || !audio.getAttribute("src") || badFor === curId) return;   // 1: aborted on purpose (another song was picked)
+  badFor = curId; setPlayIcon(false); haptic("medium");
+  if (e.code === 2) { toast("Couldn't load this song. Check your connection"); return; }
+  t.bad = true;
+  if (++badRun >= Math.min(4, Math.max(1, tracks.length))) { badRun = 0; playWanted = false; toast("Can't play these files"); return; }
+  toast("Can't play \u201c" + (t.title.length > 28 ? t.title.slice(0, 27) + "\u2026" : t.title) + "\u201d, skipping");
+  setTimeout(() => { if (curId === t.id) { playNext(); } }, 700);
+}
+audio.addEventListener("error", () => { if (playWanted) badSong(); });
+audio.addEventListener("playing", () => { badRun = 0; });
 /* Seek. A bot song that is still playing from the stream but has meanwhile fully downloaded switches to that local copy
    right here: the seek interrupts the sound anyway, so the switch can't be heard, and every later seek is instant
    instead of a new request to the server. */
@@ -2439,7 +2557,7 @@ audio.addEventListener("ended", onEnded);
      springs back in once the new artwork is ready, and the cover light flares.
    Web Animations and small rAF loops only; nothing moves with reduced motion turned on. */
 const RM = matchMedia("(prefers-reduced-motion:reduce)").matches;
-const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.upload-btn,.done-btn,.gear-btn,.hidden-toggle,.q-sec button,.artist-more,.switch,.more-toggle,.xp-next-h button,.lyr-close";
+const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.done-btn,.gear-btn,.set-pill,.set-x,.q-sec button,.artist-more,.switch,.xp-next-h button,.lyr-close";
 const curScale = el => { const v = parseFloat(getComputedStyle(el).scale); return isFinite(v) ? v : 1; };
 function pressDown(el) {
   if (RM || !el.animate) return;
@@ -2700,6 +2818,7 @@ function renderArtist(d) {
   ui.querySelector(".artist-meta").textContent = [d.tags && d.tags.slice(0, 3).join(" · "), d.listeners ? fmtNum(d.listeners) + " listeners" : ""].filter(Boolean).join("  •  ");
   if (d.loading) return;
   const bb = $("artist-bio-box");
+  if (bb.dataset.local && d.bio) { delete bb.dataset.local; bb.dataset.done = ""; }   // the info arrived after all: it replaces the note
   if (!bb.dataset.done && (d.bio || !d.albumsLoading)) {
     bb.dataset.done = "1"; bb.innerHTML = "";
     if (d.bio) {
@@ -2709,9 +2828,9 @@ function renderArtist(d) {
     }
   }
   if (d.albumsLoading || ui.dataset.filled === "1") return;
+  if (!(d.albums || []).length) { artistLocal(d.name, d.full ? "" : "Couldn\u2019t load artist info. Here are your own albums."); return; }
   ui.dataset.filled = "1";
   const grid = $("artist-albums"); grid.innerHTML = "";
-  if (!(d.albums || []).length) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">No albums found.</div>';
   (d.albums || []).forEach((a, i) => {
     const own = ownedAlbumKey(a), c = document.createElement("div");
     c.className = "album-card card-in" + (own ? "" : " dim"); c.style.animationDelay = Math.min(i, 12) * 22 + "ms";
@@ -2729,6 +2848,39 @@ function renderArtist(d) {
     sb.innerHTML = '<div class="artist-sec">Similar artists</div><div class="chips"></div>';
     d.similar.forEach(n => { const ch = document.createElement("div"); ch.className = "chip"; ch.textContent = n; ch.addEventListener("click", () => openArtist(n, "push")); ui.querySelector(".chips").appendChild(ch); });
   }
+}
+/* The artist's albums from your own library: shown when the artist's details can't be loaded (offline, or the music
+   services don't answer), so the page never sits on loading boxes. A late answer from the services replaces them. */
+function artistLocal(name, note) {
+  const ui = $("artist-ui");
+  if (currentArtistName !== name && norm(currentArtistName) !== norm(name) || ui.dataset.filled === "1" || ui.dataset.filled === "local") return;
+  ui.dataset.filled = "local";
+  const bb = $("artist-bio-box");
+  if (!bb.dataset.done) { bb.dataset.done = "1"; bb.className = "card-in"; bb.innerHTML = note ? '<div class="artist-note"></div>' : ""; if (note) { bb.dataset.local = "1"; bb.firstChild.textContent = note; } }
+  const k = norm(name), m = new Map();
+  tracks.forEach(t => {
+    if (norm(mainArtist(t.artist)) !== k && !(t.albumArtist && norm(mainArtist(t.albumArtist)) === k)) return;
+    if (hiddenSet.has(t.album)) return;
+    const a = m.get(t.album) || { name: t.album, year: 0 }; a.year = Math.max(a.year, t.year || 0); m.set(t.album, a);
+  });
+  const list = [...m.values()].sort((a, b) => (a.year || 9999) - (b.year || 9999) || a.name.localeCompare(b.name));
+  const grid = $("artist-albums"); grid.innerHTML = "";
+  if (!list.length) grid.innerHTML = '<div class="artist-note" style="grid-column:1/-1">No albums found.</div>';
+  list.forEach((a, i) => {
+    const c = document.createElement("div"), cov = albumCover(a.name);
+    c.className = "album-card card-in"; c.style.animationDelay = Math.min(i, 12) * 22 + "ms";
+    c.innerHTML = `<div class="own-dot"></div><div class="ph-wrap" style="width:100%"></div><div class="album-card-title"></div>${a.year ? '<div class="year"></div>' : ""}`;
+    c.querySelector(".album-card-title").textContent = a.name;
+    if (a.year) c.querySelector(".year").textContent = a.year;
+    const slot = c.querySelector(".ph-wrap"), ph = () => { slot.innerHTML = `<div class="all-tracks-icon">${NOTES_SVG}</div>`; };
+    if (cov) { const im = new Image(); im.alt = ""; im.onerror = ph; im.src = cov; slot.appendChild(im); } else ph();
+    c.addEventListener("click", () => {                                // your album, opened from the artist page (Back returns here)
+      currentCat = null; currentAlbum = a.name; albumOrigin = { name, scroll: ui.scrollTop };
+      $("back-to-grid-btn").querySelector("span").textContent = "Back";
+      renderPlaylist(); $("playlist-ui").scrollTop = 0; showOnly(playlistWrapper, 1);
+    });
+    grid.appendChild(c);
+  });
 }
 async function openCatalogAlbum(a, artistName) {
   const cat = currentCat = { key: "cat:" + (a.id || sn(a.title)), id: a.id, title: a.title, artist: artistName, cover: a.cover, list: null };
@@ -2749,6 +2901,8 @@ async function openArtist(name, mode, scroll) {
   if (!(ui.dataset.for === name && ui.dataset.filled === "1")) renderArtist(hit ? ck : { name, loading: true }); else updateArtistOwnership();   // cached artists render in one pass; the shell exists before the transition is measured
   setTab(btnArtists); showOnly(artistWrapper, mode === "back" ? -1 : mode === "restore" ? 0 : 1); drawerBox.classList.add("expanded");
   ui.scrollTop = scroll || 0;
+  /* the details can take a while (or never come, offline): after a few seconds the page shows your own albums meanwhile */
+  if (ui.dataset.filled !== "1") setTimeout(() => { if (currentArtistName === name && $("artist-ui").dataset.filled !== "1") artistLocal(name, navigator.onLine === false ? "You\u2019re offline. Here are your own albums." : "Artist info isn\u2019t loading. Here are your own albums for now."); }, navigator.onLine === false ? 0 : 6000);
   const d = await loadArtist(name, p => { if (currentArtistName === name) renderArtist(p); });
   if (currentArtistName === name) { renderArtist(d); if (scroll) $("artist-ui").scrollTop = scroll; }
 }
@@ -2807,7 +2961,18 @@ $("back-to-grid-btn").addEventListener("click", () => {
 const btnArtists = $("btn-artists"), artistsWrapper = $("artists-wrapper"), artistWrapper = $("artist-wrapper");
 const allWraps = [queueWrapper, playlistWrapper, albumsGridWrapper, artistsWrapper, artistWrapper];
 const viewHost = $("view-host");
+/* the room the drawer's lists may take: the screen's height under the compact player (matters on a short screen, a phone
+   on its side; on a tall phone the lists' own caps are smaller anyway) */
+function fitRoom() {
+  const w = document.querySelector(".player-wrapper"), pm = $("player-main"); if (pm.style.display === "none") return;
+  const vh = window.visualViewport ? visualViewport.height : innerHeight, safeB = $("safe-probe").offsetHeight || 0;
+  const compact = 42 + pm.offsetHeight + $("controls-main").offsetHeight + $("footer-main").offsetHeight + 48 + 15;   // paddings + rows + gaps + the drawer's top line
+  const room = Math.round(vh - Math.max(0, w.getBoundingClientRect().top) - compact - safeB - 12);
+  w.style.setProperty("--room", Math.max(110, room) + "px");
+}
+addEventListener("resize", fitRoom); if (window.visualViewport) visualViewport.addEventListener("resize", fitRoom);
 function showOnly(el, dir) {
+  fitRoom();
   const swap = () => { allWraps.forEach(w => { w.style.display = w === el ? "block" : "none"; }); };
   const open = drawerBox.classList.contains("expanded") && el;
   const h0 = viewHost.offsetHeight; swap();
@@ -3025,6 +3190,10 @@ const bubble = (() => {
       }
       vec3 glassy(vec3 c, vec2 cp) {                                   // exactly the CSS glass's layers, so the ring blends into it invisibly
         float l = dot(c, vec3(.2126, .7152, .0722)); c = clamp(mix(vec3(l), c, 1.35), 0., 1.) * .94;   // backdrop-filter: saturate(135%) brightness(.94)
+        /* readable on any wallpaper: where the wallpaper is bright the glass smokes it down (a soft knee, so a white moon or
+           a light photo still shows through, only dimmer), keeping white text at a readable contrast */
+        float lb = dot(c, vec3(.2126, .7152, .0722));
+        if (lb > .3) c *= (.3 + (lb - .3) * .16) / lb;
         return mix(c, vec3(6., 18., 26.) / 255., .1);                   // the tint: linear-gradient(rgba(6,18,26,.1)) on top
       }
       void main() {
@@ -3282,7 +3451,6 @@ $("flow-switch").addEventListener("click", () => {                  // Settings 
   setEdit(false); if (albumsGridWrapper.style.display === "block") { renderAlbums(); showOnly(albumsGridWrapper); }
 });
 $("old-panel-switch").addEventListener("click", () => { const old = bubble.on; store.set("oldPanel", old ? "1" : "0"); bubble.set(!old, true); haptic("light"); });
-$("more-toggle").addEventListener("click", () => { const b = $("more-box"), open = b.hidden; b.hidden = !open; $("more-toggle").setAttribute("aria-expanded", String(open)); haptic("light"); });
 bubble.set(store.get("oldPanel") !== "1", false);
 
 /* ---------- COVER GLOW ----------
@@ -3428,6 +3596,18 @@ XP = (() => {
     const vv = window.visualViewport, vh = vv ? vv.height : innerHeight;
     const topY = wrap.getBoundingClientRect().top, safeB = $("safe-probe").offsetHeight || 0;
     const avail = vh - topY - safeB - 14 - NAV, W = wrap.clientWidth - 40;
+    /* on its side: the cover on the left, as tall as the screen allows; title, playback line and controls beside it, the
+       queue strip under them. The panel is as tall as the taller of the two columns, never taller than the screen. */
+    const land = innerWidth > vh && vh < 520;
+    xp.classList.toggle("land", land); st.land = land;
+    if (land) {
+      const S = Math.round(Math.max(110, Math.min(wrap.clientWidth * .4, 300, avail - 26 - 18)));
+      xp.style.setProperty("--xs", S + "px");
+      const right = ctrls.offsetTop + ctrls.offsetHeight + 10 + bot.offsetHeight;
+      st.S = S; st.h1 = Math.round(Math.max(slot.offsetTop + S + 18, right));
+      art.style.setProperty("--k", (S / (artBox.offsetWidth || 66)).toFixed(4));
+      return;
+    }
     xp.style.setProperty("--xs", "0px");
     const topFixed = top.offsetHeight, botH = bot.offsetHeight;
     const S = Math.round(Math.max(120, Math.min(W * COVER, COVER_MAX, avail - topFixed - botH - GAP)));
@@ -3578,7 +3758,9 @@ XP = (() => {
     const hm = P > 0 ? 1 : 0, hs = Math.max(.004, hm).toFixed(3), hr = (1 - hm).toFixed(3);   // a swap, not a cross-fade (two half glows add up darker); never exactly 0: keeps the big glow's layer painted, ready
     if (st.hm !== hs) { st.hm = hs; bloom.style.setProperty("--hm", hs); glight.style.setProperty("--hm", hs); smBloom.style.setProperty("--hm", hr); smLight.style.setProperty("--hm", hr); }
     const v = 1 - (1 - P) * (1 - P), bottom = curY + size, bottom0 = m.ay + m.aw, bottom1 = m.sy + st.S;
-    const rowY = (y0, y1) => bottom + lerp(y0 - bottom0, y1 - bottom1, v);
+    /* rows follow the cover's bottom edge (they sit under it when open); on its side they sit beside the cover, so they
+       just glide straight to their place, clear of the growing cover */
+    const rowY = st.land ? (y0, y1) => lerp(y0, y1, fade(P, 0, .55)) : (y0, y1) => bottom + lerp(y0 - bottom0, y1 - bottom1, v);
     /* title + artist line */
     const ccx = curX + size / 2, ccy = curY + size / 2;
     const hsc = P, limit = m.W - 14;
@@ -3636,7 +3818,7 @@ XP = (() => {
     for (const q of m.pairs) {
       /* like the lines: everything drops to its row first (all rows on the same timing, so they keep their order and never
          meet), then slides across, which makes a rounded path. The times slide only once the buttons are below them. */
-      const tx = 1 - Math.cos(fade(P, q.time ? .3 : .1, 1) * Math.PI / 2);
+      const tx = st.land ? fade(P, .2, 1) : 1 - Math.cos(fade(P, q.time ? .3 : .1, 1) * Math.PI / 2);   // on its side: the rows part first (above), then slide across
       const X = lerp(q.c0[0], q.x1[0], tx), Y = rowY(q.c0[1], q.x1[1]) + push, k = lerp(1, q.r, hc);
       q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       /* the scrubber stretches from the small one's length to its own (its dot is kept round), so it is one bar all along */
@@ -3645,15 +3827,16 @@ XP = (() => {
       if (q.track) bow(q, X, Y, kx, ky, P);
       if (q.icon && q.ik !== 1) q.icon.style.transform = P > 0 && P < 1 ? `scale(${lerp(q.ik, 1, hc).toFixed(4)})` : "";   // icons match the small ones' size at first
       /* same as the lines: the big copy takes over in place; a time whose text differs ("4:22" / "-2:04") swaps over quickly */
-      setOp(q.c, q.same ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, .12)));   // hidden, but kept painted (.001), so it is back the instant it's needed
-      setOp(q.x, q.same ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .12, .32)));
+      const sw = q.same && !(st.land && q.time);                   // on its side the times cross the buttons' path: they fade out and back in instead
+      setOp(q.c, sw ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, st.land ? .08 : .12)));   // hidden, but kept painted (.001), so it is back the instant it's needed
+      setOp(q.x, sw ? (P > 0 ? 1 : .001) : Math.max(.001, st.land && q.time ? fade(P, .6, .9) : fade(P, .12, .32)));
       if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; playY = Y; tail0 = st.h0 - q.c0[1]; tail1 = st.h1 - q.x1[1]; }
     }
     /* the panel is carried by what's in it: its bottom edge keeps to the controls (the same distance below them as at
        rest at either end), so it grows and shrinks with the content instead of sliding open as a box of its own. The room
        for what's below (the tabs, Up next) comes and goes with it. */
     wrap.style.height = (playY + lerp(tail0, tail1, fade(P, .1, 1)) + st.over).toFixed(1) + "px";
-    const fo = fade(P, .72, 1);                                      // shuffle / repeat: ride with the big controls' row
+    const fo = st.land ? fade(P, .88, 1) : fade(P, .72, 1);          // shuffle / repeat: ride with the big controls' row (on its side, once the row is in place)
     FOLLOW.forEach(el => { el.style.transform = `translateY(${playDy.toFixed(2)}px)`; setOp(el, fo); });
     fm.style.transform = P ? `translateY(${playDy0.toFixed(2)}px)` : ""; setOp(fm, 1 - fade(P, 0, .13));   // the compact tab row leaves with the controls above it
     const bo = fade(P, .74, 1); bot.style.opacity = bo > .999 ? "" : bo.toFixed(3); bot.style.transform = bo > .999 ? "" : `translateY(${((1 - bo) * 12).toFixed(1)}px)`;
@@ -4344,7 +4527,7 @@ let tiltAt = 0;                                                      // last tim
   if (useWeb.on) return; useWeb.on = true;
   addEventListener("deviceorientation", e => { if (mb) mb.style.display = "none"; ori(e); });   // flows once permission exists
   if (D && D.requestPermission && mb) {                       // iOS: ask from a dedicated button, never from a tap that also opens the file picker
-    mb.style.display = "block";
+    mb.style.display = "";
     const ask = quiet => D.requestPermission().then(r => { if (r === "granted") { mb.style.display = "none"; store.set("tiltOn", "1"); if (!quiet) toast("Tilt effect on"); } }).catch(() => {});
     mb.addEventListener("click", () => ask(false));
     if (store.get("tiltOn")) {                                // turned on before: re-arm on the next ordinary tap, so it doesn't need the Settings trip every launch
@@ -4591,7 +4774,7 @@ if (TG) (function () {
     const show = st => {
       if (st === "unsupported") { hb.style.display = "none"; return; }
       const added = st === "added";
-      hb.style.display = "block"; hb.disabled = added; hb.classList.toggle("ghost", added);
+      hb.style.display = ""; hb.disabled = added;
       hb.textContent = added ? "On your Home Screen ✓" : "Add to Home Screen";
     };
     show("unknown");
@@ -5042,8 +5225,8 @@ RETRO = (() => {
     const p = chain.then(() => make(t, m)).catch(e => { console.warn("retro", e && e.message); return null; }).finally(() => jobs.delete(k));
     chain = p; jobs.set(k, p); return p;
   }
-  const seg = $("retro-sw");                                           // Settings > More: Gramophone / Old radio / Vinyl switches (one at a time)
-  const busy = v => seg.querySelectorAll(".switch").forEach(b => b.classList.toggle("busy", !!v && b.dataset.m === mode));
+  const seg = $("retro-sw");                                           // Settings > Sound effect: None / Gramophone / Old radio / Vinyl (one choice)
+  const busy = v => seg.querySelectorAll("[data-m]").forEach(b => b.classList.toggle("busy", !!v && b.dataset.m === mode));
   /* swap the current song between its original and its old-sounding copy, at the same place, playing or not */
   function swap(t, useRetro) {
     const b = useRetro ? done.get(key(t)) : t.file;
@@ -5078,7 +5261,7 @@ RETRO = (() => {
   }
   function pre(t) { if (mode !== "off" && t && t.file && t.id !== curId && wanted(t)) render(t); }
   function preNext() { if (mode === "off") return; const n = trackById(peekNext()); if (n && n.file) pre(n); }
-  function paint() { seg.querySelectorAll(".switch[data-m]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.m === mode))); }
+  function paint() { seg.querySelectorAll("[data-m]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.m === mode))); }
   function set(m) {
     if (m === mode) return;
     mode = m; store.set("retroMode", m); paint(); haptic("light");
@@ -5087,7 +5270,7 @@ RETRO = (() => {
     busy(false);
     const t = trackById(curId); if (t) want(t);
   }
-  seg.addEventListener("click", e => { const b = e.target.closest(".switch[data-m]"); if (b) set(b.dataset.m === mode ? "off" : b.dataset.m); });
+  seg.addEventListener("click", e => { const b = e.target.closest("[data-m]"); if (b) set(b.dataset.m); });
   paint();
   const R = {
     cur: null,                                                        // "id|mode" of the copy that is loaded now, null = the original
