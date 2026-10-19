@@ -61,17 +61,19 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
 /* ===== Cover Flow library: one row of record sleeves (see COVER FLOW in the script). --fw = sleeve size ===== */
 .albums-grid-container.flow{max-height:none!important;overflow:hidden}
-.cf{display:flex;flex-direction:column;padding-bottom:16px}
+.cf{--ft:.1;display:flex;flex-direction:column;padding-bottom:16px}
+.cf.vinyl{--ft:.32}                                                    /* room above the sleeve for the record */
 .cf[hidden],.cf-empty[hidden],.cf-idx[hidden]{display:none}
-.cf-stage{position:relative;height:calc(var(--fw,118px) * 1.66);margin:0 -20px;overflow:hidden;
+.cf-stage{position:relative;height:calc(var(--fw,118px) * (var(--ft) + 1.2));margin:0 -20px;overflow:hidden;
   touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:grab;
   -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent);mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent)}
 #cf-row{position:absolute;inset:0;perspective:calc(var(--fw,118px) * 4);perspective-origin:50% 45%}
-.cf-stage::after{content:'';position:absolute;left:0;right:0;top:calc(var(--fw,118px) * 1.33);bottom:0;pointer-events:none;
+.cf-stage::after{content:'';position:absolute;left:0;right:0;top:calc(var(--fw,118px) * (var(--ft) + 1) + 1px);bottom:0;pointer-events:none;
   background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 70%);border-top:1px solid rgba(255,255,255,.06)}   /* the shelf they stand on */
-.cf-it{position:absolute;left:50%;top:calc(var(--fw,118px) * .32);width:var(--fw,118px);height:var(--fw,118px);margin-left:calc(var(--fw,118px) / -2);will-change:transform;
-  -webkit-box-reflect:below 2px linear-gradient(transparent 62%,rgba(255,255,255,.28))}
-.cf-disc{position:absolute;left:4%;top:4%;width:92%;height:92%;border-radius:50%;transform:translateY(calc(var(--pk,0) * -1px));box-shadow:0 3px 10px rgba(0,0,0,.55)}
+.cf-it{position:absolute;left:50%;top:calc(var(--fw,118px) * var(--ft));width:var(--fw,118px);height:var(--fw,118px);margin-left:calc(var(--fw,118px) / -2);will-change:transform}
+.cf-it::after{content:'';position:absolute;left:6%;right:6%;bottom:-7%;height:12%;border-radius:50%;pointer-events:none;z-index:-1;   /* one soft shadow on the shelf, no reflection */
+  background:radial-gradient(closest-side,rgba(0,0,0,.55),rgba(0,0,0,0))}
+.cf-disc{display:none;position:absolute;left:4%;top:4%;width:92%;height:92%;border-radius:50%;transform:translateY(calc(var(--pk,0) * -1px));box-shadow:0 3px 10px rgba(0,0,0,.55)}
 .cf-spin{position:absolute;inset:0;border-radius:50%;
   background:radial-gradient(circle,transparent 0 31%,#09090a 31.5% 33%,transparent 33.5% 47%,#0c0c0d 47.5% 48.2%,transparent 48.7% 96%,#0b0b0c 96.5%),
     repeating-radial-gradient(circle,#161618 0 1.1px,#1f1f22 1.1px 2.2px)}
@@ -81,13 +83,27 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .cf-lbl::after{content:'';position:absolute;left:45%;top:45%;width:10%;height:10%;border-radius:50%;background:#0b0b0c}
 .cf-it.live .cf-spin{animation:cf-spin 1.8s linear infinite}
 @keyframes cf-spin{to{transform:rotate(360deg)}}
-.cf-sl{position:absolute;inset:0;border-radius:3px;overflow:hidden;background:#2b3038;box-shadow:0 12px 24px rgba(0,0,0,.42),inset 0 0 0 .5px rgba(255,255,255,.14)}
+.cf-sl{position:absolute;inset:0;border-radius:6px;overflow:hidden;background:#2b3038;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.cf.vinyl .cf-disc{display:block}
+.cf.vinyl .cf-sl{border-radius:2px}
 .cf-sl img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none;-webkit-user-drag:none}
 .cf-sl .ico{display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:linear-gradient(155deg,#46505f,#232831)}
 .cf-sl .ico svg{width:38%;height:38%;fill:rgba(255,255,255,.5)}
-.cf-sl::before{content:'';position:absolute;inset:0;background:#000;opacity:var(--sh,0);pointer-events:none}          /* side sleeves sit in the shade */
-.cf-sl::after{content:'';position:absolute;inset:0;pointer-events:none;                                                   /* the sleeve's opening, and a little gloss */
-  background:linear-gradient(180deg,rgba(0,0,0,.38) 0,rgba(0,0,0,0) 6%),linear-gradient(118deg,rgba(255,255,255,.16),rgba(255,255,255,0) 42%)}
+.cf-sl::before{content:'';position:absolute;inset:0;background:#000;opacity:var(--sh,0);pointer-events:none;z-index:2}          /* side sleeves sit in the shade */
+.cf-sl::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:1;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16);  /* a little gloss */
+  background:linear-gradient(118deg,rgba(255,255,255,.14),rgba(255,255,255,0) 42%)}
+/* Vinyl sleeves (Settings > More): an old cardboard sleeve. Faded print, paper grain, the ring the record has worn into it,
+   rubbed corners and edges, and the shadow of the opening at the top */
+.cf-wear{display:none}
+.cf.vinyl .cf-sl::after{box-shadow:inset 0 0 12px rgba(0,0,0,.6);background:linear-gradient(180deg,#000 0,rgba(0,0,0,0) 7%),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0/100% 100%,0 0/120px 120px;mix-blend-mode:overlay;opacity:.5}   /* paper grain instead of gloss */
+.cf.vinyl .cf-sl img{filter:sepia(.18) saturate(.86) contrast(.94) brightness(.97)}
+.cf.vinyl .cf-wear{display:block;position:absolute;inset:0;pointer-events:none;z-index:1;
+  background:
+    radial-gradient(circle at 51% 49%,rgba(255,250,240,0) 0 41%,rgba(255,250,240,.1) 43%,rgba(255,250,240,.17) 45.5%,rgba(255,250,240,.07) 47.5%,rgba(255,250,240,0) 50%),
+    radial-gradient(circle at 51% 49%,rgba(255,250,240,0) 0 8%,rgba(255,250,240,.1) 9.5%,rgba(255,250,240,0) 11.5%),
+    radial-gradient(circle at 0 0,rgba(255,250,240,.38),rgba(255,250,240,0) 9%),radial-gradient(circle at 100% 0,rgba(255,250,240,.3),rgba(255,250,240,0) 8%),
+    radial-gradient(circle at 0 100%,rgba(255,250,240,.3),rgba(255,250,240,0) 8%),radial-gradient(circle at 100% 100%,rgba(255,250,240,.4),rgba(255,250,240,0) 10%);
+  mix-blend-mode:screen;opacity:.75;box-shadow:inset 0 0 0 1.5px rgba(255,250,240,.16)}
 .cf-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:rgba(255,255,255,.5)}
 .cf-cap{text-align:center;min-height:38px;padding:0 4px}
 .cf-t{font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -892,6 +908,7 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
   <div class="more-box" id="more-box" hidden><div id="retro-sw">
     <div class="set-row"><span>Old panel</span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Old panel"><i></i></button></div>
     <div class="set-row" style="margin-top:10px"><span>Cover Flow library<small>Off: the album grid, where you drag albums into your order</small></span><button class="switch" id="flow-switch" role="switch" aria-checked="true" aria-label="Cover Flow library"><i></i></button></div>
+    <div class="set-row" style="margin-top:10px"><span>Vinyl sleeves<small>Cover Flow albums as worn record sleeves</small></span><button class="switch" id="sleeve-switch" role="switch" aria-checked="false" aria-label="Vinyl sleeves"><i></i></button></div>
     <div class="set-row" style="margin-top:10px"><span>Gramophone</span><button class="switch" data-m="gram" role="switch" aria-checked="false" aria-label="Gramophone"><i></i></button></div>
     <div class="set-row" style="margin-top:10px"><span>Old radio</span><button class="switch" data-m="radio" role="switch" aria-checked="false" aria-label="Old radio"><i></i></button></div>
     <div class="set-row" style="margin-top:10px"><span>Vinyl</span><button class="switch" data-m="vinyl" role="switch" aria-checked="false" aria-label="Vinyl"><i></i></button></div>
@@ -926,7 +943,7 @@ const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
 /* Each write to Telegram's storage is a round trip through the app, so a key is sent at most once per its delay (the
    latest value wins), and whatever is still waiting is sent straight away when the app is hidden or closed. The play
    position changes every few seconds while you listen: it goes at most every 30 s (and on pause / hide). */
-const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName", "libView", "flowGroup"], mirrorT = {}, mirrorV = {};
+const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName", "libView", "flowGroup", "flowVinyl"], mirrorT = {}, mirrorV = {};
 const MIRROR_DELAY = { playState: 3000, playPos: 30000, artistCache: 5000, releaseMap2: 5000 };
 function mirrorSend(k) { clearTimeout(mirrorT[k]); delete mirrorT[k]; if (!(k in mirrorV)) return; const v = mirrorV[k]; delete mirrorV[k]; try { tgStore.setItem(k, v); } catch (e) {} }
 function mirrorFlush() { Object.keys(mirrorV).forEach(mirrorSend); }
@@ -1509,7 +1526,7 @@ const flow = (() => {
     el._it = it;
     const sig = it.name + "\n" + (it.cover || "");
     if (el._sig === sig) return; el._sig = sig;
-    el.innerHTML = `<div class="cf-disc"><div class="cf-spin"><div class="cf-lbl"></div></div></div><div class="cf-sl">${it.cover ? "<img alt=\"\" draggable=\"false\">" : `<div class="ico">${it.icon}</div>`}</div>`;
+    el.innerHTML = `<div class="cf-disc"><div class="cf-spin"><div class="cf-lbl"></div></div></div><div class="cf-sl">${it.cover ? "<img alt=\"\" draggable=\"false\">" : `<div class="ico">${it.icon}</div>`}<div class="cf-wear"></div></div>`;
     if (it.cover) { el.querySelector("img").src = it.cover; el.querySelector(".cf-lbl").style.backgroundImage = `url("${String(it.cover).replace(/"/g, "%22")}")`; }
   }
   function paint() {
@@ -3357,6 +3374,12 @@ $("flow-switch").setAttribute("aria-checked", String(flowOn()));
 $("flow-switch").addEventListener("click", () => {                  // Settings > More: Library as Cover Flow, or as the grid
   store.set("libView", flowOn() ? "grid" : "flow"); $("flow-switch").setAttribute("aria-checked", String(flowOn())); haptic("light");
   setEdit(false); if (albumsGridWrapper.style.display === "block") { renderAlbums(); showOnly(albumsGridWrapper); }
+});
+const sleevesOn = () => store.get("flowVinyl") === "1";              // off unless you turn it on
+$("cf").classList.toggle("vinyl", sleevesOn()); $("sleeve-switch").setAttribute("aria-checked", String(sleevesOn()));
+$("sleeve-switch").addEventListener("click", () => {                 // Settings > More: Cover Flow as record sleeves, or as plain covers
+  store.set("flowVinyl", sleevesOn() ? "0" : "1"); $("sleeve-switch").setAttribute("aria-checked", String(sleevesOn())); haptic("light");
+  $("cf").classList.toggle("vinyl", sleevesOn()); if (albumsGridWrapper.style.display === "block") showOnly(albumsGridWrapper);
 });
 $("old-panel-switch").addEventListener("click", () => { const old = bubble.on; store.set("oldPanel", old ? "1" : "0"); bubble.set(!old, true); haptic("light"); });
 $("more-toggle").addEventListener("click", () => { const b = $("more-box"), open = b.hidden; b.hidden = !open; $("more-toggle").setAttribute("aria-expanded", String(open)); haptic("light"); });
