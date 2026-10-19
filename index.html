@@ -32,7 +32,9 @@ html{height:calc(100% + 120px);background-color:#0b1d24;background-repeat:no-rep
 body{height:100%}
 body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
   padding:calc(env(safe-area-inset-top,0px) + 24px) 16px 0;box-sizing:border-box;-webkit-text-size-adjust:100%}
-.bg-container{position:fixed;top:0;left:0;right:0;height:calc(100% + 120px);z-index:-2;background-size:cover;background-position:center;transition:background .3s ease}
+/* --bgm: with Bg Blur on, the wallpaper box reaches past every screen edge (set by applyBg), so the blur's soft edge
+   (which fades to the dark page colour) stays off screen and the glass panel matches the wallpaper right next to it */
+.bg-container{position:fixed;top:calc(var(--bgm,0px) * -1);left:calc(var(--bgm,0px) * -1);right:calc(var(--bgm,0px) * -1);height:calc(100% + 120px + var(--bgm,0px) * 2);z-index:-2;background-size:cover;background-position:center;transition:background .3s ease}
 .bg-vignette{position:fixed;top:0;left:0;right:0;height:calc(100% + 120px);background:radial-gradient(circle at center,rgba(0,0,0,0) 30%,rgba(0,0,0,.6) 100%);pointer-events:none;z-index:-1}
 
 .player-wrapper{position:relative;width:100%;max-width:580px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
@@ -401,7 +403,8 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
    No Safari toolbar to paint under, so the page is exactly the screen and never scrolls itself. In full-screen mode
    Telegram draws its Close / ⋯ pills over the top of the page: --tg-content-safe-area-inset-top keeps the player below them. */
 html.tg{height:100%;overflow:hidden;overscroll-behavior:none}
-html.tg .bg-container,html.tg .bg-vignette{height:100%}
+html.tg .bg-vignette{height:100%}
+html.tg .bg-container{height:calc(100% + var(--bgm,0px) * 2)}
 html.tg body{--tg-top:max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px));--tg-bot:max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px));
   padding-top:calc(var(--tg-top) + var(--tg-content-safe-area-inset-top,0px) + 16px);overscroll-behavior:none}
 html.tg .gear-btn{bottom:calc(var(--tg-bot) + 20px)}
@@ -996,6 +999,7 @@ const mainBg = $("main-bg");
 function applyBg() {
   const bl = +(store.get("wallpaperBlur") || 0);
   mainBg.style.filter = bl ? `blur(${bl}px)` : "";                  // no blur(0px) filter: even a zero blur costs an extra full-screen pass
+  mainBg.style.setProperty("--bgm", bl ? Math.ceil(bl * 2.5 + 8) + "px" : "0px");   // keep the blur's dark fringe off screen (see .bg-container)
   const custom = store.get("photoData");
   mainBg.style.backgroundImage = `url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;
   const pos = custom ? "center" : "70% 24%";
@@ -3130,7 +3134,7 @@ const bubble = (() => {
         ["uTex", "uBlur", "uCanvasPx", "uPanel", "uOrigin", "uUvA", "uUvB", "uVigC", "uLight", "uM", "uDpr", "uR", "uVigR", "uLod", "uBevel", "uRefr", "uQ"].forEach(k => U[k] = gl.getUniformLocation(prog, k));
         cv.addEventListener("webglcontextlost", ev => { ev.preventDefault(); G.ready = false; document.documentElement.classList.remove("gl-glass", "gl-solid"); });
         skin.after(cv); G.cv = cv;                                     // above the CSS glass (otherwise the glass blurs and tints the edge a second time), below the content
-        window.__bgChanged = () => { loadTex(); request(true); };
+        window.__bgChanged = () => { geo = null; loadTex(); request(true); };   // geo: the blur changes the wallpaper box's size
         loadTex();
       } catch (err) { console.warn("glass", err.message); gl = null; }
     }
@@ -3148,6 +3152,7 @@ const bubble = (() => {
           gl.bindTexture(gl.TEXTURE_2D, tex);
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);   // throws if the image came without permission (CORS)
           gl.generateMipmap(gl.TEXTURE_2D);
+          G.src = c; G.blurKey = "";                                   // the blurred copy (see blurred) is made again from this
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
           texW = im.naturalWidth; texH = im.naturalHeight; G.texPx = c.width;
@@ -3173,7 +3178,8 @@ const bubble = (() => {
     }
     function measureGeo() {                                            // the wallpaper and vignette boxes (fixed, viewport-sized): read once per resize, not per draw
       const bg = mainBg, vig = document.querySelector(".bg-vignette");
-      geo = { cw: bg.offsetWidth, ch: bg.offsetHeight, vw: vig.offsetWidth, vh: vig.offsetHeight };
+      const m = parseFloat(bg.style.getPropertyValue("--bgm")) || 0;   // the box starts m px above and left of the screen
+      geo = { cw: bg.offsetWidth, ch: bg.offsetHeight, ox: -m, oy: -m, vw: vig.offsetWidth, vh: vig.offsetHeight };
     }
     /* Inside Telegram the window "resize" event fires while the web view is still changing size (the sheet expanding to
        full screen, a rotation), and no event follows once it settles: the wallpaper box was measured mid-change and kept,
@@ -3185,6 +3191,38 @@ const bubble = (() => {
     try { new ResizeObserver(regeo).observe(mainBg); } catch (e) {}
     if (TG) ["viewportChanged", "fullscreenChanged", "safeAreaChanged", "contentSafeAreaChanged"].forEach(ev => { try { TG.onEvent(ev, regeo); } catch (e) {} });
     document.addEventListener("visibilitychange", () => { if (!document.hidden) request(true); });
+    /* the wallpaper blurred with a gaussian of sigma s texels (CSS blur(r) is a gaussian with sigma r). Shrunk first so
+       the blur is cheap (the result is smooth, so a small texture loses nothing): ~2.5 texels of sigma are left to blur,
+       done as 3 box passes each way. Kept until the blur or the wallpaper changes. */
+    let btex = null;
+    function blurred(s) {
+      const key = s.toFixed(1); if (G.blurKey === key && btex) return btex;
+      const src = G.src; if (!src) return null;
+      const k = Math.max(1, s / 2.5, Math.max(src.width, src.height) / 768);
+      const w = Math.max(2, Math.round(src.width / k)), h = Math.max(2, Math.round(src.height / k)), sg = s / k;
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(src, 0, 0, w, h);
+      const px = x.getImageData(0, 0, w, h).data, a = new Float32Array(px.length), b = new Float32Array(px.length);
+      for (let i = 0; i < px.length; i++) a[i] = px[i];
+      const r = Math.max(0, Math.round((Math.sqrt(4 * sg * sg + 1) - 1) / 2));   // 3 boxes of width 2r+1 = a gaussian of sigma sg
+      const pass = (f, t, horiz) => {                                // one box pass, edges clamped
+        const n = horiz ? w : h, lines = horiz ? h : w, st = horiz ? 4 : 4 * w, ls = horiz ? 4 * w : 4, inv = 1 / (2 * r + 1);
+        for (let j = 0; j < lines; j++) for (let ch = 0; ch < 3; ch++) {
+          const o = j * ls + ch; let sum = 0;
+          for (let i = -r; i <= r; i++) sum += f[o + Math.min(n - 1, Math.max(0, i)) * st];
+          for (let i = 0; i < n; i++) { t[o + i * st] = sum * inv; sum += f[o + Math.min(n - 1, i + r + 1) * st] - f[o + Math.max(0, i - r) * st]; }
+        }
+      };
+      if (r) for (let p = 0; p < 3; p++) { pass(a, b, true); pass(b, a, false); }
+      const out = new Uint8Array(px.length);
+      for (let i = 0; i < out.length; i++) out[i] = (i & 3) === 3 ? 255 : a[i];
+      if (!btex) btex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, btex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, out);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      G.blurKey = key; return btex;
+    }
     function draw() {
       if (!G.ready || !on || !G.cv.isConnected || !W) return;
       if (!geo) measureGeo();
@@ -3200,21 +3238,25 @@ const bubble = (() => {
       const scl = Math.max(cw0 / texW, ch0 / texH), dw = texW * scl, dh = texH * scl, offX = (cw0 - dw) * posX, offY = (ch0 - dh) * posY;
       const cx = cw0 / 2, cy = ch0 / 2, S = 1.04, ttx = tx * -6, tty = ty * -6;
       gl.viewport(0, 0, bw, bh); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.uniform2f(U.uUvA, 1 / (S * dw), 1 / (S * dh)); gl.uniform2f(U.uUvB, ((-cx - ttx) / S + cx - offX) / dw, ((-cy - tty) / S + cy - offY) / dh);
+      gl.uniform2f(U.uUvA, 1 / (S * dw), 1 / (S * dh)); gl.uniform2f(U.uUvB, ((-geo.ox - cx - ttx) / S + cx - offX) / dw, ((-geo.oy - cy - tty) / S + cy - offY) / dh);
       gl.uniform2f(U.uVigC, geo.vw / 2, geo.vh / 2); gl.uniform1f(U.uVigR, Math.hypot(geo.vw / 2, geo.vh / 2));
       /* the panel's own transform: page point of canvas point p = base + C + M (p - C) + lean */
       const bx = wrap.offsetLeft - scrollX, by = wrap.offsetTop - scrollY, Cx = W / 2, Cy = H / 2;
       gl.uniform4f(U.uM, M.a, M.b, M.c, M.d);
       gl.uniform2f(U.uOrigin, bx + Cx - (M.a * Cx + M.c * Cy) + x, by + Cy - (M.b * Cx + M.d * Cy) + y);
-      /* the page's own blur is baked into a slightly softer mip level; the glass's own blur is done with the gaussian taps */
+      /* Bg Blur: the glass shows a copy of the wallpaper blurred exactly like the page (a gaussian of the same size),
+         made once per blur setting. It used to pick a softer mip level instead: far too little blur, so over a blurred
+         wallpaper the panel looked like a solid sharp-ish sheet that ignored the slider. The glass's own blur is done
+         with the gaussian taps. */
       const userBlur = +(store.get("wallpaperBlur") || 0), texPerCss = G.texPx / dw;
-      gl.uniform1f(U.uLod, Math.max(0, Math.log2(Math.max(1, (userBlur * 1.4 + .6) * texPerCss))));
+      const btex = userBlur ? blurred(userBlur * texPerCss) : null;
+      gl.uniform1f(U.uLod, btex ? 0 : Math.max(0, Math.log2(Math.max(1, .6 * texPerCss))));
       gl.uniform1f(U.uBlur, GLASS_BLUR * 1.1); gl.uniform1f(U.uQ, lite ? 0 : 1);
       const r = Math.min(RAD, W / 2, H / 2);
       gl.uniform2f(U.uCanvasPx, bw, bh); gl.uniform1f(U.uDpr, bw / (W + 2)); gl.uniform2f(U.uPanel, W, H); gl.uniform1f(U.uR, r);
       const lx = -.55 + tx * .35, ly = -.83 + ty * .35, ll = Math.hypot(lx, ly); gl.uniform2f(U.uLight, lx / ll, ly / ll);   // light from the top left; tilting moves it
       gl.uniform1f(U.uBevel, 16); gl.uniform1f(U.uRefr, 12);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(U.uTex, 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, btex || tex); gl.uniform1i(U.uTex, 0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       G.dirty = false;
     }
