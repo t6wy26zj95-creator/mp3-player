@@ -1,0 +1,115 @@
+# Builds the iOS app (MacawP3.ipa) on one of GitHub's Mac computers, for sideloading with AltStore.
+# - Every push to main: a new release, "iOS app build N", with MacawP3.ipa attached.
+#   Always-current download link: https://github.com/<owner>/<repo>/releases/latest/download/MacawP3.ipa
+# - A push to any other branch (a pull request being tested): the "iOS app preview" pre-release is replaced with that build.
+# The .ipa is unsigned on purpose: AltStore signs it with your own Apple ID when it installs it.
+name: iOS app
+
+on:
+  push:
+    paths:
+      - index.html
+      - ios/**
+      - .github/workflows/ios.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Put the player inside the app
+        run: |
+          mkdir -p ios/Macaw/www
+          cp index.html ios/Macaw/www/index.html
+          # the tag reader, kept in the app so songs added offline still get their names and covers
+          curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js \
+            || curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdn.jsdelivr.net/gh/aadsm/jsmediatags@v3.9.5/dist/jsmediatags.min.js
+          test -s ios/Macaw/www/jsmediatags.min.js
+
+      - name: Make the Xcode project
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Build
+        run: |
+          cd ios
+          xcodebuild -project MacawP3.xcodeproj -scheme MacawP3 -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION="1.0.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build > build.log 2>&1 && ok=1 || ok=0
+          grep -E 'error:|warning: .*/Macaw/|\*\* BUILD' build.log || true
+          [ "$ok" = 1 ] || { tail -100 build.log; exit 1; }
+
+      - name: Pack MacawP3.ipa
+        run: |
+          cd ios
+          rm -rf Payload && mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/MacawP3.app Payload/
+          zip -qry ../MacawP3.ipa Payload
+          ls -lh ../MacawP3.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MacawP3-ipa
+          path: MacawP3.ipa
+
+      # The AltStore "source": added once in AltStore (Browse > Sources > +), it shows every new build as an update.
+      # Its address never changes: https://github.com/<owner>/<repo>/releases/latest/download/altstore-source.json
+      - name: Make the AltStore source
+        if: github.ref == 'refs/heads/main'
+        env:
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.run_number }}
+        run: |
+          python3 - <<'PY'
+          import json, os, datetime
+          repo, run = os.environ["REPO"], os.environ["RUN"]
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          ipa = f"https://github.com/{repo}/releases/download/ios-{run}/MacawP3.ipa"
+          size = os.path.getsize("MacawP3.ipa")
+          version = {"version": f"1.0.{run}", "buildVersion": run, "date": now, "downloadURL": ipa, "size": size, "minOSVersion": "15.0",
+                     "localizedDescription": f"Build {run}"}
+          app = {"name": "MacawP3", "bundleIdentifier": "app.macaw.player", "developerName": "Nick", "subtitle": "Your music player",
+                 "localizedDescription": "The MacawP3 music player. Songs stay in the app, play in the background and on the lock screen, and can come from your Telegram bot.",
+                 "iconURL": f"https://raw.githubusercontent.com/{repo}/main/ios/Macaw/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
+                 "tintColor": "#46C4CE", "versions": [version],
+                 "version": version["version"], "versionDate": now, "downloadURL": ipa, "size": size,
+                 "appPermissions": {"entitlements": [], "privacy": {
+                     "NSCameraUsageDescription": "Take a photo to use as the player's wallpaper.",
+                     "NSPhotoLibraryUsageDescription": "Pick a photo to use as the player's wallpaper."}}}
+          src = {"name": "MacawP3", "identifier": "app.macaw.player.source",
+                 "sourceURL": f"https://github.com/{repo}/releases/latest/download/altstore-source.json", "apps": [app], "news": []}
+          json.dump(src, open("altstore-source.json", "w"), indent=2)
+          PY
+          cat altstore-source.json
+
+      - name: Publish (main)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "ios-${{ github.run_number }}" MacawP3.ipa altstore-source.json --target "${{ github.sha }}" --latest \
+            --title "iOS app build ${{ github.run_number }}" \
+            --notes "Download MacawP3.ipa below and open it with AltStore. Built from ${{ github.sha }}."
+
+      - name: Publish (preview)
+        if: github.ref != 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ios-preview --cleanup-tag --yes || true
+          gh release create ios-preview MacawP3.ipa --target "${{ github.sha }}" --prerelease \
+            --title "iOS app preview (${{ github.ref_name }})" \
+            --notes "Test build from the branch ${{ github.ref_name }}, not merged yet. Download MacawP3.ipa below and open it with AltStore."

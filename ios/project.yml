@@ -1,0 +1,36 @@
+# The iOS app (for sideloading with AltStore). Xcode project generated from this file by XcodeGen on GitHub's Mac
+# build machine: see .github/workflows/ios.yml. The player itself is the repo's index.html, copied into Macaw/www.
+name: MacawP3
+options:
+  bundleIdPrefix: app.macaw
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  MacawP3:
+    type: application
+    scheme: {}
+    platform: iOS
+    sources:
+      - path: Macaw
+        excludes:
+          - www
+          - Info.plist
+      - path: Macaw/www
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.macaw.player
+        PRODUCT_NAME: MacawP3
+        INFOPLIST_FILE: Macaw/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
+        ENABLE_BITCODE: "NO"

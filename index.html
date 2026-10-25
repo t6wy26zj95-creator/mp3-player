@@ -912,6 +912,7 @@ button.set-row:active{background:rgba(255,255,255,.08)}
       <div class="set-row"><span class="set-l">Cover Flow<small>Albums in one row that you flip through, instead of the grid</small></span><button class="switch" id="flow-switch" role="switch" aria-checked="false" aria-label="Cover Flow"><i></i></button></div>
       <button class="set-row" id="hidden-toggle" aria-expanded="false" aria-controls="hidden-list"><span class="set-l">Hidden albums</span><span class="set-v" id="hidden-count">None</span><svg class="set-chev" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
       <div class="hidden-list" id="hidden-list" style="display:none"></div>
+      <div class="set-row" id="tg-link-row" style="display:none"><span class="set-l">Telegram<small id="tg-link-sub">Songs you send the bot download into the app</small></span><button class="set-pill" id="tg-link-btn">Link</button></div>
     </div>
     <div class="set-h">Sound effect</div>
     <div class="set-group" id="retro-sw" role="radiogroup" aria-label="Sound effect">
@@ -944,8 +945,11 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v37";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v39";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
+/* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
+   the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
+const NAT = (() => { try { return window.MACAW_APP && window.webkit && window.webkit.messageHandlers.macaw ? window.MACAW_APP : null; } catch (e) { return null; } })();
 let botMode = !!TG && !!TG.initData;                   // switches off if the server can't be reached, so the phone's files still work
 function haptic(kind) {                               // "light" | "medium" | "select". Telegram's haptics also work on iPhone; navigator.vibrate is the fallback (Android browsers)
   if (tgAt("6.1")) { try { kind === "select" ? TG.HapticFeedback.selectionChanged() : TG.HapticFeedback.impactOccurred(kind); } catch (e) {} return; }
@@ -1152,8 +1156,8 @@ const progressCtrl = setupCustomSlider("progress-slider",
 
 /* ---------- LOADING SONGS ---------- */
 function showPlayerUI() { $("drop-zone").style.display = "none"; $("player-main").style.display = "flex"; $("controls-main").style.display = "flex"; $("footer-main").style.display = "flex"; startPulse(); }
-$("drop-zone").addEventListener("click", () => { if (!botMode) $("file-input").click(); });
-$("btn-add").addEventListener("click", () => { if (botMode) { toast("Send or forward songs in the bot chat"); haptic("light"); } else $("file-input").click(); });
+$("drop-zone").addEventListener("click", () => { if (NAT) natImport(); else if (!botMode) $("file-input").click(); });
+$("btn-add").addEventListener("click", () => { if (botMode) { toast("Send or forward songs in the bot chat"); haptic("light"); } else if (NAT) natImport(); else $("file-input").click(); });
 $("file-input").addEventListener("change", async e => {
   const files = Array.from(e.target.files); e.target.value = "";
   if (!files.length) return;
@@ -1183,20 +1187,24 @@ function parseDisc(t) {
   else if (t.disk && t.disk.data != null) v = typeof t.disk.data === "object" ? t.disk.data.disk : t.disk.data;
   const n = parseInt(v, 10); return n > 0 ? n : 0;
 }
-async function addFile(f) {
-  const fk = `${f.name}|${f.size}|${f.lastModified}`;
-  if (fileKeys.has(fk)) { dupCount++; return; }                       // same file picked again
-  const t = await readTags(f);
-  const stem = f.name.replace(/\.[^.]+$/, "").replace(/^\s*\d{1,3}\s*[-._)]\s*/, "");
+/* the song's fields from its tags (t, from readTags), falling back to the file name. Shared by the file picker and the iOS app's library */
+function tagFields(name, t) {
+  const stem = name.replace(/\.[^.]+$/, "").replace(/^\s*\d{1,3}\s*[-._)]\s*/, "");
   let title0 = t.title || stem;
   const sub3 = tagText(t.TIT3).trim();                                        // ID3 "subtitle" frame, e.g. "Live"
   if (sub3 && !title0.toLowerCase().includes(sub3.toLowerCase())) title0 += ` (${sub3})`;
   const fstem = stem.replace(/^[^-:]{1,40}\s*[-:]\s*/, m => norm(m).startsWith(norm(String(t.artist || "~"))) ? "" : m);
   if (t.title && fstem.length > t.title.length && fstem.toLowerCase().startsWith(t.title.toLowerCase()) && /^\s*[\(\[]/.test(fstem.slice(t.title.length))) title0 = fstem; // file name carries the version suffix
   const cl = x => String(x == null ? "" : x).replace(/\0/g, "").trim();
-  const tr = { id: ++uid, title: cl(title0), discName: cl(tagText(t.TSST)), artist: cl(t.artist) || "Unknown Artist", isrc: cl(tagText(t.TSRC)),
+  return { title: cl(title0), discName: cl(tagText(t.TSST)), artist: cl(t.artist) || "Unknown Artist", isrc: cl(tagText(t.TSRC)),
     album: cl(t.album) || "Unknown Album", albumArtist: cl(tagText(t.TPE2) || tagText(t.aART)),
-    disc: parseDisc(t), num: parseInt(t.track, 10) || 0, year: parseInt(t.year, 10) || 0, file: f, art: null };
+    disc: parseDisc(t), num: parseInt(t.track, 10) || 0, year: parseInt(t.year, 10) || 0 };
+}
+async function addFile(f) {
+  const fk = `${f.name}|${f.size}|${f.lastModified}`;
+  if (fileKeys.has(fk)) { dupCount++; return; }                       // same file picked again
+  const t = await readTags(f);
+  const tr = { id: ++uid, ...tagFields(f.name, t), file: f, art: null };
   const tk = [tr.artist, tr.album, tr.disc, tr.num, tr.title].map(x => String(x).trim().toLowerCase()).join("|");
   fileKeys.add(fk);
   if (tagKeys.has(tk)) { dupCount++; return; }                        // identical track already in this album
@@ -4562,19 +4570,21 @@ const lib = { token: "", version: -1, byRid: new Map(), mem: [], jobs: new Map()
 const PHONE_CACHE = "macaw-songs", PHONE_CAP = 600e6;                // songs kept on the phone (least recently played go first)
 let phoneIdx = {}; try { phoneIdx = JSON.parse(store.get("songCache") || "{}"); } catch (e) {}
 const savePhoneIdx = () => store.set("songCache", JSON.stringify(phoneIdx));
-const audioURL = t => `${API_BASE}/api/audio/${t.remote.id}?t=${lib.token}`;
+const audioURL = t => t.remote.nat ? natURL("song", t.remote.nat) : `${API_BASE}/api/audio/${t.remote.id}?t=${lib.token}`;
 function libFields(x) {
   return { title: x.title || "Unknown", artist: x.artist || "Unknown Artist", album: x.album || "Unknown Album", albumArtist: x.albumArtist || "",
     disc: x.disc || 0, num: x.num || 0, year: x.year || 0, isrc: x.isrc || "", discName: "", dur: x.duration || 0,
     art: x.cover ? `${API_BASE}/api/cover/${x.id}?t=${lib.token}&r=${x.rev}` : null };
 }
 async function phoneGet(rid) {
+  if (natRid(rid)) return natGet(rid);                               // iOS app: the song is already on the phone, read it from the app
   try {
     const r = await (await caches.open(PHONE_CACHE)).match("/song/" + rid); if (!r) return null;
     const b = await r.blob(); phoneIdx[rid] = { u: Date.now(), s: b.size }; savePhoneIdx(); return b;
   } catch (e) { return null; }
 }
 async function phonePut(rid, b) {
+  if (natRid(rid)) return;
   try {
     const c = await caches.open(PHONE_CACHE);
     await c.put("/song/" + rid, new Response(b, { headers: { "content-type": b.type || "audio/mpeg" } }));
@@ -4604,13 +4614,13 @@ function fetchSong(t) {
 function prefetchNext() {
   const n = trackById(peekNext());
   if (!n || !n.remote || n.file) return;
-  if (phoneIdx[n.remote.id]) phoneGet(n.remote.id).then(b => { if (b) { n.file = b; keepMem(n); if (RETRO) RETRO.pre(n); } else fetchSong(n); });
+  if (phoneIdx[n.remote.id] || n.remote.nat) phoneGet(n.remote.id).then(b => { if (b) { n.file = b; keepMem(n); if (RETRO) RETRO.pre(n); } else fetchSong(n); });
   else fetchSong(n);
 }
 function remoteSrc(t, autoplay) {                                    // returns true when the song starts itself a moment later (read from the phone cache)
   env = null; envId = t.id;
   const id = t.id, rid = t.remote.id;
-  if (phoneIdx[rid]) {
+  if (phoneIdx[rid] || t.remote.nat) {
     phoneGet(rid).then(b => {
       if (curId !== id) return;
       if (b) { t.file = b; keepMem(t); curUrl = URL.createObjectURL(RETRO ? RETRO.blobFor(t) : b); audio.src = srcFor(curUrl, id); analyze(t); prefetchNext(); if (RETRO) RETRO.want(t); }
@@ -4729,6 +4739,156 @@ if (botMode) {
   document.addEventListener("visibilitychange", () => { if (!document.hidden) syncLibrary(); });
   try { TG.onEvent("activated", syncLibrary); } catch (e) {}
   audio.addEventListener("play", () => { const t = trackById(curId); if (t && t.remote && !t.file) fetchSong(t); });
+}
+
+/* ---------- IOS APP LIBRARY ----------
+   Only in the iOS app (NAT). Your songs are files inside the app: added with + (the Files picker), shared to the app from
+   another app, or copied into the app's folder in the Files app (On My iPhone > MacawP3). They stay between launches.
+   The app lists them; a new song is read once for its tags (kept in "natTags") and its cover is handed to the app, which
+   keeps it. After that a song plays like a bot song saved on the phone: read whole from the app, never downloaded. */
+const NAT_BASE = (NAT && NAT.base) || "macaw://app/lib/";
+function natURL(kind, n) { return NAT_BASE + kind + "/" + String(n).split("/").map(encodeURIComponent).join("/"); }
+function natRid(rid) { return typeof rid === "string" && rid.startsWith("n:"); }
+function natGet(rid) { return fetch(natURL("song", rid.slice(2))).then(r => r.ok ? r.blob() : null).catch(() => null); }
+function natSend(msg) { try { window.webkit.messageHandlers.macaw.postMessage(msg); } catch (e) {} }
+function natImport() { haptic("light"); natSend({ cmd: "import" }); }      // the app shows the Files picker, copies the songs in, then calls natSync
+let natTags = {}; try { natTags = JSON.parse(store.get("natTags") || "{}") || {}; } catch (e) {}
+function natB64(u8) { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+async function natRead(x) {                                          // x = { n: path inside the app's folder, s: size, m: modified (ms) }
+  const name = x.n.split("/").pop();
+  let t = {};
+  try {
+    const r = await fetch(natURL("song", x.n)); if (!r.ok) return null;
+    const b = await r.blob();
+    t = await readTags(new File([b], name, { type: b.type, lastModified: x.m }));
+  } catch (e) { return null; }
+  const f = tagFields(name, t); f.pic = 0;
+  if (t.picture && t.picture.data) { try { natSend({ cmd: "art", n: x.n, b64: natB64(new Uint8Array(t.picture.data)) }); f.pic = 1; } catch (e) {} }
+  return f;
+}
+const natFields = (f, x) => { const o = { ...f, art: f.pic ? natURL("art", x.n) + "?r=" + x.m : null }; delete o.pic; return o; };
+function natUI() {
+  if (tracks.length) { libUI(""); return; }
+  const dz = $("drop-zone");
+  dz.style.display = ""; ["player-main", "controls-main", "footer-main"].forEach(i => { $(i).style.display = "none"; });
+  if (XP) XP.sync();
+  dz.innerHTML = "Tap to add your songs<br><span style=\"font-size:11px;opacity:.7;\">They stay in the app. You can also copy music into the MacawP3 folder in the Files app.</span>";
+}
+async function natSync() {
+  if (!NAT) return;
+  if (natSync.busy) { natSync.again = true; return; }
+  natSync.busy = true;
+  const first = !natSync.done;
+  try {
+    const list = await (await fetch(NAT_BASE + "list", { cache: "no-store" })).json();
+    const key = x => x.n + "|" + x.s + "|" + x.m, todo = list.filter(x => !natTags[key(x)]).length;
+    const seen = new Set(), added = [], keep = {}; let read = 0;
+    if (todo > 3 && !(first && !tracks.length)) toast(`Adding ${todo} songs…`);
+    for (const x of list) {
+      const rid = "n:" + x.n, k = key(x), old = lib.byRid.get(rid);
+      seen.add(rid);
+      if (old && old.remote.rev === k && natTags[k]) { keep[k] = natTags[k]; continue; }
+      let f = natTags[k];
+      if (!f) {
+        if (first && !tracks.length) $("drop-zone").innerHTML = `Reading your songs… ${read + 1} of ${todo}`;
+        f = await natRead(x); read++;
+        if (!f) continue;
+      }
+      keep[k] = f;
+      if (old) {                                                       // the same file name with new contents: take its new tags
+        delete albumRelease[old.album]; Object.assign(old, natFields(f, x)); old.remote.rev = k; old.file = null; scheduleAlbumWork(old); delete albumRelease[old.album];
+        continue;
+      }
+      const tr = { id: ++uid, file: null, remote: { id: rid, rev: k, nat: x.n }, ...natFields(f, x) };
+      lib.byRid.set(rid, tr); tracks.push(tr); added.push(tr); scheduleAlbumWork(tr); delete albumRelease[tr.album];
+    }
+    for (const [rid, t] of lib.byRid) if (!seen.has(rid)) { lib.byRid.delete(rid); tracks = tracks.filter(x => x !== t); queue = queue.filter(e => e.id !== t.id); history = history.filter(h => h.id !== t.id); }
+    natTags = keep; store.set("natTags", JSON.stringify(natTags));
+    tracks.sort(cmpTracks); scheduleResolve();
+    if (!first && added.length) toast(added.length === 1 ? `Added “${added[0].title}”` : `Added ${added.length} songs`);
+    if (first && tracks.length) { showPlayerUI(); restoreState(); }
+    natUI();
+    if (queueShown()) renderQueue();
+    if (XP) XP.sync();
+  } catch (e) { console.error(e); if (first) bootError(e); }
+  finally { natSync.busy = false; natSync.done = true; if (natSync.again) { natSync.again = false; natSync(); } }
+}
+/* Telegram link (iOS app only): Settings > Library > Telegram. The app gets a key for your bot library through the bot
+   (see "the iOS app" in install.sh). Then songs you send the bot download into the app's Telegram folder by themselves
+   while the app is open, and a song you /remove in the bot leaves the app too. A song you delete from the app yourself
+   (in the Files app) isn't downloaded again. */
+const TGL = { key: store.get("tgKey") || "", version: -1, busy: false, linking: false, done: {}, waiting: new Map(), t: 0 };
+try { TGL.done = JSON.parse(store.get("tgDone") || "{}") || {}; } catch (e) {}
+const TG_EXT = { "audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/mp4": ".m4a", "audio/x-m4a": ".m4a", "audio/aac": ".aac", "audio/flac": ".flac", "audio/x-flac": ".flac",
+  "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/ogg": ".ogg", "audio/aiff": ".aiff" };
+const tgSafe = s => String(s).replace(/[\/\\:*?"<>|\x00-\x1f]/g, "_").replace(/^[.\s]+/, "").trim().slice(0, 120) || "Song";
+function tgLinkUI(msg) {
+  const n = Object.keys(TGL.done).length;
+  $("tg-link-row").style.display = "";
+  $("tg-link-sub").textContent = msg || (TGL.key ? `Linked: ${n} song${n === 1 ? "" : "s"} from the bot so far` : "Songs you send the bot download into the app");
+  $("tg-link-btn").textContent = TGL.key ? "Unlink" : "Link";
+}
+async function tgLink() {
+  if (TGL.key) {
+    if (!confirm("Unlink Telegram? Songs already downloaded stay in the app.")) return;
+    const k = TGL.key; TGL.key = ""; TGL.version = -1; store.set("tgKey", "");
+    fetch(API_BASE + "/api/link", { method: "DELETE", headers: { "X-App-Key": k } }).catch(() => {});
+    tgLinkUI(); return;
+  }
+  if (TGL.linking) return;
+  TGL.linking = true; tgLinkUI("Opening Telegram…");
+  try {
+    const r = await fetchT(API_BASE + "/api/link", { method: "POST" }), j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    natSend({ cmd: "open", url: j.url });                            // the app opens it in Telegram
+    tgLinkUI("Press Start in the bot, then come back here");
+    const until = Date.now() + (j.expires || 600) * 1000;
+    while (Date.now() < until) {
+      await sleep(2000);
+      let a = null;
+      try { const q = await fetchT(API_BASE + "/api/link/" + j.code); if (q.status === 410) break; a = await q.json(); } catch (e) { continue; }
+      if (a && a.key) { TGL.key = a.key; TGL.version = -1; store.set("tgKey", a.key); toast("Telegram linked"); tgLinkUI(); tgSync(); return; }
+    }
+    tgLinkUI("The link expired. Tap Link to try again");
+  } catch (e) { tgLinkUI("Couldn't reach your music server (" + (e.message || e) + ")"); }
+  finally { TGL.linking = false; }
+}
+async function tgSync() {
+  if (!TGL.key || TGL.busy) return;
+  TGL.busy = true;
+  try {
+    const r = await fetchT(`${API_BASE}/api/library?since=${TGL.version}`, { headers: { "X-App-Key": TGL.key } }), j = await r.json().catch(() => ({}));
+    if (r.status === 401 || r.status === 403) {                     // unlinked, or no longer let in by the bot's owner
+      TGL.key = ""; store.set("tgKey", ""); tgLinkUI("The link stopped working. Tap Link to link again"); toast("Telegram is no longer linked"); return;
+    }
+    if (!r.ok || j.same || !j.tracks) return;
+    const seen = new Set(); let gone = 0;
+    for (const x of j.tracks) {
+      seen.add(x.id);
+      if (TGL.done[x.id] || TGL.waiting.has(x.id)) continue;
+      const name = tgSafe((x.artist ? x.artist + " - " : "") + (x.title || "Song")) + (TG_EXT[String(x.mime || "").toLowerCase()] || ".mp3");
+      TGL.waiting.set(x.id, 1);
+      natSend({ cmd: "download", id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name });
+    }
+    for (const id of Object.keys(TGL.done)) if (!seen.has(id)) { natSend({ cmd: "delete", n: TGL.done[id] }); delete TGL.done[id]; gone++; }
+    if (gone) { store.set("tgDone", JSON.stringify(TGL.done)); setTimeout(natSync, 300); tgLinkUI(); }
+    TGL.version = j.version;
+  } catch (e) {} finally { TGL.busy = false; }
+}
+window.natDownloaded = (id, rel, ok) => {                            // the app calls this when a download finished (ok) or failed
+  TGL.waiting.delete(id);
+  if (ok) { TGL.done[id] = rel; store.set("tgDone", JSON.stringify(TGL.done)); } else TGL.version = -1;   // a failed one is tried again on the next sync
+  clearTimeout(TGL.t); TGL.t = setTimeout(() => { natSync(); tgLinkUI(); }, 500);
+};
+if (NAT) {
+  tgLinkUI();
+  $("tg-link-btn").addEventListener("click", () => { haptic("light"); tgLink(); });
+  setTimeout(tgSync, 1500);
+  setInterval(() => { if (!document.hidden) tgSync(); }, 20000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) tgSync(); });
+  window.natSync = natSync;                                          // the app calls this after it copied songs in
+  setTimeout(natSync, 0);                                            // once the whole script has set up
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) natSync(); });   // songs copied in with the Files app meanwhile
 }
 
 /* ---------- TELEGRAM MINI APP ----------

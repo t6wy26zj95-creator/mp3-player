@@ -288,7 +288,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 fs.mkdirSync(AUDIO, { recursive: true }); fs.mkdirSync(COVERS, { recursive: true });
 
 /* ---------- data: one JSON file ---------- */
-let db = { owner: null, users: {}, invites: {}, offset: 0, version: 1, secret: crypto.randomBytes(24).toString("hex"), tracks: [] };
+let db = { owner: null, users: {}, invites: {}, appKeys: {}, offset: 0, version: 1, secret: crypto.randomBytes(24).toString("hex"), tracks: [] };
 try { db = { ...db, ...JSON.parse(fs.readFileSync(DB_FILE, "utf8")) }; } catch {}
 let saveT = null;
 function save(now) {
@@ -407,6 +407,7 @@ async function onMessage(m) {
   const text = (m.text || "").trim(), uid = m.from.id;
   const start = /^\/start(?:\s+([\w-]+))?/.exec(text);
   if (start && !db.owner) { db.owner = uid; save(true); console.log("owner is now Telegram user", uid); setCommands(); }
+  if (start && start[1] && start[1].startsWith("app_")) return linkApp(m, start[1].slice(4));
   if (start && !isMember(uid) && start[1]) return joinWithInvite(m, start[1]);
   if (!isMember(uid)) { if (text || audioOf(m)) await reply(m, "This is a private music bot. To use it you need an invite link from its owner."); return; }
   if (start) return welcome(m);
@@ -439,6 +440,28 @@ async function onMessage(m) {
     catch (e) { console.error("ingest", t.title, e.message); await react(m, "🤷"); }   // stays in the library under Telegram's title; the file is fetched again when played
   });
 }
+/* ---------- the iOS app (MacawP3) ----------
+   The app can't sign in through Telegram like the Mini App does, so it links once: Settings > Link Telegram asks the
+   server for a code (POST /api/link), opens t.me/<bot>?start=app_<code>, you press Start, and the app picks up a key
+   for your library (GET /api/link/<code>). With that key (X-App-Key) it lists your songs and downloads them. */
+const links = new Map();                                                  // code -> { exp, uid }: pending links, kept 10 minutes, in memory only
+const LINK_MS = 10 * 60e3;
+function newLink() {
+  const now = Date.now();
+  for (const [c, v] of links) if (v.exp < now) links.delete(c);
+  if (links.size > 200) links.delete(links.keys().next().value);
+  const code = crypto.randomBytes(12).toString("base64url");
+  links.set(code, { exp: now + LINK_MS, uid: null });
+  return code;
+}
+async function linkApp(m, code) {
+  const l = links.get(code);
+  if (!isMember(m.from.id)) return reply(m, "This is a private music bot. To use it you need an invite link from its owner.");
+  if (!l || l.exp < Date.now()) return reply(m, "That link has expired. In the app, open Settings and tap Link Telegram again.");
+  l.uid = m.from.id;
+  await reply(m, "Your iPhone app is linked ✅\n\nSongs you send here now download into the app by themselves (while the app is open).");
+}
+const appUser = key => { const a = key && db.appKeys[key]; return a && isMember(a.uid) ? a.uid : null; };
 async function welcome(m) {
   const n = songsOf(m.from.id);
   await say(m.chat.id, `Your music library 🎧\n\nSend or forward audio files here and they show up in the player (${n} song${n === 1 ? "" : "s"} so far).\n\nTo take a song out, reply /remove to it.` +
@@ -555,7 +578,7 @@ function tokenUser(tok) {
 }
 const pub = t => ({ id: t.id, title: t.title, artist: t.artist, album: t.album, albumArtist: t.albumArtist, num: t.num, disc: t.disc, year: t.year, isrc: t.isrc,
   duration: t.duration, size: t.size, mime: t.mime, cover: !!t.cover, rev: t.rev, added: t.added });
-const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "X-Init-Data, Range", "Access-Control-Allow-Methods": "GET, HEAD, DELETE, OPTIONS",
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "X-Init-Data, X-App-Key, Range", "Access-Control-Allow-Methods": "GET, HEAD, POST, DELETE, OPTIONS",
   "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges", "Access-Control-Max-Age": "86400" };
 function json(res, code, obj) { res.writeHead(code, { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" }); res.end(JSON.stringify(obj)); }
 function serveFile(req, res, file, type) {                                // with byte ranges: iPhones won't play audio without them
@@ -576,6 +599,11 @@ function serveFile(req, res, file, type) {                                // wit
   fs.createReadStream(file).pipe(res);
 }
 function member(req, res) {                                               // the signed-in Telegram user, if they're allowed in
+  if (req.headers["x-app-key"]) {                                         // the iOS app, linked through the bot
+    const uid = appUser(req.headers["x-app-key"]);
+    if (uid == null) json(res, 403, { error: "this app isn't linked any more: link Telegram again" });
+    return uid;
+  }
   const u = initUser(req.headers["x-init-data"]);
   if (!u) { json(res, 401, { error: "not signed by Telegram" }); return null; }
   if (!db.owner) { json(res, 403, { error: "send /start to the bot first" }); return null; }
@@ -592,7 +620,27 @@ http.createServer(async (req, res) => {
       if (+url.searchParams.get("since") === db.version) return json(res, 200, { version: db.version, same: true });
       return json(res, 200, { version: db.version, token: makeToken(uid), tracks: db.tracks.filter(t => t.uid === uid).map(pub) });
     }
-    let m = /^\/api\/track\/([\w-]+)$/.exec(p);
+    if (p === "/api/link" && req.method === "POST") {                   // the app starts linking
+      if (!BOT_NAME) return json(res, 503, { error: "the bot is still starting, try again in a minute" });
+      const code = newLink();
+      return json(res, 200, { code, url: `https://t.me/${BOT_NAME}?start=app_${code}`, expires: LINK_MS / 1000 });
+    }
+    if (p === "/api/link" && req.method === "DELETE") {                 // the app unlinks itself
+      const key = req.headers["x-app-key"];
+      if (key && db.appKeys[key]) { delete db.appKeys[key]; save(true); }
+      return json(res, 200, { ok: true });
+    }
+    let m = /^\/api\/link\/([\w-]+)$/.exec(p);
+    if (m && req.method === "GET") {                                     // the app waits for you to press Start in the bot
+      const l = links.get(m[1]);
+      if (!l || l.exp < Date.now()) return json(res, 410, { error: "expired" });
+      if (!l.uid) return json(res, 200, { pending: true });
+      links.delete(m[1]);
+      const key = crypto.randomBytes(24).toString("base64url");
+      db.appKeys[key] = { uid: l.uid, created: Date.now() }; save(true);
+      return json(res, 200, { key });
+    }
+    m = /^\/api\/track\/([\w-]+)$/.exec(p);
     if (m && req.method === "DELETE") {
       const uid = member(req, res); if (uid == null) return;
       const t = byId(m[1]); if (!t || t.uid !== uid) return json(res, 404, { error: "no such song" });
