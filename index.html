@@ -772,44 +772,48 @@ button.set-row:active{background:rgba(255,255,255,.08)}
 /* ===== the desktop app (desktop/) =====
    html.desk-win: a normal window with the wallpaper; the top strip moves the window (Windows draws its own buttons there).
    html.desk-float: "Floating glass": the window itself is invisible, only the Liquid Glass panel floats on the desktop.
-   A strip above it moves it (the grip), with small Settings / minimise / close buttons. */
+   No frame, no shadow, nothing outside the glass: drag the glass to move it; Settings / minimise / close sit inside it,
+   in its top right corner, and Settings opens inside the glass too (html.desk-set). */
 html:not(.desk) .desk-only,html.desk-float .no-float{display:none!important}
 .desk-bar,.desk-grip,.desk-b{display:none}
-html.desk .desk-bar{display:flex;position:fixed;left:0;right:0;top:0;height:34px;z-index:12;align-items:center;justify-content:center;-webkit-app-region:drag;app-region:drag}
+html.desk-win .desk-bar{display:flex;position:fixed;left:0;right:0;top:0;height:34px;z-index:12;align-items:center;justify-content:center;-webkit-app-region:drag;app-region:drag}
 html.desk-win body{padding-top:44px}
 html.desk .floating-customizer,html.desk .set-ov.show,html.desk .toast,html.desk .pl-pop{-webkit-app-region:no-drag;app-region:no-drag}   /* anything over the top strip stays clickable */
 html.desk-float,html.desk-float body{background:transparent!important}
-html.desk-float body{padding-top:30px}
+html.desk-float body{padding:8px 8px 0}
 html.desk-float .bg-container,html.desk-float .bg-vignette{display:none}
-html.desk-float .desk-bar{height:30px}
-html.desk-float .desk-grip{display:block;width:46px;height:5px;border-radius:3px;background:rgba(255,255,255,.62);box-shadow:0 0 0 .5px rgba(0,0,0,.3),0 1px 5px rgba(0,0,0,.4);opacity:.55;transition:opacity .2s var(--ease),width .25s var(--ease)}
-html.desk-float .desk-bar:hover .desk-grip{opacity:1;width:56px}
-html.desk-float .desk-b,html.desk-float .gear-btn{display:flex;position:fixed;top:5px;bottom:auto;width:20px;height:20px;box-sizing:border-box;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.18);
-  background:rgba(10,22,30,.62);backdrop-filter:none;-webkit-backdrop-filter:none;align-items:center;justify-content:center;cursor:pointer;opacity:.5;
-  box-shadow:0 1px 6px rgba(0,0,0,.35);transition:opacity .2s var(--ease),background .2s var(--ease);-webkit-app-region:no-drag;app-region:no-drag}
-html.desk-float #desk-close{right:18px}
-html.desk-float #desk-min{right:44px}
-html.desk-float .gear-btn{right:70px;z-index:13}
-html.desk-float .desk-bar:hover .desk-b,html.desk-float .desk-bar:hover~.gear-btn,html.desk-float .desk-b:focus-visible,html.desk-float .gear-btn:hover,html.desk-float .gear-btn.on{opacity:1}
-html.desk-float .desk-b svg{width:12px;height:12px;fill:#fff}
-html.desk-float .gear-btn svg{width:12px;height:12px;fill:#fff}
-html.desk-float #desk-close:hover{background:#d9434a;border-color:transparent}
-html.desk-float #desk-min:hover,html.desk-float .gear-btn:hover{background:rgba(255,255,255,.22)}
+html.desk-float .player-wrapper{box-shadow:none;clip-path:inset(-1px round 37px)}   /* nothing (shadow, cover glow) spills onto the desktop */
+/* the corner buttons: plain glyphs on the glass, a soft circle under the pointer */
+html.desk-float .desk-bar{display:flex;position:fixed;top:22px;right:24px;z-index:13;gap:4px;align-items:center}
+html.desk-float .desk-b,html.desk-float .gear-btn{display:flex;width:24px;height:24px;box-sizing:border-box;padding:0;border:0;border-radius:50%;background:transparent;
+  backdrop-filter:none;-webkit-backdrop-filter:none;align-items:center;justify-content:center;cursor:pointer;opacity:.55;box-shadow:none;transition:opacity .2s var(--ease),background .2s var(--ease)}
+html.desk-float .gear-btn{position:fixed;top:22px;right:80px;bottom:auto;z-index:13}
+html.desk-float .player-wrapper:hover~.desk-bar .desk-b,html.desk-float .player-wrapper:hover~.gear-btn,html.desk-float .desk-bar:hover .desk-b,html.desk-float .gear-btn:hover,html.desk-float .gear-btn.on,html.desk-float .desk-b:focus-visible{opacity:.9}
+html.desk-float .desk-b svg,html.desk-float .gear-btn svg{width:13px;height:13px;fill:#fff}
+html.desk-float #desk-close:hover{background:#d9434a;opacity:1}
+html.desk-float #desk-min:hover,html.desk-float .gear-btn:hover{background:rgba(255,255,255,.16);opacity:1}
+html.desk-float #player-main{padding-right:72px;box-sizing:border-box}   /* the song's title never runs under the corner buttons */
+html.desk-float .drop-zone{margin-top:26px}
 /* until the glass sees the desktop (or if it can't), the panel is plain dark glass, so its text never sits on the bare desktop */
 html.desk-float:not(.gl-glass) .bubble-skin{background:rgba(10,22,30,.78)}
-html.desk-float .toast{bottom:auto;top:calc(var(--desk-pb,220px) + 14px)}
-html.desk-float .set-ov{background:transparent}
-html.desk-float .floating-customizer{top:34px;bottom:auto;max-height:calc(100% - 46px);transform:translate(-50%,-14px) scale(.98);transform-origin:50% 0;
-  background:linear-gradient(rgba(10,24,32,.93),rgba(10,24,32,.93))}
-html.desk-float .floating-customizer.active{transform:translate(-50%,0)}
-/* the update pill: in the top strip, once a new version is downloaded (Mac: once one is out) */
+html.desk-float .toast{bottom:auto;top:calc(var(--desk-pb,220px) + 10px)}
+/* Settings: a page of the glass. The player's own content steps aside and the settings fill the bubble */
+html.desk-float .set-ov{display:none}
+html.desk-float .floating-customizer{display:none}
+html.desk-float.desk-set .player-wrapper>:not(.floating-customizer):not(.bubble-skin):not(.bubble-gl):not(.bubble-svg){display:none!important}
+html.desk-float.desk-set .floating-customizer{display:flex;position:relative;left:auto;top:auto;bottom:auto;width:auto;max-height:calc(100vh - 56px);margin:-6px -6px -8px;
+  background:none;backdrop-filter:none;-webkit-backdrop-filter:none;border:0;box-shadow:none;border-radius:0;opacity:1;pointer-events:auto;transform:none;transition:none;animation:setIn .35s var(--ease)}
+html.desk-float.desk-set .set-x{display:none}               /* the gear in the corner closes it */
+html.desk-float.desk-set .set-group{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.08)}
+@keyframes setIn{from{opacity:0;transform:translateY(6px)}}
+/* the update pill: in the top strip (Floating glass: next to the corner buttons), once a new version is downloaded (Mac: once one is out) */
 .upd-pill{display:none}
 html.desk .upd-pill:not([hidden]){display:flex;align-items:center;gap:6px;height:22px;padding:0 11px 0 8px;border:0;border-radius:11px;cursor:pointer;
   background:linear-gradient(#5fd6df,#3fb5c0);color:#06222a;font:600 12px -apple-system,system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.45);
   -webkit-app-region:no-drag;app-region:no-drag;animation:updIn .5s var(--ease)}
+html.desk-float .upd-pill:not([hidden]){position:fixed;top:23px;right:112px;box-shadow:none}
 .upd-pill svg{width:13px;height:13px;fill:currentColor}
 .upd-pill:hover{filter:brightness(1.08)}
-html.desk-float .upd-pill:not([hidden])~.desk-grip,html.desk-float .desk-bar:has(.upd-pill:not([hidden])) .desk-grip{display:none}
 @keyframes updIn{from{opacity:0;transform:translateY(-6px) scale(.9)}}
 </style>
 </head>
@@ -3305,7 +3309,7 @@ const bubble = (() => {
         const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
         const loc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
         ["uTex", "uBlur", "uCanvasPx", "uPanel", "uOrigin", "uUvA", "uUvB", "uVigC", "uLight", "uM", "uDpr", "uR", "uVigR", "uLod", "uBevel", "uRefr", "uQ", "uTint", "uRimLod", "uRimBlur", "uRimClear"].forEach(k => U[k] = gl.getUniformLocation(prog, k));
-        cv.addEventListener("webglcontextlost", ev => { ev.preventDefault(); G.ready = false; document.documentElement.classList.remove("gl-glass", "gl-solid"); });
+        cv.addEventListener("webglcontextlost", ev => { ev.preventDefault(); G.ready = false; document.documentElement.classList.remove("gl-glass", "gl-solid"); if (FLOAT) DESK.send("gl-lost"); });   // desktop: the app starts a fresh window
         skin.after(cv); G.cv = cv;                                     // above the CSS glass (otherwise the glass blurs and tints the edge a second time), below the content
         if (FLOAT) desk.start();                                       // Floating glass: the real desktop instead of the wallpaper
         else { window.__bgChanged = () => { geo = null; loadTex(); request(true); }; loadTex(); }   // geo: the blur changes the wallpaper box's size
@@ -3357,6 +3361,7 @@ const bubble = (() => {
           disp = d; fails = 0;
           if (!video) { video = document.createElement("video"); video.muted = true; video.playsInline = true; }
           video.srcObject = stream; await video.play();
+          stream.getVideoTracks().forEach(t => t.addEventListener("ended", () => { if (stream && stream.getVideoTracks().includes(t)) { stream = null; setTimeout(start, 1000); } }));   // e.g. the screen was locked
           if (!tex) tex = gl.createTexture();
           gl.bindTexture(gl.TEXTURE_2D, tex);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -3380,11 +3385,7 @@ const bubble = (() => {
           clearTimeout(G.solidT); G.solidT = setTimeout(() => { if (G.ready) document.documentElement.classList.add("gl-solid"); }, 800);
         } else request(true);
       }
-      addEventListener("pointermove", ev => {
-        const r = wrap.getBoundingClientRect();
-        frozen = ev.clientX > r.left - 4 && ev.clientX < r.right + 4 && ev.clientY > r.top - 4 && ev.clientY < r.bottom + 4;
-      }, true);
-      document.addEventListener("mouseout", ev => { if (!ev.relatedTarget) frozen = false; });
+      DESK.on("near", v => { frozen = !!v; });                         // the app checks where the pointer is, even outside the window
       document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); else if (gl && !stream) start(); });   // minimised: no capturing at all
       DESK.on("display", () => start());                              // moved onto another screen
       (function watch() {                                             // the window moved: the picture behind it slides along, on the same frame
@@ -3555,7 +3556,7 @@ const bubble = (() => {
   }
   const go = () => { if (on && !raf) raf = requestAnimationFrame(frame); };
   document.addEventListener("pointerdown", ev => {
-    if (!on || drag || ev._xp || (ev.pointerType === "mouse" && ev.button)) return;
+    if (!on || drag || ev._xp || FLOAT || (ev.pointerType === "mouse" && ev.button)) return;   // Floating glass: dragging the glass moves the window instead (DESKTOP APP)
     if (ev.target.closest && ev.target.closest(NO_PULL)) return;
     const r = wrap.getBoundingClientRect();
     if (ev.clientX < r.left - GRAB || ev.clientX > r.right + GRAB || ev.clientY < r.top - GRAB || ev.clientY > r.bottom + GRAB) return;
@@ -3632,8 +3633,36 @@ if (DESK) (function () {
   const act = () => { haptic("light"); DESK.send(U.state === "ready" || U.state === "available" ? "update-install" : "update-check"); };
   $("upd-btn").addEventListener("click", act); $("upd-pill").addEventListener("click", act);
   DESK.on("update", upd); DESK.update().then(upd).catch(() => upd());
+  if (NAT.resume) (function go(n) { if (restored && curId != null) { if (audio.paused) playTrack(); } else if (n < 40) setTimeout(() => go(n + 1), 250); })(0);   // a fresh window (after sleep): keep playing
 
   if (!FLOAT) return;
+  const H = document.documentElement, sp = $("settings-panel");
+  /* Settings opens inside the glass (see html.desk-set in the CSS) */
+  wrap.append(sp);
+  new MutationObserver(() => { H.classList.toggle("desk-set", sp.classList.contains("active")); }).observe(sp, { attributes: true, attributeFilter: ["class"] });
+  addEventListener("keydown", ev => { if (ev.key === "Escape" && sp.classList.contains("active")) settingsOpen(false); });
+
+  /* drag the glass (anywhere that isn't a control or a list) to move the window */
+  const NO_MOVE = "button,input,a,label,select,textarea,[role=slider],.custom-range-slider,.sw,.album-card,.playlist-container,.queue-container,.albums-grid-container,.artist-scroll,.chip,.drop-zone,.album-art,.xp,.xp-strip,.crop-ov,.pl-pop,.floating-customizer,.track-artist";
+  let mv = null, mvRaf = 0, noClick = false;
+  document.addEventListener("pointerdown", ev => {
+    if (ev.button || !wrap.contains(ev.target) || ev.target.closest(NO_MOVE)) return;
+    mv = { id: ev.pointerId, sx: ev.screenX, sy: ev.screenY, wx: screenX, wy: screenY, x: 0, y: 0, on: false };
+  }, true);
+  document.addEventListener("pointermove", ev => {
+    if (!mv || ev.pointerId !== mv.id) return;
+    mv.x = ev.screenX - mv.sx; mv.y = ev.screenY - mv.sy;
+    if (!mv.on && Math.hypot(mv.x, mv.y) > 4) { mv.on = true; try { wrap.setPointerCapture(mv.id); } catch (e) {} H.classList.add("desk-moving"); }
+    if (mv.on && !mvRaf) mvRaf = requestAnimationFrame(() => { mvRaf = 0; if (mv) DESK.send("moveTo", { x: mv.wx + mv.x, y: mv.wy + mv.y }); });
+  }, true);
+  const mvEnd = ev => { if (!mv || ev.pointerId !== mv.id) return; if (mv.on) { noClick = true; setTimeout(() => { noClick = false; }, 0); } mv = null; H.classList.remove("desk-moving"); };
+  document.addEventListener("pointerup", mvEnd, true); document.addEventListener("pointercancel", mvEnd, true);
+  document.addEventListener("click", ev => { if (noClick) { noClick = false; ev.stopPropagation(); ev.preventDefault(); } }, true);   // a drag isn't a tap
+
+  /* where the glass is in the window: the app uses it to keep the pointer out of the glass's picture */
+  const sendRect = () => { const r = wrap.getBoundingClientRect(); DESK.send("panel", { x: r.left, y: r.top, w: r.width, h: r.height }); };
+  new ResizeObserver(sendRect).observe(wrap); sendRect();
+
   let ign = null;
   const setIgn = v => { if (v !== ign) { ign = v; DESK.send("ignore", v); } };
   addEventListener("mousemove", ev => {
@@ -5024,6 +5053,7 @@ async function tgLink() {
   TGL.linking = true; tgLinkUI("Opening Telegram…");
   try {
     const r = await fetchT(API_BASE + "/api/link", { method: "POST" }), j = await r.json().catch(() => ({}));
+    if (r.status === 404) throw new Error("it doesn't know about linking yet: it needs the server update");
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
     natSend({ cmd: "open", url: j.url });                            // the app opens it in Telegram
     tgLinkUI("Press Start in the bot, then come back here");

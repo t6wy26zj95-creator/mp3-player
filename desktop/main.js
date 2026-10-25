@@ -7,7 +7,7 @@
      normal window with your wallpaper, like the web version.
    - Updates: every build on main is published to the "desktop" release on GitHub; the app checks it, downloads a new
      version in the background and offers Restart (it also installs itself the next time the app is closed). */
-const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, screen, desktopCapturer, session, Menu } = require("electron");
+const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, screen, desktopCapturer, session, Menu, powerMonitor } = require("electron");
 const path = require("path"), fs = require("fs"), fsp = fs.promises, os = require("os"), crypto = require("crypto");
 const { Readable } = require("stream");
 
@@ -120,7 +120,7 @@ async function handle(req) {
 }
 
 /* ---------- the window ---------- */
-let win = null, floatOn = false, quitting = false;
+let win = null, floatOn = false, quitting = false, resumePlay = false;
 const send = (ch, d) => { if (win && !win.isDestroyed()) win.webContents.send(ch, d); };
 const callPage = (fn, ...args) => { if (win && !win.isDestroyed()) win.webContents.executeJavaScript(`window.${fn} && window.${fn}.apply(null, ${JSON.stringify(args)})`).catch(() => {}); };
 
@@ -135,8 +135,8 @@ function createWindow() {
       autoplayPolicy: "no-user-gesture-required", spellcheck: false }
   };
   if (floatOn) {
-    /* the panel is at most 580 px wide, with 16 px of air each side for its shadow; tall enough for the big player and the lists */
-    const w = 612, h = Math.min(960, wa.height - 16);
+    /* the panel is at most 580 px wide, with 8 px of air each side; tall enough for the big player and the lists */
+    const w = 596, h = Math.min(960, wa.height - 16);
     Object.assign(o, { width: w, height: h, x: wa.x + wa.width - w - 24, y: wa.y + 8, frame: false, transparent: true, resizable: false,
       maximizable: false, fullscreenable: false, hasShadow: false, thickFrame: false });
     if (saved && onScreen({ ...saved, width: w, height: h })) { o.x = saved.x; o.y = Math.max(saved.y, screen.getDisplayMatching({ ...saved, width: w, height: h }).workArea.y); }
@@ -222,7 +222,7 @@ function watchLib() {
 
 /* ---------- desktop-only: window buttons, the glass's screen capture, looks, updates ---------- */
 ipcMain.on("desk:info", e => {
-  e.returnValue = { version: app.getVersion(), platform: process.platform, float: floatOn, floatOK: FLOAT_OK, folder: LIB, packaged: app.isPackaged };
+  e.returnValue = { version: app.getVersion(), platform: process.platform, float: floatOn, floatOK: FLOAT_OK, folder: LIB, packaged: app.isPackaged, resume: resumePlay };
 });
 ipcMain.handle("desk:display", async () => {                         // the screen under the window, and its capture source
   if (!win) return null;
@@ -237,17 +237,41 @@ ipcMain.on("desk", (e, cmd, arg) => {
     case "min": win.minimize(); break;
     case "close": win.close(); break;
     case "ignore": if (floatOn) win.setIgnoreMouseEvents(!!arg, { forward: true }); break;   // clicks on the empty, see-through parts go to whatever is behind
-    case "look": {                                                   // Settings: Floating glass on/off. The window is made again (a frameless see-through window can't become a normal one)
+    case "look":                                                     // Settings: Floating glass on/off. The window is made again (a frameless see-through window can't become a normal one)
       if (!FLOAT_OK || !!arg === floatOn) return;
-      cfg.float = !!arg; saveCfg();
-      const old = win; win = null; createWindow(); old.destroy();
+      cfg.float = !!arg; saveCfg(); remake();
       break;
-    }
+    case "moveTo":                                                   // dragging the glass moves the window
+      if (floatOn && arg && isFinite(arg.x) && isFinite(arg.y)) { const b = win.getBounds(); win.setBounds({ x: Math.round(arg.x), y: Math.round(arg.y), width: b.width, height: b.height }); }
+      break;
+    case "panel": if (arg && isFinite(arg.x)) panelRect = arg; break;   // where the glass is inside the window (for the pointer check below)
+    case "gl-lost": if (floatOn) remake(); break;                      // the GPU restarted (e.g. after sleep): a fresh window, so nothing stays black
     case "folder": fsp.mkdir(LIB, { recursive: true }).finally(() => shell.openPath(LIB)); break;
     case "update-check": checkUpdates(true); break;
     case "update-install": installUpdate(); break;
   }
 });
+
+/* the window made again (look switched, or after sleep / a GPU restart, when a see-through window can stay black).
+   The song keeps playing from where it was. */
+let remaking = false;
+async function remake() {
+  if (!win || remaking) return; remaking = true;
+  const old = win;
+  try { resumePlay = !!(await Promise.race([old.webContents.executeJavaScript("(window.saveStateNow && saveStateNow(), !document.getElementById('audio-element').paused)"), new Promise(r => setTimeout(() => r(false), 800))])); } catch (e) { resumePlay = false; }
+  win = null; near = null; panelRect = null; createWindow(); old.destroy(); remaking = false;
+  setTimeout(() => { resumePlay = false; }, 8000);           // only for the page this window loads first
+}
+/* the mouse pointer is part of the screen capture: while it is over the glass, or close enough for the rim to bend it in,
+   the glass keeps its last picture (otherwise it would show a second, bent pointer) */
+let panelRect = null, near = null;
+setInterval(() => {
+  if (!floatOn || !win || win.isDestroyed() || !win.isVisible() || win.isMinimized() || !panelRect) return;
+  const c = screen.getCursorScreenPoint(), b = win.getContentBounds(), M = 40;
+  const x = c.x - b.x, y = c.y - b.y, r = panelRect;
+  const n = x > r.x - M && x < r.x + r.w + M && y > r.y - M && y < r.y + r.h + M;
+  if (n !== near) { near = n; send("desk:near", n); }
+}, 33);
 
 /* updates. Builds of main are published to the GitHub release "desktop", test builds (a pull request) to "desktop-preview".
    The app looks in "desktop" first; a test build also looks in "desktop-preview", so the next test build arrives as an
@@ -315,4 +339,9 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb, d) => cb(ours(d && d.requestingUrl || wc.getURL()) && ["media", "display-capture", "fullscreen", "clipboard-sanitized-write"].includes(perm)));
   session.defaultSession.setPermissionCheckHandler((wc, perm, origin) => ours(origin) && ["media", "display-capture", "fullscreen", "clipboard-sanitized-write"].includes(perm));
   createWindow(); watchLib(); setupUpdates();
+  /* after sleep or a locked screen the screen capture stops, and a see-through window can come back black: start fresh */
+  let wakeT = 0;
+  const wake = () => { clearTimeout(wakeT); wakeT = setTimeout(() => { if (floatOn) remake(); }, 1500); };
+  powerMonitor.on("resume", wake); powerMonitor.on("unlock-screen", wake);
+  app.on("child-process-gone", (e, d) => { if (d.type === "GPU" && !quitting) wake(); });
 });
