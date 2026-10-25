@@ -912,6 +912,7 @@ button.set-row:active{background:rgba(255,255,255,.08)}
       <div class="set-row"><span class="set-l">Cover Flow<small>Albums in one row that you flip through, instead of the grid</small></span><button class="switch" id="flow-switch" role="switch" aria-checked="false" aria-label="Cover Flow"><i></i></button></div>
       <button class="set-row" id="hidden-toggle" aria-expanded="false" aria-controls="hidden-list"><span class="set-l">Hidden albums</span><span class="set-v" id="hidden-count">None</span><svg class="set-chev" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
       <div class="hidden-list" id="hidden-list" style="display:none"></div>
+      <div class="set-row" id="tg-link-row" style="display:none"><span class="set-l">Telegram<small id="tg-link-sub">Songs you send the bot download into the app</small></span><button class="set-pill" id="tg-link-btn">Link</button></div>
     </div>
     <div class="set-h">Sound effect</div>
     <div class="set-group" id="retro-sw" role="radiogroup" aria-label="Sound effect">
@@ -944,7 +945,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v38";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v39";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -4742,7 +4743,7 @@ if (botMode) {
 
 /* ---------- IOS APP LIBRARY ----------
    Only in the iOS app (NAT). Your songs are files inside the app: added with + (the Files picker), shared to the app from
-   another app, or copied into the app's folder in the Files app (On My iPhone > Macaw). They stay between launches.
+   another app, or copied into the app's folder in the Files app (On My iPhone > MacawP3). They stay between launches.
    The app lists them; a new song is read once for its tags (kept in "natTags") and its cover is handed to the app, which
    keeps it. After that a song plays like a bot song saved on the phone: read whole from the app, never downloaded. */
 const NAT_BASE = (NAT && NAT.base) || "macaw://app/lib/";
@@ -4771,7 +4772,7 @@ function natUI() {
   const dz = $("drop-zone");
   dz.style.display = ""; ["player-main", "controls-main", "footer-main"].forEach(i => { $(i).style.display = "none"; });
   if (XP) XP.sync();
-  dz.innerHTML = "Tap to add your songs<br><span style=\"font-size:11px;opacity:.7;\">They stay in the app. You can also copy music into the Macaw folder in the Files app.</span>";
+  dz.innerHTML = "Tap to add your songs<br><span style=\"font-size:11px;opacity:.7;\">They stay in the app. You can also copy music into the MacawP3 folder in the Files app.</span>";
 }
 async function natSync() {
   if (!NAT) return;
@@ -4812,7 +4813,79 @@ async function natSync() {
   } catch (e) { console.error(e); if (first) bootError(e); }
   finally { natSync.busy = false; natSync.done = true; if (natSync.again) { natSync.again = false; natSync(); } }
 }
+/* Telegram link (iOS app only): Settings > Library > Telegram. The app gets a key for your bot library through the bot
+   (see "the iOS app" in install.sh). Then songs you send the bot download into the app's Telegram folder by themselves
+   while the app is open, and a song you /remove in the bot leaves the app too. A song you delete from the app yourself
+   (in the Files app) isn't downloaded again. */
+const TGL = { key: store.get("tgKey") || "", version: -1, busy: false, linking: false, done: {}, waiting: new Map(), t: 0 };
+try { TGL.done = JSON.parse(store.get("tgDone") || "{}") || {}; } catch (e) {}
+const TG_EXT = { "audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/mp4": ".m4a", "audio/x-m4a": ".m4a", "audio/aac": ".aac", "audio/flac": ".flac", "audio/x-flac": ".flac",
+  "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/ogg": ".ogg", "audio/aiff": ".aiff" };
+const tgSafe = s => String(s).replace(/[\/\\:*?"<>|\x00-\x1f]/g, "_").replace(/^[.\s]+/, "").trim().slice(0, 120) || "Song";
+function tgLinkUI(msg) {
+  const n = Object.keys(TGL.done).length;
+  $("tg-link-row").style.display = "";
+  $("tg-link-sub").textContent = msg || (TGL.key ? `Linked: ${n} song${n === 1 ? "" : "s"} from the bot so far` : "Songs you send the bot download into the app");
+  $("tg-link-btn").textContent = TGL.key ? "Unlink" : "Link";
+}
+async function tgLink() {
+  if (TGL.key) {
+    if (!confirm("Unlink Telegram? Songs already downloaded stay in the app.")) return;
+    const k = TGL.key; TGL.key = ""; TGL.version = -1; store.set("tgKey", "");
+    fetch(API_BASE + "/api/link", { method: "DELETE", headers: { "X-App-Key": k } }).catch(() => {});
+    tgLinkUI(); return;
+  }
+  if (TGL.linking) return;
+  TGL.linking = true; tgLinkUI("Opening Telegram…");
+  try {
+    const r = await fetchT(API_BASE + "/api/link", { method: "POST" }), j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    natSend({ cmd: "open", url: j.url });                            // the app opens it in Telegram
+    tgLinkUI("Press Start in the bot, then come back here");
+    const until = Date.now() + (j.expires || 600) * 1000;
+    while (Date.now() < until) {
+      await sleep(2000);
+      let a = null;
+      try { const q = await fetchT(API_BASE + "/api/link/" + j.code); if (q.status === 410) break; a = await q.json(); } catch (e) { continue; }
+      if (a && a.key) { TGL.key = a.key; TGL.version = -1; store.set("tgKey", a.key); toast("Telegram linked"); tgLinkUI(); tgSync(); return; }
+    }
+    tgLinkUI("The link expired. Tap Link to try again");
+  } catch (e) { tgLinkUI("Couldn't reach your music server (" + (e.message || e) + ")"); }
+  finally { TGL.linking = false; }
+}
+async function tgSync() {
+  if (!TGL.key || TGL.busy) return;
+  TGL.busy = true;
+  try {
+    const r = await fetchT(`${API_BASE}/api/library?since=${TGL.version}`, { headers: { "X-App-Key": TGL.key } }), j = await r.json().catch(() => ({}));
+    if (r.status === 401 || r.status === 403) {                     // unlinked, or no longer let in by the bot's owner
+      TGL.key = ""; store.set("tgKey", ""); tgLinkUI("The link stopped working. Tap Link to link again"); toast("Telegram is no longer linked"); return;
+    }
+    if (!r.ok || j.same || !j.tracks) return;
+    const seen = new Set(); let gone = 0;
+    for (const x of j.tracks) {
+      seen.add(x.id);
+      if (TGL.done[x.id] || TGL.waiting.has(x.id)) continue;
+      const name = tgSafe((x.artist ? x.artist + " - " : "") + (x.title || "Song")) + (TG_EXT[String(x.mime || "").toLowerCase()] || ".mp3");
+      TGL.waiting.set(x.id, 1);
+      natSend({ cmd: "download", id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name });
+    }
+    for (const id of Object.keys(TGL.done)) if (!seen.has(id)) { natSend({ cmd: "delete", n: TGL.done[id] }); delete TGL.done[id]; gone++; }
+    if (gone) { store.set("tgDone", JSON.stringify(TGL.done)); setTimeout(natSync, 300); tgLinkUI(); }
+    TGL.version = j.version;
+  } catch (e) {} finally { TGL.busy = false; }
+}
+window.natDownloaded = (id, rel, ok) => {                            // the app calls this when a download finished (ok) or failed
+  TGL.waiting.delete(id);
+  if (ok) { TGL.done[id] = rel; store.set("tgDone", JSON.stringify(TGL.done)); } else TGL.version = -1;   // a failed one is tried again on the next sync
+  clearTimeout(TGL.t); TGL.t = setTimeout(() => { natSync(); tgLinkUI(); }, 500);
+};
 if (NAT) {
+  tgLinkUI();
+  $("tg-link-btn").addEventListener("click", () => { haptic("light"); tgLink(); });
+  setTimeout(tgSync, 1500);
+  setInterval(() => { if (!document.hidden) tgSync(); }, 20000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) tgSync(); });
   window.natSync = natSync;                                          // the app calls this after it copied songs in
   setTimeout(natSync, 0);                                            // once the whole script has set up
   document.addEventListener("visibilitychange", () => { if (!document.hidden) natSync(); });   // songs copied in with the Files app meanwhile

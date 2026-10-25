@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 
 /// The songs kept inside the app. They live in the app's Documents folder, which the Files app shows as
-/// On My iPhone > Macaw, so music can also be copied in (or deleted) there. Sub-folders are fine.
+/// On My iPhone > MacawP3, so music can also be copied in (or deleted) there. Sub-folders are fine.
 final class Library {
     static let shared = Library()
 
@@ -67,6 +67,27 @@ final class Library {
             do { try fm.copyItem(at: src, to: dest); added += 1 } catch { NSLog("Macaw: couldn't copy \(src.lastPathComponent): \(error)") }
         }
         return added
+    }
+
+    /// Puts a downloaded song (from the Telegram bot) at rel, e.g. "Telegram/Artist - Title.mp3", or next to it under a
+    /// free name. Returns the path it ended up at.
+    func store(downloaded tmp: URL, as rel: String) throws -> String {
+        let clean = rel.split(separator: "/").filter { $0 != ".." && $0 != "." }.joined(separator: "/")
+        var dest = songsFolder.appendingPathComponent(clean.isEmpty ? "Telegram/Song.mp3" : clean)
+        try fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let folder = dest.deletingLastPathComponent(), stem = dest.deletingPathExtension().lastPathComponent, ext = dest.pathExtension
+        var k = 2
+        while fm.fileExists(atPath: dest.path) { dest = folder.appendingPathComponent("\(stem) \(k).\(ext)"); k += 1 }
+        try fm.moveItem(at: tmp, to: dest)
+        let base = songsFolder.standardizedFileURL.resolvingSymlinksInPath().path
+        return String(dest.standardizedFileURL.resolvingSymlinksInPath().path.dropFirst(base.count + 1))
+    }
+
+    /// Removes a song the app downloaded from the bot (only those: the Telegram folder).
+    func deleteDownloaded(_ rel: String) {
+        guard rel.hasPrefix("Telegram/"), let file = songFile(rel) else { return }
+        try? fm.removeItem(at: file)
+        try? fm.removeItem(at: artFile(rel))
     }
 
     // Covers: the player reads a song's tags and hands its cover over once; it is kept here, named after the song.

@@ -6,11 +6,21 @@ import UniformTypeIdentifiers
 /// The page talks to the app through window.webkit.messageHandlers.macaw:
 ///   { cmd: "import" }                  show the Files picker and copy the chosen songs in
 ///   { cmd: "art", n: path, b64: ... }  keep a song's cover (read from its tags by the page)
+///   { cmd: "download", id, url, name } download a song from the Telegram bot into the app, then call natDownloaded(id, path, ok)
+///   { cmd: "delete", n: path }         remove a song downloaded from the bot
+///   { cmd: "open", url }               open a link in another app (Telegram)
 /// and the app calls window.natSync() when songs were added.
 final class PlayerViewController: UIViewController, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, UIDocumentPickerDelegate {
     static let pageColor = UIColor(red: 0x0b / 255.0, green: 0x1d / 255.0, blue: 0x24 / 255.0, alpha: 1)
     private var web: WKWebView!
     private var loaded = false
+    private lazy var downloads: URLSession = {
+        let c = URLSessionConfiguration.default
+        c.httpMaximumConnectionsPerHost = 2                        // a few at a time, the rest wait their turn
+        c.timeoutIntervalForRequest = 180                          // the server may first have to fetch a big song from Telegram
+        c.waitsForConnectivity = true
+        return URLSession(configuration: c)
+    }()
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -86,12 +96,37 @@ final class PlayerViewController: UIViewController, WKScriptMessageHandler, WKUI
         switch cmd {
         case "import":
             showPicker()
+        case "download":
+            guard let id = body["id"] as? String, let s = body["url"] as? String, let url = URL(string: s), let name = body["name"] as? String else { return }
+            download(id: id, from: url, as: name)
+        case "delete":
+            guard let rel = body["n"] as? String else { return }
+            DispatchQueue.global(qos: .utility).async { Library.shared.deleteDownloaded(rel) }
+        case "open":
+            guard let s = body["url"] as? String, let url = URL(string: s), ["https", "tg"].contains(url.scheme?.lowercased() ?? "") else { return }
+            UIApplication.shared.open(url)
         case "art":
             guard let rel = body["n"] as? String, let b64 = body["b64"] as? String, let data = Data(base64Encoded: b64) else { return }
             DispatchQueue.global(qos: .utility).async { Library.shared.saveArt(data, for: rel) }
         default:
             break
         }
+    }
+
+    private func download(id: String, from url: URL, as name: String) {
+        downloads.downloadTask(with: url) { [weak self] tmp, response, error in
+            var rel: String?
+            if let tmp = tmp, error == nil, let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
+                rel = try? Library.shared.store(downloaded: tmp, as: name)   // must happen before this closure returns: tmp is deleted after
+            }
+            DispatchQueue.main.async { self?.callPage("natDownloaded", id, rel ?? "", rel != nil) }
+        }.resume()
+    }
+
+    /// Calls window.<fn>(args...) in the page, with the arguments passed as JSON.
+    private func callPage(_ fn: String, _ args: Any...) {
+        guard let data = try? JSONSerialization.data(withJSONObject: args), let list = String(data: data, encoding: .utf8) else { return }
+        web.evaluateJavaScript("window.\(fn) && window.\(fn).apply(null, \(list))", completionHandler: nil)
     }
 
     // MARK: web view

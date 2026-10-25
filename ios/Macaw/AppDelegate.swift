@@ -33,7 +33,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         open(connectionOptions.urlContexts)
     }
 
-    // A song shared to the app ("Open in Macaw" / the share sheet).
+    // A song shared to the app ("Open in MacawP3" / the share sheet).
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         open(URLContexts)
     }

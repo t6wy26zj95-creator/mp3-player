@@ -1,5 +1,5 @@
 # iOS build output (made on GitHub's Mac, see .github/workflows/ios.yml)
-ios/Macaw.xcodeproj/
+ios/*.xcodeproj/
 ios/build/
 ios/Payload/
 ios/Macaw/www/

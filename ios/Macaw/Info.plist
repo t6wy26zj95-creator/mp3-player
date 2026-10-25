@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Macaw</string>
+	<string>MacawP3</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -51,12 +51,12 @@
 	<array>
 		<string>audio</string>
 	</array>
-	<!-- the app's folder shows up in the Files app (On My iPhone > Macaw): copy music in there -->
+	<!-- the app's folder shows up in the Files app (On My iPhone > MacawP3): copy music in there -->
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
-	<!-- "Open in Macaw" / share sheet for audio files -->
+	<!-- "Open in MacawP3" / share sheet for audio files -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
