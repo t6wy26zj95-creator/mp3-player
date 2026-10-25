@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld("MACAW_DESK", {
   send: (cmd, arg) => ipcRenderer.send("desk", String(cmd), arg),
   display: () => ipcRenderer.invoke("desk:display"),
   update: () => ipcRenderer.invoke("desk:update"),
-  on: (ch, cb) => { if (["display", "update", "near"].includes(ch)) ipcRenderer.on("desk:" + ch, (e, d) => cb(d)); }
+  on: (ch, cb) => { if (["display", "update", "cursor"].includes(ch)) ipcRenderer.on("desk:" + ch, (e, d) => cb(d)); }
 });
 
 /* songs (or whole folders) dropped anywhere on the window go into the library */

@@ -259,19 +259,21 @@ async function remake() {
   if (!win || remaking) return; remaking = true;
   const old = win;
   try { resumePlay = !!(await Promise.race([old.webContents.executeJavaScript("(window.saveStateNow && saveStateNow(), !document.getElementById('audio-element').paused)"), new Promise(r => setTimeout(() => r(false), 800))])); } catch (e) { resumePlay = false; }
-  win = null; near = null; panelRect = null; createWindow(); old.destroy(); remaking = false;
+  win = null; near = false; panelRect = null; createWindow(); old.destroy(); remaking = false;
   setTimeout(() => { resumePlay = false; }, 8000);           // only for the page this window loads first
 }
-/* the mouse pointer is part of the screen capture: while it is over the glass, or close enough for the rim to bend it in,
-   the glass keeps its last picture (otherwise it would show a second, bent pointer) */
-let panelRect = null, near = null;
+/* the mouse pointer is part of the screen capture: while it is near the glass the page gets where it is (60 times a
+   second), so the glass can paint it out of its picture (see "Floating glass" in index.html) */
+let panelRect = null, near = false, lastPtr = "";
 setInterval(() => {
   if (!floatOn || !win || win.isDestroyed() || !win.isVisible() || win.isMinimized() || !panelRect) return;
-  const c = screen.getCursorScreenPoint(), b = win.getContentBounds(), M = 40;
-  const x = c.x - b.x, y = c.y - b.y, r = panelRect;
+  const c = screen.getCursorScreenPoint(), b = win.getContentBounds(), M = 120, r = panelRect;
+  const x = c.x - b.x, y = c.y - b.y;
   const n = x > r.x - M && x < r.x + r.w + M && y > r.y - M && y < r.y + r.h + M;
-  if (n !== near) { near = n; send("desk:near", n); }
-}, 33);
+  if (n) { const k = c.x + "," + c.y; if (k !== lastPtr || !near) { lastPtr = k; send("desk:cursor", { x: c.x, y: c.y }); } }
+  else if (near) send("desk:cursor", null);
+  near = n;
+}, 16);
 
 /* updates. Builds of main are published to the GitHub release "desktop", test builds (a pull request) to "desktop-preview".
    The app looks in "desktop" first; a test build also looks in "desktop-preview", so the next test build arrives as an

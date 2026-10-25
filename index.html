@@ -3345,10 +3345,43 @@ const bubble = (() => {
        screen captures, so a live capture of the screen under the window is exactly what's behind the glass; it is drawn
        through the same lens as the wallpaper, only frostier (lots of detail behind it) and a bit darker (so the text stays
        readable over anything). New frames come in at up to 30 a second, only while something behind changes.
-       The mouse pointer is part of the capture, so while it is over the panel the last frame is kept (otherwise the glass
-       would show a blurred second pointer under the real one). Moving the window just slides the same picture along. */
+       The mouse pointer is part of the screen capture, and the rim bends in what's just outside the glass, so the pointer
+       is painted out of each frame: around where the pointer is (and was, a moment ago), the glass keeps what was there
+       before the pointer came. Everything else (a video behind it...) keeps moving. Moving the window just slides the
+       picture along. */
     const desk = !FLOAT ? null : (() => {
-      let video = null, stream = null, disp = null, busy = false, frozen = false, sx = NaN, sy = NaN, fails = 0;
+      let video = null, stream = null, disp = null, busy = false, sx = NaN, sy = NaN, fails = 0;
+      /* the "clean" picture: two textures, each new frame copied from the capture (raw) except inside the pointer's boxes,
+         which keep the previous clean picture */
+      let raw = null, clean = [null, null], cur = 0, fb = null, cp = null, CU = {}, cw = 0, ch = 0, ptr = [], here = null;
+      const CFS = `#version 300 es
+        precision highp float;
+        uniform sampler2D uRaw, uOld; uniform vec4 uBox[10]; uniform int uN; out vec4 o;
+        void main() {
+          ivec2 p = ivec2(gl_FragCoord.xy); vec2 q = gl_FragCoord.xy;
+          for (int i = 0; i < 10; i++) { if (i >= uN) break; vec4 b = uBox[i]; if (q.x > b.x && q.x < b.z && q.y > b.y && q.y < b.w) { o = texelFetch(uOld, p, 0); return; } }
+          o = texelFetch(uRaw, p, 0);
+        }`;
+      function mkTex() {
+        const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        return t;
+      }
+      function setupClean() {
+        const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)); return x; };
+        cp = gl.createProgram(); gl.attachShader(cp, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(cp, sh(gl.FRAGMENT_SHADER, CFS));
+        gl.bindAttribLocation(cp, gl.getAttribLocation(prog, "a"), "a"); gl.linkProgram(cp);
+        if (!gl.getProgramParameter(cp, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(cp));
+        ["uRaw", "uOld", "uBox", "uN"].forEach(k => CU[k] = gl.getUniformLocation(cp, k));
+        raw = mkTex(); clean = [mkTex(), mkTex()]; fb = gl.createFramebuffer();
+      }
+      DESK.on("cursor", c => {                                        // where the pointer is (screen px), while it is near the glass
+        const now = performance.now();
+        if (here) ptr.push({ x: here.x, y: here.y, t: now });          // a captured frame can be a few frames old: keep where it just was too
+        ptr = ptr.filter(p => now - p.t < 300).slice(-8);
+        here = c || null;
+      });
       function stop() { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; }
       async function start() {
         if (busy || !gl) return; busy = true;
@@ -3362,10 +3395,7 @@ const bubble = (() => {
           if (!video) { video = document.createElement("video"); video.muted = true; video.playsInline = true; }
           video.srcObject = stream; await video.play();
           stream.getVideoTracks().forEach(t => t.addEventListener("ended", () => { if (stream && stream.getVideoTracks().includes(t)) { stream = null; setTimeout(start, 1000); } }));   // e.g. the screen was locked
-          if (!tex) tex = gl.createTexture();
-          gl.bindTexture(gl.TEXTURE_2D, tex);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          if (!cp) setupClean();
           const s0 = stream, next = () => { if (stream !== s0) return; upload(); video.requestVideoFrameCallback(next); };
           video.requestVideoFrameCallback(next);
         } catch (err) {
@@ -3374,18 +3404,36 @@ const bubble = (() => {
         } finally { busy = false; }
       }
       function upload() {
-        if ((frozen && G.ready) || !on || !video.videoWidth) return;
-        gl.bindTexture(gl.TEXTURE_2D, tex);
+        if (!on || !video.videoWidth || !disp) return;
+        const w = video.videoWidth, h = video.videoHeight, first = w !== cw || h !== ch;
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null);
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, raw);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        texW = video.videoWidth; texH = video.videoHeight;
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        if (first) { for (const t of clean) { gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null); } cw = w; ch = h; }
+        const src = clean[cur], dst = clean[1 - cur];
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, raw);
+        gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, src);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dst, 0);
+        gl.viewport(0, 0, w, h); gl.useProgram(cp); gl.uniform1i(CU.uRaw, 1); gl.uniform1i(CU.uOld, 2);
+        /* the pointer's boxes, in the frame's pixels (y down, like the texture's rows): any cursor shape around its tip */
+        const now = performance.now(), kx = w / disp.w, ky = h / disp.h, box = [];
+        if (!first) for (const p of here ? ptr.concat(here) : ptr) if (p === here || now - p.t < 300) {
+          const x = (p.x - disp.x) * kx, y = (p.y - disp.y) * ky;
+          box.push(x - 18 * kx, y - 18 * ky, x + 42 * kx, y + 50 * ky);
+        }
+        gl.uniform1i(CU.uN, box.length / 4); if (box.length) gl.uniform4fv(CU.uBox, new Float32Array(box));
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.useProgram(prog); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, null);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, dst); gl.generateMipmap(gl.TEXTURE_2D);
+        cur = 1 - cur; tex = dst; G.dirty = true;
+        texW = w; texH = h;
         if (!G.ready) {
           G.ready = true; G.dirty = true; draw();
           requestAnimationFrame(() => { if (G.ready) document.documentElement.classList.add("gl-glass"); });
           clearTimeout(G.solidT); G.solidT = setTimeout(() => { if (G.ready) document.documentElement.classList.add("gl-solid"); }, 800);
         } else request(true);
       }
-      DESK.on("near", v => { frozen = !!v; });                         // the app checks where the pointer is, even outside the window
       document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); else if (gl && !stream) start(); });   // minimised: no capturing at all
       DESK.on("display", () => start());                              // moved onto another screen
       (function watch() {                                             // the window moved: the picture behind it slides along, on the same frame
