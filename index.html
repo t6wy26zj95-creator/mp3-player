@@ -16,6 +16,8 @@
   var inTg = /tgWebApp/.test(location.hash + location.search);
   try { inTg = inTg || !!sessionStorage.getItem("__telegram__initParams"); } catch (e) {}
   if (inTg) { document.documentElement.classList.add("tg"); document.write('<script src="https://telegram.org/js/telegram-web-app.js?63"><\/script>'); }
+  /* the desktop app (desktop/): "desk-float" = the panel floats on the Windows desktop, "desk-win" = a normal window */
+  var D = window.MACAW_APP; if (D && D.desktop) document.documentElement.classList.add("desk", D.float ? "desk-float" : "desk-win", "desk-" + D.platform);
 })();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
@@ -767,6 +769,48 @@ button.set-row:active{background:rgba(255,255,255,.08)}
 .hidden-row button{flex-shrink:0;height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.12);color:#fff;font:600 12px -apple-system,system-ui,sans-serif;cursor:pointer}
 .hidden-empty{font-size:13px;color:rgba(255,255,255,.5);padding:8px 0 4px}
 .gear-btn.on{opacity:1;background:rgba(255,255,255,.18)}
+/* ===== the desktop app (desktop/) =====
+   html.desk-win: a normal window with the wallpaper; the top strip moves the window (Windows draws its own buttons there).
+   html.desk-float: "Floating glass": the window itself is invisible, only the Liquid Glass panel floats on the desktop.
+   A strip above it moves it (the grip), with small Settings / minimise / close buttons. */
+html:not(.desk) .desk-only,html.desk-float .no-float{display:none!important}
+.desk-bar,.desk-grip,.desk-b{display:none}
+html.desk .desk-bar{display:flex;position:fixed;left:0;right:0;top:0;height:34px;z-index:12;align-items:center;justify-content:center;-webkit-app-region:drag;app-region:drag}
+html.desk-win body{padding-top:44px}
+html.desk .floating-customizer,html.desk .set-ov.show,html.desk .toast,html.desk .pl-pop{-webkit-app-region:no-drag;app-region:no-drag}   /* anything over the top strip stays clickable */
+html.desk-float,html.desk-float body{background:transparent!important}
+html.desk-float body{padding-top:30px}
+html.desk-float .bg-container,html.desk-float .bg-vignette{display:none}
+html.desk-float .desk-bar{height:30px}
+html.desk-float .desk-grip{display:block;width:46px;height:5px;border-radius:3px;background:rgba(255,255,255,.62);box-shadow:0 0 0 .5px rgba(0,0,0,.3),0 1px 5px rgba(0,0,0,.4);opacity:.55;transition:opacity .2s var(--ease),width .25s var(--ease)}
+html.desk-float .desk-bar:hover .desk-grip{opacity:1;width:56px}
+html.desk-float .desk-b,html.desk-float .gear-btn{display:flex;position:fixed;top:5px;bottom:auto;width:20px;height:20px;box-sizing:border-box;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.18);
+  background:rgba(10,22,30,.62);backdrop-filter:none;-webkit-backdrop-filter:none;align-items:center;justify-content:center;cursor:pointer;opacity:.5;
+  box-shadow:0 1px 6px rgba(0,0,0,.35);transition:opacity .2s var(--ease),background .2s var(--ease);-webkit-app-region:no-drag;app-region:no-drag}
+html.desk-float #desk-close{right:18px}
+html.desk-float #desk-min{right:44px}
+html.desk-float .gear-btn{right:70px;z-index:13}
+html.desk-float .desk-bar:hover .desk-b,html.desk-float .desk-bar:hover~.gear-btn,html.desk-float .desk-b:focus-visible,html.desk-float .gear-btn:hover,html.desk-float .gear-btn.on{opacity:1}
+html.desk-float .desk-b svg{width:12px;height:12px;fill:#fff}
+html.desk-float .gear-btn svg{width:12px;height:12px;fill:#fff}
+html.desk-float #desk-close:hover{background:#d9434a;border-color:transparent}
+html.desk-float #desk-min:hover,html.desk-float .gear-btn:hover{background:rgba(255,255,255,.22)}
+/* until the glass sees the desktop (or if it can't), the panel is plain dark glass, so its text never sits on the bare desktop */
+html.desk-float:not(.gl-glass) .bubble-skin{background:rgba(10,22,30,.78)}
+html.desk-float .toast{bottom:auto;top:calc(var(--desk-pb,220px) + 14px)}
+html.desk-float .set-ov{background:transparent}
+html.desk-float .floating-customizer{top:34px;bottom:auto;max-height:calc(100% - 46px);transform:translate(-50%,-14px) scale(.98);transform-origin:50% 0;
+  background:linear-gradient(rgba(10,24,32,.93),rgba(10,24,32,.93))}
+html.desk-float .floating-customizer.active{transform:translate(-50%,0)}
+/* the update pill: in the top strip, once a new version is downloaded (Mac: once one is out) */
+.upd-pill{display:none}
+html.desk .upd-pill:not([hidden]){display:flex;align-items:center;gap:6px;height:22px;padding:0 11px 0 8px;border:0;border-radius:11px;cursor:pointer;
+  background:linear-gradient(#5fd6df,#3fb5c0);color:#06222a;font:600 12px -apple-system,system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.45);
+  -webkit-app-region:no-drag;app-region:no-drag;animation:updIn .5s var(--ease)}
+.upd-pill svg{width:13px;height:13px;fill:currentColor}
+.upd-pill:hover{filter:brightness(1.08)}
+html.desk-float .upd-pill:not([hidden])~.desk-grip,html.desk-float .desk-bar:has(.upd-pill:not([hidden])) .desk-grip{display:none}
+@keyframes updIn{from{opacity:0;transform:translateY(-6px) scale(.9)}}
 </style>
 </head>
 <body>
@@ -894,6 +938,11 @@ button.set-row:active{background:rgba(255,255,255,.08)}
 </div>
 <div class="safe-probe" id="safe-probe"></div>
 
+<div class="desk-bar" id="desk-bar"><i class="desk-grip"></i>
+  <button class="upd-pill" id="upd-pill" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 5 11l1.4 1.4L11 7.8V20h2V7.8l4.6 4.6L19 11z"/></svg><span id="upd-pill-t">Update ready · Restart</span></button>
+  <button class="desk-b" id="desk-min" aria-label="Minimize"><svg viewBox="0 0 24 24"><path d="M5 11h14v2H5z"/></svg></button>
+  <button class="desk-b" id="desk-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+</div>
 <div class="gear-btn" id="gear-trigger">
   <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12c0,0.32,0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.5c-1.93,0-3.5-1.57-3.5-3.5 c0-1.93,1.57-3.5,3.5-3.5s3.5,1.57,3.5,3.5C15.5,13.93,13.93,15.5,12,15.5z"/></svg>
 </div>
@@ -901,8 +950,8 @@ button.set-row:active{background:rgba(255,255,255,.08)}
 <div class="floating-customizer" id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="set-title">
   <div class="set-head"><h2 id="set-title">Settings</h2><button class="set-x" id="settings-close" aria-label="Close settings"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
   <div class="set-body">
-    <div class="set-h">Wallpaper</div>
-    <div class="set-group">
+    <div class="set-h no-float">Wallpaper</div>
+    <div class="set-group no-float">
       <div class="set-row"><i class="set-wall" id="wall-thumb"></i><span class="set-l">Wallpaper<small id="wall-name">Default</small></span><button class="set-pill" id="upload-wall">Change</button></div>
       <button class="set-row set-link" id="reset-wall" hidden>Use the default wallpaper</button>
       <div class="set-row set-slide"><span class="set-l">Blur</span><span class="set-v" id="blur-val">Off</span><input type="range" id="blur-slider" min="0" max="30" step="1" value="0" aria-label="Wallpaper blur"></div>
@@ -921,11 +970,17 @@ button.set-row:active{background:rgba(255,255,255,.08)}
       <button class="set-row set-radio" data-m="radio" role="radio" aria-checked="false"><span class="set-l">Old radio</span><i class="set-ck"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></i></button>
       <button class="set-row set-radio" data-m="vinyl" role="radio" aria-checked="false"><span class="set-l">Vinyl</span><i class="set-ck"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></i></button>
     </div>
-    <div class="set-h">Appearance</div>
-    <div class="set-group">
+    <div class="set-h no-float">Appearance</div>
+    <div class="set-group no-float">
       <div class="set-row"><span class="set-l">Classic panel<small>Plain frosted glass instead of Liquid Glass</small></span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Classic panel"><i></i></button></div>
       <div class="set-row" id="motion-btn" style="display:none"><span class="set-l">Tilt effect<small>The light on the cover follows your phone</small></span><button class="set-pill">Turn on</button></div>
       <button class="set-row set-link" id="home-btn" style="display:none">Add to Home Screen</button>
+    </div>
+    <div class="set-h desk-only">App</div>
+    <div class="set-group desk-only">
+      <div class="set-row" id="float-row"><span class="set-l">Floating glass<small>The player floats on your desktop and bends what's behind it</small></span><button class="switch" id="float-switch" role="switch" aria-checked="false" aria-label="Floating glass"><i></i></button></div>
+      <div class="set-row"><span class="set-l">Music folder<small id="folder-sub"></small></span><button class="set-pill" id="folder-btn">Open</button></div>
+      <div class="set-row"><span class="set-l">Updates<small id="upd-sub"></small></span><button class="set-pill" id="upd-btn">Check</button></div>
     </div>
   </div>
 </div>
@@ -950,6 +1005,10 @@ const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
 const NAT = (() => { try { return window.MACAW_APP && window.webkit && window.webkit.messageHandlers.macaw ? window.MACAW_APP : null; } catch (e) { return null; } })();
+/* DESK: the desktop app (desktop/, Windows and Mac). It uses the same bridge as the iOS app (so NAT is set too: songs live in
+   the Music\MacawP3 folder), plus window buttons and updates. FLOAT: "Floating glass", the panel floats on the desktop
+   and the Liquid Glass bends the real desktop behind it (see LIQUID BUBBLE and DESKTOP APP). */
+const DESK = NAT && NAT.desktop && window.MACAW_DESK ? window.MACAW_DESK : null, FLOAT = !!(DESK && NAT.float);
 let botMode = !!TG && !!TG.initData;                   // switches off if the server can't be reached, so the phone's files still work
 function haptic(kind) {                               // "light" | "medium" | "select". Telegram's haptics also work on iPhone; navigator.vibrate is the fallback (Android browsers)
   if (tgAt("6.1")) { try { kind === "select" ? TG.HapticFeedback.selectionChanged() : TG.HapticFeedback.impactOccurred(kind); } catch (e) {} return; }
@@ -2453,6 +2512,11 @@ function loadTrack(id, autoplay, o = {}) {
   if ("mediaSession" in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.album,
       artwork: (t.art || albumCover(t.album)) ? [{ src: t.art || albumCover(t.album), sizes: "512x512" }] : [] });
+    const src = t.art || albumCover(t.album);                        // the desktop app: Windows' media overlay only takes http/data/blob covers
+    if (DESK && src && src.startsWith("macaw:")) fetch(src).then(r => r.ok ? r.blob() : null).then(bl => {
+      const m = navigator.mediaSession.metadata; if (!bl || !m || m.title !== t.title) return;
+      URL.revokeObjectURL(loadTrack.artURL || ""); loadTrack.artURL = URL.createObjectURL(bl); m.artwork = [{ src: loadTrack.artURL, sizes: "512x512", type: bl.type }];
+    }).catch(() => {});
   }
   if (playlistWrapper.style.display === "block") renderPlaylist();     // only rebuild the list if it's on screen; it's rebuilt when opened anyway
   if (queueShown()) renderQueue();
@@ -3154,6 +3218,7 @@ let xpPullHook = null;                                               // set by t
 const bubble = (() => {
   const wrap = document.querySelector(".player-wrapper"), NS = "http://www.w3.org/2000/svg";
   const GLASS_BLUR = 2;                                              // px; keep in step with --bubble-blur below
+  const DESK_BLUR = 9, DESK_FROST = 5, DESK_TINT = .2, DESK_BEVEL = 24, DESK_REFR = -26, DESK_RIM_CLEAR = .55;   // Floating glass (desktop app)
   const RAD = 36, GRAB = 26, MAXT = 9, LEAN = .8, STRETCH = .018, GIVE = .009, PRESS = .011;
   const NO_PULL = "button,input,a,label,.custom-range-slider,.sw,.album-card,.playlist-container,.queue-container,.albums-grid-container,.artist-scroll,.track-artist,.chip,.gear-btn,.floating-customizer,.toast,.drop-zone,.album-art,.xp,.xp-strip,.xp-artist,.crop-ov,.pl-pop";
   let on = false, skin = null, svg = null, W = 0, H = 0, raf = 0, last = 0, drag = null;
@@ -3188,21 +3253,26 @@ const bubble = (() => {
       vec2 toPage(vec2 cp) { return uOrigin + mat2(uM.x, uM.y, uM.z, uM.w) * cp; }   // canvas point -> page point (follows the panel's transform)
       uniform float uBlur;                                             // the glass's blur radius in css px (the same as backdrop-filter)
       uniform float uQ;                                                // 1 = full quality, 0 = light mode (one ring of taps, no colour split)
-      vec3 tap(vec2 pc) { return textureLod(uTex, clamp(pc * uUvA + uUvB, .0005, .9995), uLod).rgb; }
-      vec3 wall(vec2 pc, bool full) {                                  // the wallpaper as the page shows it at pc, blurred like the glass: a smooth gaussian, not blocky mip levels
-        vec3 c = tap(pc) * .2;                                         // full: two rings of taps (the refracting edge); otherwise one ring (the flat middle, light mode)
+      uniform float uTint;
+      /* the rim: on the web the same blur as the middle (uRimLod = uLod, uRimBlur = 1, uRimClear = 0); over the desktop
+         the lens is clearer towards its rim, so you see what's behind really bend there, while the middle stays frosted */
+      uniform float uRimLod, uRimBlur, uRimClear;
+      vec3 tap(vec2 pc, float lod) { return textureLod(uTex, clamp(pc * uUvA + uUvB, .0005, .9995), lod).rgb; }
+      vec3 wall2(vec2 pc, bool full, float lod, float bl) {            // the wallpaper as the page shows it at pc, blurred like the glass: a smooth gaussian, not blocky mip levels
+        vec3 c = tap(pc, lod) * .2;                                    // full: two rings of taps (the refracting edge); otherwise one ring (the flat middle, light mode)
         float wi = full ? .0867 : .1333;
-        for (int i = 0; i < 6; i++) { float a = float(i) * 2.39996; c += tap(pc + vec2(cos(a), sin(a)) * uBlur * .55) * wi; }   // golden-angle spread
-        if (full) for (int i = 6; i < 12; i++) { float a = float(i) * 2.39996; c += tap(pc + vec2(cos(a), sin(a)) * uBlur * 1.1) * .0467; }
+        for (int i = 0; i < 6; i++) { float a = float(i) * 2.39996; c += tap(pc + vec2(cos(a), sin(a)) * bl * .55, lod) * wi; }   // golden-angle spread
+        if (full) for (int i = 6; i < 12; i++) { float a = float(i) * 2.39996; c += tap(pc + vec2(cos(a), sin(a)) * bl * 1.1, lod) * .0467; }
         return c * (1. - clamp((length(pc - uVigC) / uVigR - .3) / .7, 0., 1.) * .6);
       }
+      vec3 wall(vec2 pc, bool full) { return wall2(pc, full, uLod, uBlur); }
       vec3 glassy(vec3 c, vec2 cp) {                                   // exactly the CSS glass's layers, so the ring blends into it invisibly
         float l = dot(c, vec3(.2126, .7152, .0722)); c = clamp(mix(vec3(l), c, 1.35), 0., 1.) * .94;   // backdrop-filter: saturate(135%) brightness(.94)
         /* readable on any wallpaper: where the wallpaper is bright the glass smokes it down (a soft knee, so a white moon or
            a light photo still shows through, only dimmer), keeping white text at a readable contrast */
         float lb = dot(c, vec3(.2126, .7152, .0722));
         if (lb > .3) c *= (.3 + (lb - .3) * .16) / lb;
-        return mix(c, vec3(6., 18., 26.) / 255., .1);                   // the tint: linear-gradient(rgba(6,18,26,.1)) on top
+        return mix(c, vec3(6., 18., 26.) / 255., uTint);                // the tint: linear-gradient(rgba(6,18,26,.1)) on top (stronger over the desktop)
       }
       void main() {
         vec2 cp = vec2(gl_FragCoord.x, uCanvasPx.y - gl_FragCoord.y) / uDpr - 1., n;   // the canvas starts 1 px outside the panel (see .bubble-gl)
@@ -3210,9 +3280,12 @@ const bubble = (() => {
         if (aa <= 0.) { o = vec4(0.); return; }
         vec3 base = glassy(wall(toPage(cp), false), cp);                       // the glass itself (what the CSS backdrop-filter used to draw): blurred, tinted wallpaper
         if (t <= 0.) { o = vec4(base, 1.) * aa; return; }
-        float bend = uRefr * (1. - sqrt(max(0., 1. - t * t)));        // rounded edge: the closer to the rim, the more it bends
-        vec3 col = uQ > .5 ? glassy(vec3(wall(toPage(cp - n * bend), true).r, wall(toPage(cp - n * bend * 1.05), true).g, wall(toPage(cp - n * bend * 1.1), true).b), cp)
-                           : glassy(wall(toPage(cp - n * bend * 1.05), false), cp);
+        float bend = uRefr * (1. - sqrt(max(0., 1. - t * t)));        // rounded edge: the closer to the rim, the more it bends (uRefr < 0: it pulls in what's just outside the rim)
+        float rl = mix(uLod, uRimLod, t), rb = uBlur * mix(1., uRimBlur, t);
+        vec3 raw = uQ > .5 ? vec3(wall2(toPage(cp - n * bend), true, rl, rb).r, wall2(toPage(cp - n * bend * 1.05), true, rl, rb).g, wall2(toPage(cp - n * bend * 1.1), true, rl, rb).b)
+                           : wall2(toPage(cp - n * bend * 1.05), false, rl, rb);
+        vec3 col = glassy(raw, cp);
+        if (uRimClear > 0.) col = mix(col, raw * .9, uRimClear * t * t);
         float ring = smoothstep(0., 1., t);                             // fades into the CSS glass inside it
         float sp = pow(max(0., dot(n, uLight)), 2.) + .5 * pow(max(0., dot(n, -uLight)), 2.5);
         float hl = min(1., exp(-din / .8) * (.1 + .45 * sp) + pow(t, 6.) * .12 * sp);   // a thin rim line + a narrow specular on the lit side only
@@ -3231,11 +3304,11 @@ const bubble = (() => {
         gl.useProgram(prog);
         const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
         const loc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-        ["uTex", "uBlur", "uCanvasPx", "uPanel", "uOrigin", "uUvA", "uUvB", "uVigC", "uLight", "uM", "uDpr", "uR", "uVigR", "uLod", "uBevel", "uRefr", "uQ"].forEach(k => U[k] = gl.getUniformLocation(prog, k));
+        ["uTex", "uBlur", "uCanvasPx", "uPanel", "uOrigin", "uUvA", "uUvB", "uVigC", "uLight", "uM", "uDpr", "uR", "uVigR", "uLod", "uBevel", "uRefr", "uQ", "uTint", "uRimLod", "uRimBlur", "uRimClear"].forEach(k => U[k] = gl.getUniformLocation(prog, k));
         cv.addEventListener("webglcontextlost", ev => { ev.preventDefault(); G.ready = false; document.documentElement.classList.remove("gl-glass", "gl-solid"); });
         skin.after(cv); G.cv = cv;                                     // above the CSS glass (otherwise the glass blurs and tints the edge a second time), below the content
-        window.__bgChanged = () => { geo = null; loadTex(); request(true); };   // geo: the blur changes the wallpaper box's size
-        loadTex();
+        if (FLOAT) desk.start();                                       // Floating glass: the real desktop instead of the wallpaper
+        else { window.__bgChanged = () => { geo = null; loadTex(); request(true); }; loadTex(); }   // geo: the blur changes the wallpaper box's size
       } catch (err) { console.warn("glass", err.message); gl = null; }
     }
     function loadTex() {
@@ -3264,6 +3337,62 @@ const bubble = (() => {
       im.onerror = () => { if (texSrc === src) { G.ready = false; document.documentElement.classList.remove("gl-glass", "gl-solid"); } };
       im.src = src;
     }
+    /* Floating glass (desktop app, Windows): behind the panel is the real desktop. The app leaves its own window out of
+       screen captures, so a live capture of the screen under the window is exactly what's behind the glass; it is drawn
+       through the same lens as the wallpaper, only frostier (lots of detail behind it) and a bit darker (so the text stays
+       readable over anything). New frames come in at up to 30 a second, only while something behind changes.
+       The mouse pointer is part of the capture, so while it is over the panel the last frame is kept (otherwise the glass
+       would show a blurred second pointer under the real one). Moving the window just slides the same picture along. */
+    const desk = !FLOAT ? null : (() => {
+      let video = null, stream = null, disp = null, busy = false, frozen = false, sx = NaN, sy = NaN, fails = 0;
+      function stop() { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; }
+      async function start() {
+        if (busy || !gl) return; busy = true;
+        try {
+          stop();
+          const d = await DESK.display(); if (!d) throw new Error("no screen to capture");
+          const k = Math.min(1, 1920 / Math.max(d.w, d.h));            // the screen in css px (not physical pixels): enough for a frosted glass
+          stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { mandatory: {
+            chromeMediaSource: "desktop", chromeMediaSourceId: d.id, maxWidth: Math.round(d.w * k), maxHeight: Math.round(d.h * k), maxFrameRate: 30 } } });
+          disp = d; fails = 0;
+          if (!video) { video = document.createElement("video"); video.muted = true; video.playsInline = true; }
+          video.srcObject = stream; await video.play();
+          if (!tex) tex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          const s0 = stream, next = () => { if (stream !== s0) return; upload(); video.requestVideoFrameCallback(next); };
+          video.requestVideoFrameCallback(next);
+        } catch (err) {
+          console.warn("desktop glass", err && err.message); stop();
+          if (++fails < 4) setTimeout(start, 1500 * fails);            // e.g. the screen was locked; otherwise the panel stays plain dark glass
+        } finally { busy = false; }
+      }
+      function upload() {
+        if ((frozen && G.ready) || !on || !video.videoWidth) return;
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        texW = video.videoWidth; texH = video.videoHeight;
+        if (!G.ready) {
+          G.ready = true; G.dirty = true; draw();
+          requestAnimationFrame(() => { if (G.ready) document.documentElement.classList.add("gl-glass"); });
+          clearTimeout(G.solidT); G.solidT = setTimeout(() => { if (G.ready) document.documentElement.classList.add("gl-solid"); }, 800);
+        } else request(true);
+      }
+      addEventListener("pointermove", ev => {
+        const r = wrap.getBoundingClientRect();
+        frozen = ev.clientX > r.left - 4 && ev.clientX < r.right + 4 && ev.clientY > r.top - 4 && ev.clientY < r.bottom + 4;
+      }, true);
+      document.addEventListener("mouseout", ev => { if (!ev.relatedTarget) frozen = false; });
+      document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); else if (gl && !stream) start(); });   // minimised: no capturing at all
+      DESK.on("display", () => start());                              // moved onto another screen
+      (function watch() {                                             // the window moved: the picture behind it slides along, on the same frame
+        if (screenX !== sx || screenY !== sy) { sx = screenX; sy = screenY; if (G.ready) request(true); }
+        requestAnimationFrame(watch);
+      })();
+      return { start, get disp() { return disp; } };
+    })();
     /* Redraws happen only when something changed, at most once per frame. The panel moving or resizing (a pull, the big
        player opening) is drawn on the very next frame so the edge never trails the panel; tilt changes are drawn at the
        decorative frame rate (30 fps on phones, 24 in light mode, none at all in light mode since the wallpaper stays still). */
@@ -3338,8 +3467,14 @@ const bubble = (() => {
       const scl = Math.max(cw0 / texW, ch0 / texH), dw = texW * scl, dh = texH * scl, offX = (cw0 - dw) * posX, offY = (ch0 - dh) * posY;
       const cx = cw0 / 2, cy = ch0 / 2, S = 1.04, ttx = tx * -6, tty = ty * -6;
       gl.viewport(0, 0, bw, bh); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+      const dd = FLOAT && desk.disp;
+      if (dd) {                                                        // Floating glass: page point -> where it is on the captured screen
+        gl.uniform2f(U.uUvA, 1 / dd.w, 1 / dd.h); gl.uniform2f(U.uUvB, (screenX - dd.x) / dd.w, (screenY - dd.y) / dd.h);
+        gl.uniform2f(U.uVigC, 0, 0); gl.uniform1f(U.uVigR, 1e9);      // no vignette on the desktop
+      } else {
       gl.uniform2f(U.uUvA, 1 / (S * dw), 1 / (S * dh)); gl.uniform2f(U.uUvB, ((-geo.ox - cx - ttx) / S + cx - offX) / dw, ((-geo.oy - cy - tty) / S + cy - offY) / dh);
       gl.uniform2f(U.uVigC, geo.vw / 2, geo.vh / 2); gl.uniform1f(U.uVigR, Math.hypot(geo.vw / 2, geo.vh / 2));
+      }
       /* the panel's own transform: page point of canvas point p = base + C + M (p - C) + lean */
       const bx = wrap.offsetLeft - scrollX, by = wrap.offsetTop - scrollY, Cx = W / 2, Cy = H / 2;
       gl.uniform4f(U.uM, M.a, M.b, M.c, M.d);
@@ -3348,14 +3483,17 @@ const bubble = (() => {
          made once per blur setting. It used to pick a softer mip level instead: far too little blur, so over a blurred
          wallpaper the panel looked like a solid sharp-ish sheet that ignored the slider. The glass's own blur is done
          with the gaussian taps. */
-      const userBlur = +(store.get("wallpaperBlur") || 0), texPerCss = G.texPx / dw;
+      const userBlur = dd ? 0 : +(store.get("wallpaperBlur") || 0), texPerCss = dd ? texW / dd.w : G.texPx / dw;
       const btex = userBlur ? blurred(userBlur * texPerCss) : null;
-      gl.uniform1f(U.uLod, btex ? 0 : Math.max(0, Math.log2(Math.max(1, .6 * texPerCss))));
-      gl.uniform1f(U.uBlur, GLASS_BLUR * 1.1); gl.uniform1f(U.uQ, lite ? 0 : 1);
+      /* over the desktop the glass is frostier: a softer mip level (~2.5 css px) under the gaussian taps */
+      const lod = btex ? 0 : Math.max(0, Math.log2(Math.max(1, (dd ? DESK_FROST : .6) * texPerCss)));
+      gl.uniform1f(U.uLod, lod); gl.uniform1f(U.uRimLod, dd ? Math.max(0, Math.log2(Math.max(1, .7 * texPerCss))) : lod);
+      gl.uniform1f(U.uRimBlur, dd ? .15 : 1); gl.uniform1f(U.uRimClear, dd ? DESK_RIM_CLEAR : 0);
+      gl.uniform1f(U.uBlur, (dd ? DESK_BLUR : GLASS_BLUR) * 1.1); gl.uniform1f(U.uQ, lite ? 0 : 1); gl.uniform1f(U.uTint, dd ? DESK_TINT : .1);
       const r = Math.min(RAD, W / 2, H / 2);
       gl.uniform2f(U.uCanvasPx, bw, bh); gl.uniform1f(U.uDpr, bw / (W + 2)); gl.uniform2f(U.uPanel, W, H); gl.uniform1f(U.uR, r);
       const lx = -.55 + tx * .35, ly = -.83 + ty * .35, ll = Math.hypot(lx, ly); gl.uniform2f(U.uLight, lx / ll, ly / ll);   // light from the top left; tilting moves it
-      gl.uniform1f(U.uBevel, 16); gl.uniform1f(U.uRefr, 12);
+      gl.uniform1f(U.uBevel, dd ? DESK_BEVEL : 16); gl.uniform1f(U.uRefr, dd ? DESK_REFR : 12);   // over the desktop: a deeper lens, the edge bends more
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, btex || tex); gl.uniform1i(U.uTex, 0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       G.dirty = false;
@@ -3459,7 +3597,53 @@ $("flow-switch").addEventListener("click", () => {                  // Settings 
   setEdit(false); if (albumsGridWrapper.style.display === "block") { renderAlbums(); showOnly(albumsGridWrapper); }
 });
 $("old-panel-switch").addEventListener("click", () => { const old = bubble.on; store.set("oldPanel", old ? "1" : "0"); bubble.set(!old, true); haptic("light"); });
-bubble.set(store.get("oldPanel") !== "1", false);
+bubble.set(FLOAT || store.get("oldPanel") !== "1", false);         // Floating glass is always the Liquid Glass panel
+
+/* ---------- DESKTOP APP (desktop/, only there) ----------
+   Window buttons, Settings > App (Floating glass, the music folder, updates) and the update pill in the top strip.
+   Floating glass: the empty, see-through parts of the window let clicks through to whatever is behind them. */
+if (DESK) (function () {
+  const wrap = document.querySelector(".player-wrapper"), fsw = $("float-switch");
+  $("desk-min").addEventListener("click", () => DESK.send("min"));
+  $("desk-close").addEventListener("click", () => DESK.send("close"));
+  $("folder-sub").textContent = NAT.folder || "";
+  $("folder-btn").addEventListener("click", () => DESK.send("folder"));
+  if (!NAT.floatOK) $("float-row").style.display = "none";
+  fsw.setAttribute("aria-checked", String(FLOAT));
+  fsw.addEventListener("click", () => { fsw.setAttribute("aria-checked", String(!FLOAT)); haptic("light"); setTimeout(() => DESK.send("look", !FLOAT), 260); });   // the window is made again in the new look
+
+  let U = { state: "idle" };
+  function upd(st) {
+    if (st) U = st;
+    const v = U.version || NAT.version, sub = $("upd-sub"), btn = $("upd-btn"), pill = $("upd-pill");
+    sub.textContent = {
+      checking: "Checking for a new version…",
+      none: `Version ${NAT.version} · up to date`,
+      downloading: `Downloading version ${v}…${U.percent ? " " + U.percent + "%" : ""}`,
+      ready: `Version ${v} is ready. Restart to use it`,
+      available: `Version ${v} is out`,
+      error: `Couldn't check for updates${U.message ? " (" + U.message + ")" : ""}`
+    }[U.state] || `Version ${NAT.version}`;
+    btn.textContent = U.state === "ready" ? "Restart" : U.state === "available" ? "Download" : "Check";
+    btn.disabled = U.state === "checking" || U.state === "downloading";
+    pill.hidden = !(U.state === "ready" || U.state === "available");
+    $("upd-pill-t").textContent = U.state === "ready" ? "Update ready · Restart" : "New version · Download";
+  }
+  const act = () => { haptic("light"); DESK.send(U.state === "ready" || U.state === "available" ? "update-install" : "update-check"); };
+  $("upd-btn").addEventListener("click", act); $("upd-pill").addEventListener("click", act);
+  DESK.on("update", upd); DESK.update().then(upd).catch(() => upd());
+
+  if (!FLOAT) return;
+  let ign = null;
+  const setIgn = v => { if (v !== ign) { ign = v; DESK.send("ignore", v); } };
+  addEventListener("mousemove", ev => {
+    if (ev.buttons) return;                                          // never in the middle of a drag (the release would go elsewhere)
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    setIgn(!el || el === document.documentElement || el === document.body);
+  }, true);
+  const pb = () => document.documentElement.style.setProperty("--desk-pb", Math.round(wrap.getBoundingClientRect().bottom) + "px");   // toasts sit under the panel
+  new ResizeObserver(pb).observe(wrap); pb();
+})();
 
 /* ---------- COVER GLOW ----------
    One image per song, drawn once into canvases and then only moved, scaled and faded by the GPU. The small cover and the
@@ -4772,7 +4956,8 @@ function natUI() {
   const dz = $("drop-zone");
   dz.style.display = ""; ["player-main", "controls-main", "footer-main"].forEach(i => { $(i).style.display = "none"; });
   if (XP) XP.sync();
-  dz.innerHTML = "Tap to add your songs<br><span style=\"font-size:11px;opacity:.7;\">They stay in the app. You can also copy music into the MacawP3 folder in the Files app.</span>";
+  dz.innerHTML = DESK ? "Click to add your songs<br><span style=\"font-size:11px;opacity:.7;\">They're kept in the MacawP3 folder in your Music folder. You can also drop songs or whole folders here.</span>"
+                     : "Tap to add your songs<br><span style=\"font-size:11px;opacity:.7;\">They stay in the app. You can also copy music into the MacawP3 folder in the Files app.</span>";
 }
 async function natSync() {
   if (!NAT) return;
