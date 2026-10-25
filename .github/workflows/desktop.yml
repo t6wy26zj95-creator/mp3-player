@@ -1,0 +1,130 @@
+# Builds the desktop app (MacawP3 for Windows, plus a Mac version) on GitHub's computers.
+# - Every push to main: the "desktop" release gets the new version. Installed apps find it there and update themselves.
+#   Always-current download links:
+#     https://github.com/<owner>/<repo>/releases/download/desktop/MacawP3-Setup.exe   (Windows)
+#     https://github.com/<owner>/<repo>/releases/download/desktop/MacawP3-mac.zip     (Mac)
+# - A push to any other branch (a pull request being tested): the "desktop-preview" pre-release gets that build. Test
+#   builds also update from there, so the next test build arrives as an update too.
+# The version is 1.0.<run number>, so every build is newer than the one before it.
+name: Desktop app
+
+on:
+  push:
+    paths:
+      - index.html
+      - desktop/**
+      - .github/workflows/desktop.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  VERSION: 1.0.${{ github.run_number }}
+  CHANNEL: ${{ github.ref == 'refs/heads/main' && 'main' || 'preview' }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Put the player inside the app
+        run: |
+          mkdir -p desktop/www
+          cp index.html desktop/www/index.html
+          # the tag reader, kept in the app so songs added offline still get their names and covers
+          curl -fsSL --retry 3 -o desktop/www/jsmediatags.min.js https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js \
+            || curl -fsSL --retry 3 -o desktop/www/jsmediatags.min.js https://cdn.jsdelivr.net/gh/aadsm/jsmediatags@v3.9.5/dist/jsmediatags.min.js
+          test -s desktop/www/jsmediatags.min.js
+      - name: Build the installer
+        working-directory: desktop
+        run: |
+          npm ci
+          npx electron-builder --win --publish never -c.extraMetadata.version=$VERSION -c.extraMetadata.macawChannel=$CHANNEL
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            desktop/dist/MacawP3-Setup-*.exe
+            desktop/dist/MacawP3-Setup-*.exe.blockmap
+            desktop/dist/latest.yml
+
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Put the player inside the app
+        run: |
+          mkdir -p desktop/www
+          cp index.html desktop/www/index.html
+          curl -fsSL --retry 3 -o desktop/www/jsmediatags.min.js https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js \
+            || curl -fsSL --retry 3 -o desktop/www/jsmediatags.min.js https://cdn.jsdelivr.net/gh/aadsm/jsmediatags@v3.9.5/dist/jsmediatags.min.js
+          test -s desktop/www/jsmediatags.min.js
+      - name: Build the app
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm ci
+          npx electron-builder --mac --universal --publish never -c.extraMetadata.version=$VERSION -c.extraMetadata.macawChannel=$CHANNEL
+          app=$(ls -d dist/mac-universal/MacawP3.app)
+          # no paid Apple signature: sign it "ad hoc" so it opens on Apple Silicon Macs (right-click > Open the first time)
+          codesign --force --deep --sign - "$app"
+          ditto -c -k --sequesterRsrc --keepParent "$app" dist/MacawP3-mac.zip
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: desktop/dist/MacawP3-mac.zip
+
+  publish:
+    needs: [windows, mac]
+    if: always() && needs.windows.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+      - name: Publish to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [ "$CHANNEL" = main ]; then TAG=desktop; TITLE="Desktop app"; PRE=""; else TAG=desktop-preview; TITLE="Desktop app preview"; PRE="--prerelease"; fi
+          exe=$(ls out/windows/MacawP3-Setup-*.exe); name=$(basename "$exe")
+          cp "$exe" out/MacawP3-Setup.exe
+          notes="Version $VERSION, built from ${GITHUB_REF_NAME} ($GITHUB_SHA).
+
+          Windows: download MacawP3-Setup.exe below and open it. Windows may say it protected your PC (the app isn't signed with a paid certificate): click More info, then Run anyway. After that the app updates itself.
+          Mac: download MacawP3-mac.zip, unzip it, move MacawP3 to Applications, then right-click it and choose Open the first time."
+          # one release per channel, kept (not marked "latest", so the iOS app's links keep pointing at the iOS builds)
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --latest=false $PRE --title "$TITLE" --notes "$notes"
+          # the new installer first, then latest.yml (which tells installed apps about it), then the fixed-name copies
+          gh release upload "$TAG" "$exe" "$exe.blockmap" --clobber
+          gh release upload "$TAG" out/windows/latest.yml --clobber
+          gh release upload "$TAG" out/MacawP3-Setup.exe --clobber
+          if [ -f out/mac/MacawP3-mac.zip ]; then gh release upload "$TAG" out/mac/MacawP3-mac.zip --clobber; fi
+          gh release edit "$TAG" --title "$TITLE $VERSION" --notes "$notes"
+          # keep the two newest versioned installers (an app may be halfway through downloading the previous one); the
+          # small .blockmap files stay, they let updates download only the parts that changed
+          gh release view "$TAG" --json assets -q '.assets[].name' | grep -E '^MacawP3-Setup-[0-9.]+\.exe$' | sort -t. -k3,3n | head -n -2 | while read -r old; do
+            gh release delete-asset "$TAG" "$old" --yes || true
+          done
+          echo "Download: https://github.com/$GH_REPO/releases/download/$TAG/MacawP3-Setup.exe"

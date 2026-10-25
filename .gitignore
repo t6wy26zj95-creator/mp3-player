@@ -4,3 +4,8 @@ ios/build/
 ios/Payload/
 ios/Macaw/www/
 *.ipa
+
+# desktop app build output (made on GitHub, see .github/workflows/desktop.yml)
+desktop/node_modules/
+desktop/dist/
+desktop/www/
