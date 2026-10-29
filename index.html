@@ -36,7 +36,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
   padding:calc(env(safe-area-inset-top,0px) + 24px) 16px 0;box-sizing:border-box;-webkit-text-size-adjust:100%}
 /* --bgm: with Bg Blur on, the wallpaper box reaches past every screen edge (set by applyBg), so the blur's soft edge
    (which fades to the dark page colour) stays off screen and the glass panel matches the wallpaper right next to it */
-.bg-container{position:fixed;top:calc(var(--bgm,0px) * -1);left:calc(var(--bgm,0px) * -1);right:calc(var(--bgm,0px) * -1);height:calc(100% + 120px + var(--bgm,0px) * 2);z-index:-2;background-size:cover;background-position:center;transition:background .3s ease}
+.bg-container{position:fixed;top:calc(var(--bgm,0px) * -1);left:calc(var(--bgm,0px) * -1);right:calc(var(--bgm,0px) * -1);height:calc(100% + 120px + var(--bgm,0px) * 2);z-index:-2;background-size:cover;background-position:center;transition:background var(--t-n) var(--ease)}
 .bg-vignette{position:fixed;top:0;left:0;right:0;height:calc(100% + 120px);background:radial-gradient(circle at center,rgba(0,0,0,0) 30%,rgba(0,0,0,.6) 100%);pointer-events:none;z-index:-1}
 
 .player-wrapper{position:relative;width:100%;max-width:580px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
@@ -52,7 +52,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .albums-grid-container::-webkit-scrollbar{display:none}
 .albums-grid{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:10px;align-items:start}
 .album-card{position:relative;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;width:100%;min-width:0;cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
-.album-card img,.album-card .all-tracks-icon{display:block;width:100%;max-width:100%;height:auto;min-width:0;aspect-ratio:1/1;border-radius:12px;border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 15px rgba(0,0,0,.3);object-fit:cover;transition:transform .2s ease;box-sizing:border-box}
+.album-card img,.album-card .all-tracks-icon{display:block;width:100%;max-width:100%;height:auto;min-width:0;aspect-ratio:1/1;border-radius:12px;border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 15px rgba(0,0,0,.3);object-fit:cover;transition:transform var(--t-n) var(--ease);box-sizing:border-box}
 .album-card img{pointer-events:none;-webkit-user-drag:none}
 .album-card.lifted{z-index:20}
 .album-card.lifted img,.album-card.lifted .all-tracks-icon{box-shadow:0 20px 34px rgba(0,0,0,.55)}
@@ -100,14 +100,14 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .pl-pop{position:fixed;z-index:40;width:236px;max-width:calc(100vw - 24px);overflow-y:auto;padding:6px;box-sizing:border-box;border-radius:16px;
   background:rgba(15,23,30,.86);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(255,255,255,.15);
   box-shadow:0 14px 34px rgba(0,0,0,.45);opacity:0;transform:scale(.92) translateY(-6px);transform-origin:top right;pointer-events:none;
-  transition:opacity .2s var(--ease),transform .26s var(--ease);font-size:14px;color:#fff}
+  transition:opacity var(--t-n) var(--ease),transform var(--t-n) var(--ease);font-size:14px;color:#fff}
 .pl-pop.show{opacity:1;transform:none;pointer-events:auto}
 .pl-h{padding:6px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.5)}
 .pl-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;-webkit-user-select:none;user-select:none}
 .pl-row:active{background:rgba(255,255,255,.1)}
 .pl-row .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pl-row .ck{flex-shrink:0;width:20px;height:20px;border-radius:50%;border:1.5px solid rgba(255,255,255,.45);box-sizing:border-box;display:flex;align-items:center;justify-content:center;transition:background .2s,border-color .2s}
-.pl-row .ck svg{width:14px;height:14px;fill:#0f171e;opacity:0;transition:opacity .2s}
+.pl-row .ck{flex-shrink:0;width:20px;height:20px;border-radius:50%;border:1.5px solid rgba(255,255,255,.45);box-sizing:border-box;display:flex;align-items:center;justify-content:center;transition:background var(--t-n) var(--ease),border-color var(--t-n) var(--ease)}
+.pl-row .ck svg{width:14px;height:14px;fill:#0f171e;opacity:0;transition:opacity var(--t-n) var(--ease)}
 .pl-row.in .ck{background:#fff;border-color:#fff}
 .pl-row.in .ck svg{opacity:1}
 .pl-row.add{color:rgba(255,255,255,.75)}
@@ -119,10 +119,10 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .pl-song .t{min-width:0;flex:1}.pl-song .t div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl-song .t .a{font-size:12px;color:rgba(255,255,255,.55)}
 /* choosing a cover: move and zoom the picture inside the square */
-.crop-ov{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;transition:opacity .22s var(--ease)}
+.crop-ov{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;transition:opacity var(--t-n) var(--ease)}
 .crop-ov.show{opacity:1}
 .crop-box{width:min(340px,calc(100vw - 32px));padding:16px;box-sizing:border-box;border-radius:22px;background:rgba(15,23,30,.86);border:1px solid rgba(255,255,255,.15);box-shadow:0 18px 40px rgba(0,0,0,.5);color:#fff;
-  transform:scale(.95);transition:transform .26s var(--ease)}
+  transform:scale(.95);transition:transform var(--t-n) var(--ease)}
 .crop-ov.show .crop-box{transform:none}
 .crop-h{font-size:13px;font-weight:600;text-align:center;color:rgba(255,255,255,.7);margin-bottom:12px}
 .crop-frame{position:relative;margin:0 auto;border-radius:18px;overflow:hidden;touch-action:none;cursor:grab;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.2)}
@@ -138,7 +138,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .pl-new input{flex:1;min-width:0;padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:16px;outline:none}
 .pl-new button{padding:0 12px;border-radius:10px;border:0;background:#fff;color:#0f171e;font:600 13px -apple-system,system-ui,sans-serif;cursor:pointer}
 .artist-row .track-artist{min-width:0;flex:0 1 auto}
-.shuf-ind{flex-shrink:0;width:0;height:13px;margin-left:0;opacity:0;fill:#fff;transition:width .3s var(--ease),margin .3s var(--ease),opacity .3s var(--ease)}
+.shuf-ind{flex-shrink:0;width:0;height:13px;margin-left:0;opacity:0;fill:#fff;transition:width var(--t-n) var(--ease),margin var(--t-n) var(--ease),opacity var(--t-n) var(--ease)}
 .shuf-ind.on{width:13px;margin-left:6px;opacity:.85}
 .player-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 5px rgba(0,0,0,.2);padding:0}
 .player-btn:active{background:rgba(255,255,255,.25);transform:scale(.94)}
@@ -151,7 +151,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 #progress-slider{flex:1;min-width:0}
 
 .player-footer{position:relative;display:flex;align-items:center;justify-content:space-between;padding:0 var(--inset)}
-.tab-buttons{transition:opacity .3s var(--ease),transform .3s var(--ease)}
+.tab-buttons{transition:opacity var(--t-n) var(--ease),transform var(--t-n) var(--ease)}
 .player-footer.edit .tab-buttons{opacity:0;transform:translateY(4px);pointer-events:none}
 .done-btn{position:absolute;right:var(--inset);top:50%;margin-top:-15px;height:30px;padding:0 18px;border-radius:999px;border:1px solid rgba(255,255,255,.22);border-top-color:rgba(255,255,255,.4);
   background:rgba(255,255,255,.14);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff;font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;cursor:pointer;
@@ -163,7 +163,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .tab-btn.active{color:#fff;text-shadow:0 0 10px rgba(255,255,255,.3)}
 .add-btn{color:rgba(255,255,255,.7)}
 
-.collapsible-content{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows var(--dur) var(--ease),opacity .28s ease}
+.collapsible-content{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows var(--dur) var(--ease),opacity var(--t-n) var(--ease)}
 .collapsible-content.expanded{grid-template-rows:1fr;opacity:1}
 .drawer-inner{min-height:0;overflow:hidden}
 #view-host{position:relative;box-sizing:border-box;overflow:hidden;border-top:1px solid rgba(255,255,255,.1);padding-top:14px;transition:height var(--dur) var(--ease)}
@@ -210,7 +210,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .artist-more{background:none;border:0;color:rgba(255,255,255,.6);font:600 12px -apple-system,system-ui,sans-serif;padding:8px 4px;cursor:pointer}
 .artist-sec{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);margin:14px 4px 0}
 .artist-albums{padding:10px 4px}
-.album-card{transition:opacity .4s var(--ease)}
+.album-card{transition:opacity var(--t-s) var(--ease)}
 .album-card.dim{opacity:.4;--o:.4}
 .album-card .year{font-size:10px;color:rgba(255,255,255,.5);margin-top:-4px}
 .own-dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:#2ecc71;box-shadow:0 0 8px #2ecc71;z-index:2}
@@ -230,25 +230,28 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .alb-play svg{width:15px;height:15px;margin-left:2px}
 .alb-play[disabled]{opacity:.35;pointer-events:none}
 .disc-h{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);padding:12px 12px 4px}
-.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);transform:translateX(-50%) translateY(10px);background:rgba(15,23,30,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);padding:10px 16px;border-radius:14px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:30;white-space:nowrap}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);transform:translateX(-50%) translateY(10px);background:rgba(15,23,30,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);padding:10px 16px;border-radius:14px;font-size:13px;opacity:0;pointer-events:none;transition:opacity var(--t-n) var(--ease),transform var(--t-n) var(--ease);z-index:30;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%)}
 
 .del-badge{position:absolute;top:-7px;left:-7px;z-index:6;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.2);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);
   border:1px solid rgba(255,255,255,.4);box-shadow:0 3px 8px rgba(0,0,0,.35),inset 0 0 2px rgba(255,255,255,.3);cursor:pointer;
-  opacity:0;transform:scale(.3);pointer-events:none;transition:opacity .28s var(--ease),transform .38s var(--ease),background .2s var(--ease)}
+  opacity:0;transform:scale(.3);pointer-events:none;transition:opacity var(--t-n) var(--ease),transform var(--t-s) var(--ease),background var(--t-n) var(--ease)}
 .del-badge::before{content:'';position:absolute;left:50%;top:50%;width:10px;height:2px;margin:-1px 0 0 -5px;border-radius:1px;background:#fff}
 .del-badge:active{background:rgba(255,255,255,.38)}
 .albums-grid.editing .del-badge{opacity:1;transform:none;pointer-events:auto;transition-delay:calc(var(--j,0) * 22ms)}
-:root{--ease:cubic-bezier(.22,1,.36,1);--dur:.4s}
+/* One rhythm for every animation: three speeds and one motion style (starts quickly, settles softly).
+   Quick: presses, switches, a title changing. Normal: tabs, menus, sheets. Slow: the big player, Cover Flow, the queue strip.
+   --ease-pop (a small overshoot) is kept only for the tab highlight, check marks and the cover pop. JS uses MOTION (same values). */
+:root{--ease:cubic-bezier(.22,1,.36,1);--ease-pop:cubic-bezier(.34,1.56,.64,1);--t-q:.15s;--t-n:.25s;--t-s:.4s;--dur:var(--t-s)}
 @keyframes viewIn{from{opacity:0;transform:translate(var(--dx,0),var(--dy,0))}to{opacity:1;transform:none}}
-.v-in{animation:viewIn .34s var(--ease) both}
+.v-in{animation:viewIn var(--t-s) var(--ease) both}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:var(--o,1);transform:none}}
-.card-in{animation:cardIn .36s var(--ease) backwards}
-.player-btn,.tab-btn,.chip,.circle-btn,.set-pill,.set-x,.back-btn,.done-btn{transition:background .22s var(--ease),color .22s var(--ease),transform .18s var(--ease),border-color .22s var(--ease),opacity .22s var(--ease)}
-.playlist-item,.queue-item,.hidden-row{transition:background .22s var(--ease),opacity .3s var(--ease)}
-.album-card img,.album-card .all-tracks-icon{transition:transform .28s var(--ease),opacity .3s ease,box-shadow .28s var(--ease)}
-#track-art-img{transition:opacity .3s ease}
-.toast{transition:opacity .28s var(--ease),transform .32s var(--ease)!important}
+.card-in{animation:cardIn var(--t-s) var(--ease) backwards}
+.player-btn,.tab-btn,.chip,.circle-btn,.set-pill,.set-x,.back-btn,.done-btn{transition:background var(--t-n) var(--ease),color var(--t-n) var(--ease),transform var(--t-q) var(--ease),border-color var(--t-n) var(--ease),opacity var(--t-n) var(--ease)}
+.playlist-item,.queue-item,.hidden-row{transition:background var(--t-n) var(--ease),opacity var(--t-n) var(--ease)}
+.album-card img,.album-card .all-tracks-icon{transition:transform var(--t-n) var(--ease),opacity var(--t-n) var(--ease),box-shadow var(--t-n) var(--ease)}
+#track-art-img{transition:opacity var(--t-n) var(--ease)}
+.toast{transition:opacity var(--t-n) var(--ease),transform var(--t-s) var(--ease)!important}
 .albums-grid.editing .album-card[data-key]:not(.lifted)>img,.albums-grid.editing .album-card[data-key]:not(.lifted)>.all-tracks-icon{animation:jig .34s ease-in-out infinite alternate;animation-delay:calc(var(--j,0) * -.13s)}
 @keyframes jig{0%{transform:rotate(-.9deg)}100%{transform:rotate(.9deg)}}
 /* Reduce Motion: no transitions at all (not a .01ms one: that gave EVERY element a transition on every property, and
@@ -285,18 +288,18 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .albums-grid{padding-bottom:24px}
 
 /* ===== glow layer: glows live outside the scrollers, are positioned by JS, and fade at the scroller's edges ===== */
-#glow-layer{position:absolute;left:0;right:0;top:0;height:0;overflow:hidden;z-index:-1;pointer-events:none;opacity:0;transition:opacity .3s var(--ease);
+#glow-layer{position:absolute;left:0;right:0;top:0;height:0;overflow:hidden;z-index:-1;pointer-events:none;opacity:0;transition:opacity var(--t-n) var(--ease);
   -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}
 #glow-layer.on{opacity:1}
 /* lists that scroll fade out at an edge that has more behind it, instead of ending on a row cut in half (set by edgeFade) */
 @property --fdt{syntax:'<length>';inherits:false;initial-value:0px}
 @property --fdb{syntax:'<length>';inherits:false;initial-value:0px}
 .efade{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 var(--fdt),#000 calc(100% - var(--fdb)),transparent 100%);
-  mask-image:linear-gradient(to bottom,transparent 0,#000 var(--fdt),#000 calc(100% - var(--fdb)),transparent 100%);transition:--fdt .25s var(--ease),--fdb .25s var(--ease)}
+  mask-image:linear-gradient(to bottom,transparent 0,#000 var(--fdt),#000 calc(100% - var(--fdb)),transparent 100%);transition:--fdt var(--t-n) var(--ease),--fdb var(--t-n) var(--ease)}
 .efade.ft{--fdt:var(--fts,30px)}.efade.fb{--fdb:var(--fbs,40px)}
 .albums-grid-container.flow.efade{-webkit-mask-image:none;mask-image:none}
 #glow-layer.off .glow{opacity:0!important}
-.glow{position:absolute;left:0;top:0;border-radius:14px;background-size:cover;background-position:center;filter:blur(15px) saturate(1.5);opacity:0;transition:opacity .4s var(--ease);will-change:transform}
+.glow{position:absolute;left:0;top:0;border-radius:14px;background-size:cover;background-position:center;filter:blur(15px) saturate(1.5);opacity:0;transition:opacity var(--t-s) var(--ease);will-change:transform}
 .glow.in{opacity:.4}
 .glow.in.dim{opacity:.16}
 .glow.in.live{opacity:calc(.5 + var(--pulse,0) * .35);transition:none}
@@ -308,7 +311,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
 /* artist page: fixed viewport so the panel never resizes while data arrives; skeletons hold the space */
 .artist-scroll{height:min(450px,calc(var(--room,494px) - 44px))}
-.artist-hero-img{opacity:0;transition:opacity .5s var(--ease)}
+.artist-hero-img{opacity:0;transition:opacity var(--t-s) var(--ease)}
 .artist-hero-img.ready{opacity:1}
 .sk{background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.12),rgba(255,255,255,.05));background-size:200% 100%;animation:skm 1.4s linear infinite;border-radius:12px}
 @keyframes skm{to{background-position:-200% 0}}
@@ -338,7 +341,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .g{position:absolute;inset:0;border-radius:inherit;pointer-events:none}
 /* edge refraction: a thin band where the artwork looks magnified through the glass edge; shifts a hair with the light */
 .g-refr{background:var(--art,none) calc(50% + var(--rx,0px)) calc(50% + var(--ry,0px))/107% 107% no-repeat;filter:saturate(1.35) brightness(1.14) blur(.4px);
-  opacity:calc(var(--art-on,0) * .42);transition:opacity .3s ease;
+  opacity:calc(var(--art-on,0) * .42);transition:opacity var(--t-n) var(--ease);
   -webkit-mask-image:linear-gradient(90deg,#000,transparent 4px,transparent calc(100% - 4px),#000),linear-gradient(#000,transparent 4px,transparent calc(100% - 4px),#000);
           mask-image:linear-gradient(90deg,#000,transparent 4px,transparent calc(100% - 4px),#000),linear-gradient(#000,transparent 4px,transparent calc(100% - 4px),#000)}
 /* thickness: the lower edge sits a little in shadow, the upper edge catches a little light */
@@ -396,7 +399,7 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 .q-sec span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .q-sec button{flex-shrink:0;background:none;border:0;color:rgba(255,255,255,.65);font:inherit;letter-spacing:inherit;cursor:pointer;padding:4px 0}
 .q-sec button:active{color:#fff}
-.q-fg{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;cursor:pointer;border:1px solid transparent;transition:background .22s var(--ease)}
+.q-fg{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;cursor:pointer;border:1px solid transparent;transition:background var(--t-n) var(--ease)}
 .q-fg:active{background:rgba(255,255,255,.08)}
 .q-row.hist .q-fg{opacity:.5}
 .q-row.now .q-fg{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.1);cursor:default}
@@ -404,26 +407,26 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
    switches: the card's glass is a layer under the row's content whose opacity animates, the cover glow grows in on
    pick-up and fades on drop. */
 .q-row[data-group] .q-fg{isolation:isolate}
-.q-row[data-group] .q-fg::before{content:'';position:absolute;inset:-1px;border-radius:13px;pointer-events:none;z-index:-1;opacity:0;transition:opacity .24s var(--ease);
+.q-row[data-group] .q-fg::before{content:'';position:absolute;inset:-1px;border-radius:13px;pointer-events:none;z-index:-1;opacity:0;transition:opacity var(--t-n) var(--ease);
   background:linear-gradient(135deg,rgba(255,255,255,.2),rgba(255,255,255,.07) 55%,rgba(255,255,255,.04)),rgba(19,54,68,.98);
   border:1px solid rgba(255,255,255,.16);border-top-color:rgba(255,255,255,.4);box-sizing:border-box;
   box-shadow:0 14px 30px rgba(0,0,0,.32),0 3px 8px rgba(0,0,0,.18),inset 0 0 2px rgba(255,255,255,.25)}
 .q-row.lifted .q-fg::before{opacity:1}
-.q-row .item-art{transition:transform .26s var(--ease),box-shadow .26s var(--ease)}
+.q-row .item-art{transition:transform var(--t-n) var(--ease),box-shadow var(--t-n) var(--ease)}
 .q-row.lifted,.q-row.landing{z-index:5;overflow:visible}
 .q-row.lifted::after,.q-row.landing::after{content:'';position:absolute;inset:6px 18px;border-radius:14px;background:var(--art,rgba(255,255,255,.2)) center/cover;
   filter:blur(18px) saturate(1.7);z-index:-1;pointer-events:none}
-.q-row.lifted::after{animation:qglow .3s var(--ease) both}
-.q-row.landing::after{animation:qglowOut .28s var(--ease) both}
+.q-row.lifted::after{animation:qglow var(--t-n) var(--ease) both}
+.q-row.landing::after{animation:qglowOut var(--t-n) var(--ease) both}
 @keyframes qglow{from{opacity:0;transform:scale(.8)}to{opacity:.5;transform:none}}
 @keyframes qglowOut{from{opacity:.5}to{opacity:0;transform:scale(.9)}}
 .q-row.lifted .item-art{transform:scale(1.08);box-shadow:0 4px 12px rgba(0,0,0,.35)}
-.queue-container .q-row,.playlist-container .q-row{transition:opacity .22s ease}
+.queue-container .q-row,.playlist-container .q-row{transition:opacity var(--t-n) var(--ease)}
 .playlist-container.dragging .q-row:not(.lifted){opacity:.5}
 .playlist-container.dragging{-webkit-overflow-scrolling:auto}
 .queue-container.dragging .q-row:not(.lifted){opacity:.5}
 .queue-container.dragging{-webkit-overflow-scrolling:auto}
-.q-row.collapse{overflow:hidden;transition:height .22s var(--ease),opacity .22s var(--ease)}
+.q-row.collapse{overflow:hidden;transition:height var(--t-n) var(--ease),opacity var(--t-n) var(--ease)}
 .q-more{font-size:11px;color:rgba(255,255,255,.4);text-align:center;padding:10px 0 4px}
 .q-link{display:block;width:100%;background:none;border:0;cursor:pointer;color:rgba(255,255,255,.6);font-weight:600}
 .q-empty{font-size:12px;color:rgba(255,255,255,.4);text-align:center;padding:14px 12px}
@@ -431,13 +434,13 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 .sw{position:relative;border-radius:12px;overflow:hidden;touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .sw-fg{position:relative;will-change:transform}
 .sw-bg{position:absolute;top:1px;bottom:1px;right:0;width:0;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:flex-end;
-  background:rgba(var(--tone,255,255,255),.07);transition:background .18s ease}
+  background:rgba(var(--tone,255,255,255),.07);transition:background var(--t-q) var(--ease)}
 .sw:not([data-stage="0"])[data-stage] .sw-bg{background:rgba(var(--tone),.34)}
-.sw-lab{display:flex;flex-direction:row-reverse;align-items:center;gap:6px;padding:0 14px;white-space:nowrap;color:#fff;font:600 12px -apple-system,system-ui,sans-serif;transition:opacity .15s ease}
+.sw-lab{display:flex;flex-direction:row-reverse;align-items:center;gap:6px;padding:0 14px;white-space:nowrap;color:#fff;font:600 12px -apple-system,system-ui,sans-serif;transition:opacity var(--t-q) var(--ease)}
 .sw-lab svg{width:18px;height:18px;fill:#fff;flex-shrink:0}
-.sw-lab span{opacity:0;transition:opacity .14s ease}
+.sw-lab span{opacity:0;transition:opacity var(--t-q) var(--ease)}
 .sw-lab.fit span{opacity:1}
-.sw-lab.pop{animation:swpop .24s var(--ease)}
+.sw-lab.pop{animation:swpop var(--t-n) var(--ease)}
 .sw.r .sw-bg{right:auto;left:0;justify-content:flex-start}                /* swiping right: the strip is on the left */
 .sw.r .sw-lab{flex-direction:row}
 @keyframes swpop{0%{transform:scale(.82)}60%{transform:scale(1.07)}100%{transform:none}}
@@ -449,7 +452,7 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 .player-btn:active,.circle-btn:active,.chip:active{transform:none}
 .player-btn{position:relative;--hl:0;
   background:radial-gradient(circle at var(--px,50%) var(--py,50%),rgba(255,255,255,calc(var(--hl) * .4)),rgba(255,255,255,0) 72%),rgba(255,255,255,.1);
-  transition:--hl .6s var(--ease),color .22s var(--ease),border-color .22s var(--ease),opacity .22s var(--ease)}
+  transition:--hl var(--t-s) var(--ease),color var(--t-n) var(--ease),border-color var(--t-n) var(--ease),opacity var(--t-n) var(--ease)}
 .player-btn:active{background:radial-gradient(circle at var(--px,50%) var(--py,50%),rgba(255,255,255,calc(var(--hl) * .4)),rgba(255,255,255,0) 72%),rgba(255,255,255,.16)}
 .player-btn.pressed{--hl:1;transition-duration:.06s}
 .player-btn svg{position:relative;z-index:1}
@@ -468,7 +471,7 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
   -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2.2px),#000 calc(100% - 1.5px));mask:radial-gradient(farthest-side,transparent calc(100% - 2.2px),#000 calc(100% - 1.5px))}
 .pb-face{position:absolute;inset:3px;border-radius:50%;background:radial-gradient(60% 50% at 46% 0,rgba(255,255,255,.26),rgba(255,255,255,0) 72%)}
 /* Play: hold for shuffle fills a thin ring just outside the button */
-.pb-hold{position:absolute;inset:-5px;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .16s ease;
+.pb-hold{position:absolute;inset:-5px;border-radius:50%;pointer-events:none;opacity:0;transition:opacity var(--t-q) var(--ease);
   background:conic-gradient(#fff calc(var(--hp,0) * 360deg),rgba(255,255,255,.16) 0);
   -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2.6px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 2.6px),#000 calc(100% - 2px))}
 .pb-hold.on{opacity:1}
@@ -489,7 +492,7 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
   border:1px solid rgba(255,255,255,.2);border-top-color:rgba(255,255,255,.46);
   backdrop-filter:blur(10px) saturate(170%);-webkit-backdrop-filter:blur(10px) saturate(170%);
   box-shadow:0 4px 14px rgba(0,0,0,.22),inset 0 0 2px rgba(255,255,255,.3),0 0 calc(var(--pv,0) * 16px) rgba(var(--lc,200,215,225),calc(var(--pv,0) * .5));
-  opacity:0;scale:.55;transition:opacity .22s var(--ease),scale .5s cubic-bezier(.34,1.56,.64,1)}
+  opacity:0;scale:.55;transition:opacity var(--t-n) var(--ease),scale var(--t-s) var(--ease-pop)}
 .tab-pill.on{opacity:1;scale:1}
 /* drag the open tab's pill sideways to switch tabs: the pill lifts a little, the label under it lights up */
 .tab-buttons .tab-btn{touch-action:none}
@@ -504,8 +507,8 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
    .bubble-svg   a simple rim and inner light, used until (or instead of, without WebGL) the edge is ready */
 .bubble-skin,.bubble-svg,.bubble-gl{position:absolute;left:-1px;top:-1px;width:calc(100% + 2px);height:calc(100% + 2px);pointer-events:none;z-index:-1;display:none;border-radius:36px}   /* explicit size: a canvas would otherwise take its pixel size */
 html.bubble .bubble-skin,html.bubble .bubble-svg,html.bubble .bubble-gl{display:block}
-.bubble-gl{opacity:0;transition:opacity .7s var(--ease)}
-.bubble-svg{transition:opacity .7s var(--ease)}
+.bubble-gl{opacity:0;transition:opacity var(--t-s) var(--ease)}
+.bubble-svg{transition:opacity var(--t-s) var(--ease)}
 html.bubble.gl-glass .bubble-gl{opacity:1}
 html.bubble.gl-glass .bubble-svg{opacity:0}
 .bubble-skin{background:linear-gradient(rgba(6,18,26,max(.1,var(--scrim,0))),rgba(6,18,26,max(.1,var(--scrim,0))));   /* clear glass: a light blur and a faint tint, no milky sheen */
@@ -523,9 +526,9 @@ html.bubble .player-wrapper::before{display:none}
 html.bubble body{touch-action:none}                                /* a pull that starts just outside the panel must not scroll the page */
 html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-grid-container,.artist-scroll){touch-action:pan-y}
 .switch{position:relative;width:46px;height:28px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);padding:0;cursor:pointer;flex-shrink:0;
-  transition:background .3s var(--ease),border-color .3s var(--ease)}
+  transition:background var(--t-n) var(--ease),border-color var(--t-n) var(--ease)}
 .switch i{position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:999px;background:linear-gradient(#fff,#e3ecf0);box-shadow:0 2px 6px rgba(0,0,0,.35);
-  transition:translate .45s cubic-bezier(.34,1.56,.64,1),width .22s var(--ease)}
+  transition:translate var(--t-s) var(--ease-pop),width var(--t-n) var(--ease)}
 .switch:active i{width:27px}
 .switch[aria-checked="true"]{background:rgba(88,196,178,.55);border-color:rgba(160,240,225,.5)}
 .switch[aria-checked="true"] i{translate:18px 0}
@@ -621,7 +624,7 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 @media (max-width:340px){                                           /* a 320 px phone: the five buttons keep some room between them */
   .xp-ctrls .player-btn{width:42px;height:42px}.xp-ctrls #xp-play{width:54px;height:54px}.xp-ctrls .xp-tog{width:34px;height:34px}}
 .xp-tog.on{color:rgb(120,222,202)}
-.xp-tog::after{content:'';position:absolute;bottom:3px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;opacity:0;transition:opacity .25s var(--ease)}
+.xp-tog::after{content:'';position:absolute;bottom:3px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;opacity:0;transition:opacity var(--t-n) var(--ease)}
 .xp-tog.on::after{opacity:1}
 .xp-bottom{position:absolute;left:0;right:0;bottom:0;padding:0 0 12px}
 .xp-next-h{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;height:24px;padding:0 20px;font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);pointer-events:none}
@@ -635,7 +638,7 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-strip.dragging{overflow-x:hidden}
 .xp-card{position:relative;flex:0 0 138px;width:138px;min-width:0;height:52px;display:flex;align-items:center;gap:8px;padding:0 10px 0 6px;box-sizing:border-box;border-radius:14px;
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
-  transition:background .22s var(--ease),border-color .22s var(--ease),opacity .22s ease}
+  transition:background var(--t-n) var(--ease),border-color var(--t-n) var(--ease),opacity var(--t-n) var(--ease)}
 .xp-card:active{background:rgba(255,255,255,.14)}
 .xp-card.q::before{content:'';position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:rgb(88,196,178);box-shadow:0 0 6px rgba(88,196,178,.8)}
 .xp-card-art{width:38px;height:38px;border-radius:9px;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center}
@@ -652,11 +655,11 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-card.past{opacity:.45;filter:grayscale(.85)}
 .xp-card.now{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.34);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 4px 14px rgba(0,0,0,.25);cursor:default}
 .xp-empty{font-size:12px;color:rgba(255,255,255,.42);padding:0 2px;white-space:nowrap}
-.gear-btn{transition:opacity .25s var(--ease)}
+.gear-btn{transition:opacity var(--t-n) var(--ease)}
 /* ---- the open player scrolls: under the queue sits the lyrics bubble; tapping it opens the full lyrics ----
    The home layer isn't clipped at rest (the cover glow spreads past the glass); while it is scrolled it is clipped to
    the panel (set by JS). The full lyrics live in a box clipped to the panel, over the home layer, which fades out. */
-.xp-home{position:absolute;inset:0;transition:opacity .3s var(--ease)}
+.xp-home{position:absolute;inset:0;transition:opacity var(--t-n) var(--ease)}
 .xp.lyr-open .xp-home{opacity:0;pointer-events:none}
 .xp-side{position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:none;visibility:hidden}
 .xp-side.on{visibility:visible}
@@ -666,7 +669,7 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-lyr{position:absolute;left:16px;right:16px;top:calc(100% + 4px);z-index:2;box-sizing:border-box;padding:11px 16px 13px;border-radius:22px;cursor:pointer;visibility:hidden;
   background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.13);border-top-color:rgba(255,255,255,.26);
   box-shadow:0 10px 26px rgba(0,0,0,.22),inset 0 0 2px rgba(255,255,255,.18);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
-  transition:opacity .2s ease .18s,transform .2s var(--ease),background .2s var(--ease)}
+  transition:opacity var(--t-n) var(--ease) var(--t-q),transform var(--t-n) var(--ease),background var(--t-n) var(--ease)}
 .xp-lyr:active{transform:scale(.985);background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,.08))}
 .xp.lyr-open .xp-lyr{opacity:0;transition-delay:0s}
 .xl-head{display:flex;align-items:center;justify-content:space-between;font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5)}
@@ -696,7 +699,7 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 /* lines change only in opacity and size (both drawn by the GPU). A blur and a coloured glow that changed with the
    current line left purple streaks behind on iPhone (the edges of the glow's redrawn area). */
 .lyr-line{font-size:23px;font-weight:700;line-height:1.28;margin:0 0 14px;color:#fff;opacity:.32;transform-origin:0 50%;cursor:pointer;
-  overflow-wrap:anywhere;transition:opacity .45s var(--ease),transform .45s var(--ease)}
+  overflow-wrap:anywhere;transition:opacity var(--t-s) var(--ease),transform var(--t-s) var(--ease)}
 .lyr-line.past{opacity:.22}
 .lyr-line.on{opacity:1;transform:scale(1.03)}
 .lyr-line.gap{font-size:20px;letter-spacing:4px}
@@ -737,14 +740,14 @@ html.tg .safe-probe{padding-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-
    Sections in the order you set things up (Wallpaper, Library, Sound effect, Appearance), rows of one height and one
    type scale, grouped in rounded cards. It always fits the screen and scrolls inside itself; the dimmed layer under it
    takes the tap that closes it, so that tap never presses anything underneath. */
-.set-ov{position:fixed;inset:0;z-index:12;background:rgba(3,10,14,.42);opacity:0;pointer-events:none;transition:opacity .26s var(--ease);touch-action:none}
+.set-ov{position:fixed;inset:0;z-index:12;background:rgba(3,10,14,.42);opacity:0;pointer-events:none;transition:opacity var(--t-n) var(--ease);touch-action:none}
 .set-ov.show{opacity:1;pointer-events:auto}
 .floating-customizer{position:fixed;z-index:13;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);width:min(420px,calc(100% - 24px));
   max-height:calc(100% - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 24px);display:flex;flex-direction:column;box-sizing:border-box;
   border-radius:28px;background:linear-gradient(rgba(10,24,32,max(.72,var(--scrim,0))),rgba(10,24,32,max(.72,var(--scrim,0))));
   backdrop-filter:blur(30px) saturate(160%);-webkit-backdrop-filter:blur(30px) saturate(160%);
   border:1px solid rgba(255,255,255,.14);border-top-color:rgba(255,255,255,.34);box-shadow:0 24px 60px rgba(0,0,0,.45),0 4px 16px rgba(0,0,0,.2),inset 0 0 2px rgba(255,255,255,.18);
-  color:#fff;opacity:0;pointer-events:none;transform:translate(-50%,18px) scale(.98);transform-origin:50% 100%;transition:opacity .26s var(--ease),transform .34s var(--ease)}
+  color:#fff;opacity:0;pointer-events:none;transform:translate(-50%,18px) scale(.98);transform-origin:50% 100%;transition:opacity var(--t-n) var(--ease),transform var(--t-s) var(--ease)}
 .floating-customizer.active{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
 html.tg .floating-customizer{bottom:calc(var(--tg-bot) + 12px);max-height:calc(100% - var(--tg-top) - var(--tg-content-safe-area-inset-top,0px) - var(--tg-bot) - 24px)}
 .set-head{display:flex;align-items:center;justify-content:space-between;padding:16px 14px 6px 20px;flex-shrink:0}
@@ -765,7 +768,7 @@ button.set-row:active{background:rgba(255,255,255,.08)}
 .set-l{flex:1;min-width:0}
 .set-l small{display:block;font-size:12px;font-weight:400;line-height:1.3;color:rgba(255,255,255,.55);margin-top:2px}
 .set-v{flex-shrink:0;font-size:15px;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
-.set-chev{width:20px;height:20px;flex-shrink:0;margin-left:-6px;fill:rgba(255,255,255,.45);transition:transform .3s var(--ease)}
+.set-chev{width:20px;height:20px;flex-shrink:0;margin-left:-6px;fill:rgba(255,255,255,.45);transition:transform var(--t-n) var(--ease)}
 [aria-expanded="true"]>.set-chev{transform:rotate(180deg)}
 .set-link{color:rgb(120,222,202)}
 .set-link:disabled{color:rgba(255,255,255,.55);cursor:default}
@@ -779,7 +782,7 @@ button.set-row:active{background:rgba(255,255,255,.08)}
 .set-slide input::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.35)}
 .set-slide input::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.35)}
 /* the sound effect: one choice, with a check */
-.set-ck{width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6);transition:opacity .2s var(--ease),transform .3s cubic-bezier(.34,1.56,.64,1)}
+.set-ck{width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6);transition:opacity var(--t-n) var(--ease),transform var(--t-n) var(--ease-pop)}
 .set-ck svg{width:20px;height:20px;fill:rgb(120,222,202)}
 .set-radio[aria-checked="true"] .set-ck{opacity:1;transform:none}
 .set-radio.busy .set-ck{animation:ckBusy 1.1s ease-in-out infinite alternate}
@@ -810,7 +813,7 @@ html.desk-float .player-wrapper{box-shadow:none;clip-path:inset(-1px round 37px)
 /* the corner buttons: plain glyphs on the glass, a soft circle under the pointer */
 html.desk-float .desk-bar{display:flex;position:fixed;top:22px;right:24px;z-index:13;gap:4px;align-items:center}
 html.desk-float .desk-b,html.desk-float .gear-btn{display:flex;width:24px;height:24px;box-sizing:border-box;padding:0;border:0;border-radius:50%;background:transparent;
-  backdrop-filter:none;-webkit-backdrop-filter:none;align-items:center;justify-content:center;cursor:pointer;opacity:.55;box-shadow:none;transition:opacity .2s var(--ease),background .2s var(--ease)}
+  backdrop-filter:none;-webkit-backdrop-filter:none;align-items:center;justify-content:center;cursor:pointer;opacity:.55;box-shadow:none;transition:opacity var(--t-n) var(--ease),background var(--t-n) var(--ease)}
 html.desk-float .gear-btn{position:fixed;top:22px;right:80px;bottom:auto;z-index:13}
 html.desk-float .player-wrapper:hover~.desk-bar .desk-b,html.desk-float .player-wrapper:hover~.gear-btn,html.desk-float .desk-bar:hover .desk-b,html.desk-float .gear-btn:hover,html.desk-float .gear-btn.on,html.desk-float .desk-b:focus-visible{opacity:.9}
 html.desk-float .desk-b svg,html.desk-float .gear-btn svg{width:13px;height:13px;fill:#fff}
@@ -826,7 +829,7 @@ html.desk-float .set-ov{display:none}
 html.desk-float .floating-customizer{display:none}
 html.desk-float.desk-set .player-wrapper>:not(.floating-customizer):not(.bubble-skin):not(.bubble-gl):not(.bubble-svg){display:none!important}
 html.desk-float.desk-set .floating-customizer{display:flex;position:relative;left:auto;top:auto;bottom:auto;width:auto;max-height:calc(100vh - 56px);margin:-6px -6px -8px;
-  background:none;backdrop-filter:none;-webkit-backdrop-filter:none;border:0;box-shadow:none;border-radius:0;opacity:1;pointer-events:auto;transform:none;transition:none;animation:setIn .35s var(--ease)}
+  background:none;backdrop-filter:none;-webkit-backdrop-filter:none;border:0;box-shadow:none;border-radius:0;opacity:1;pointer-events:auto;transform:none;transition:none;animation:setIn var(--t-s) var(--ease)}
 html.desk-float.desk-set .set-x{display:none}               /* the gear in the corner closes it */
 html.desk-float.desk-set .set-group{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.08)}
 @keyframes setIn{from{opacity:0;transform:translateY(6px)}}
@@ -834,7 +837,7 @@ html.desk-float.desk-set .set-group{background:rgba(255,255,255,.06);border-colo
 .upd-pill{display:none}
 html.desk .upd-pill:not([hidden]){display:flex;align-items:center;gap:6px;height:22px;padding:0 11px 0 8px;border:0;border-radius:11px;cursor:pointer;
   background:linear-gradient(#5fd6df,#3fb5c0);color:#06222a;font:600 12px -apple-system,system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.45);
-  -webkit-app-region:no-drag;app-region:no-drag;animation:updIn .5s var(--ease)}
+  -webkit-app-region:no-drag;app-region:no-drag;animation:updIn var(--t-s) var(--ease)}
 html.desk-float .upd-pill:not([hidden]){position:fixed;top:23px;right:112px;box-shadow:none}
 .upd-pill svg{width:13px;height:13px;fill:currentColor}
 .upd-pill:hover{filter:brightness(1.08)}
@@ -1055,6 +1058,8 @@ html.cf-land .cf-s{font-size:13px}
 <audio id="audio-element" playsinline></audio>
 
 <script>
+/* One rhythm for every animation (see --t-q / --t-n / --t-s in the CSS): quick, normal, slow, and one easing. */
+const MOTION = { q: 150, n: 250, s: 400, ease: "cubic-bezier(.22,1,.36,1)" };
 const $ = id => document.getElementById(id);
 var XP = null;
 var RETRO = null;                                     // retro sound (set further down)                                        // the expanded player (set further down); earlier code only calls it through `XP && ...`
@@ -1066,7 +1071,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v43";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v44";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -1810,7 +1815,7 @@ const flow = (() => {
     clearTimeout(wheelT); wheelT = setTimeout(() => glideTo(items[nearest(c)].s), 130);
   }, { passive: false });
   function open(it, el) {
-    if (el) el.animate([{ scale: "1" }, { scale: ".95" }, { scale: "1" }], { duration: 220, easing: "ease-out" });
+    if (el) el.animate([{ scale: "1" }, { scale: ".95" }, { scale: "1" }], { duration: MOTION.n, easing: MOTION.ease });
     albumOrigin = null; currentCat = null; currentAlbum = it.key === ALL ? "All Tracks" : it.key; openTracklist();
   }
   const visible = () => !box.hidden && gridShown();
@@ -1823,8 +1828,8 @@ const flow = (() => {
   return {
     render() { measure(); if (drag || glide) { pending = true; return; } build(); paint(); },
     drop(el) {                                                       // an album was hidden from its menu: it shrinks away, the row closes the gap
-      el.style.transition = "opacity .22s ease,scale .22s ease"; el.style.opacity = "0"; el.style.scale = ".8";
-      setTimeout(() => { renderAlbums(); }, 220);
+      el.style.transition = "opacity var(--t-n) var(--ease),scale var(--t-n) var(--ease)"; el.style.opacity = "0"; el.style.scale = ".8";
+      setTimeout(() => { renderAlbums(); }, MOTION.n);
     },
   };
 })();
@@ -1989,7 +1994,7 @@ function cropImage(file, done) {
     fr.addEventListener("pointerup", up); fr.addEventListener("pointercancel", up);
     fr.addEventListener("wheel", e => { e.preventDefault(); const r = fr.getBoundingClientRect(); zoomAt(z * Math.exp(-e.deltaY / 400), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
     zr.addEventListener("input", () => zoomAt(+zr.value, S / 2, S / 2));
-    const close = () => { ov.classList.remove("show"); setTimeout(() => { ov.remove(); URL.revokeObjectURL(u); }, 240); };
+    const close = () => { ov.classList.remove("show"); setTimeout(() => { ov.remove(); URL.revokeObjectURL(u); }, MOTION.n + 20); };
     ov.querySelector(".no").addEventListener("click", close);
     ov.addEventListener("click", e => { if (e.target === ov) close(); });
     ov.querySelector(".ok").addEventListener("click", () => {
@@ -2018,13 +2023,13 @@ $("edit-done").addEventListener("click", () => setEdit(false));
 $("albums-grid-wrapper").addEventListener("click", e => { if (editing && (e.target.id === "albums-grid-wrapper" || e.target.id === "albums-shelf")) setEdit(false); });
 function hideAlbum(card, name) {
   if (card.classList.contains("cf-it")) { hiddenSet.add(name); saveHidden(); renderHidden(); flow.drop(card); toast("Hidden from Library"); return; }
-  card.style.transition = "transform .26s var(--ease),opacity .2s ease"; card.style.transform = "scale(.7)"; card.style.opacity = "0";
+  card.style.transition = "transform var(--t-n) var(--ease),opacity var(--t-n) var(--ease)"; card.style.transform = "scale(.7)"; card.style.opacity = "0";
   setTimeout(() => {
     hiddenSet.add(name); saveHidden(); renderHidden();
     flip(cardsOf().filter(c => c !== card), () => card.remove());
     if (!orderedAlbumNames().length) setEdit(false);
     toast("Hidden from Library");
-  }, 230);
+  }, MOTION.n);
 }
 function renderHidden() {
   const names = [...hiddenSet], box = $("hidden-list"); $("hidden-count").textContent = names.length || "None";
@@ -2056,7 +2061,7 @@ function flip(els, mutate) {
     e.style.transform = `translate(${first[i].left - l.left}px,${first[i].top - l.top}px)`;
   });
   void document.body.offsetHeight;
-  els.forEach(e => { e.style.transition = "transform .42s var(--ease)"; e.style.transform = ""; });
+  els.forEach(e => { e.style.transition = "transform var(--t-s) var(--ease)"; e.style.transform = ""; });
 }
 function attachDrag(card) {
   card.addEventListener("contextmenu", e => e.preventDefault());
@@ -2073,10 +2078,10 @@ function attachDrag(card) {
       drag.grabX = drag.x - gr.left - card.offsetLeft; drag.grabY = drag.y - gr.top - card.offsetTop;
       drag.keys = [...cardsOf()].sort((a, b) => a.style.order - b.style.order).map(c => c.dataset.key); drag.keys0 = drag.keys.join("\n");
       card.classList.add("lifted"); card.style.zIndex = 20;
-      card.style.transition = "transform .22s var(--ease)";
+      card.style.transition = "transform var(--t-n) var(--ease)";
       $("albums-grid-wrapper").style.overflowY = "hidden";
       haptic("light");
-      setTimeout(() => { if (drag && drag.card === card) { drag.follow = true; card.style.transition = "none"; } }, 190);
+      setTimeout(() => { if (drag && drag.card === card) { drag.follow = true; card.style.transition = "none"; } }, MOTION.n - 30);
       drag.sx = card.offsetLeft; drag.sy = card.offsetTop;
       dragUpdate(); drag.raf = requestAnimationFrame(dragLoop);
     }, editing ? 140 : e.pointerType === "mouse" ? 300 : 420);
@@ -2118,8 +2123,8 @@ function endDrag() {
   suppressClick = true; setTimeout(() => { suppressClick = false; }, 400);
   $("albums-grid-wrapper").style.overflowY = "";
   const c = d.card;
-  c.style.transition = "transform .3s var(--ease)"; c.style.transform = ""; c.classList.remove("lifted");
-  setTimeout(() => { c.style.transition = ""; c.style.zIndex = ""; }, 280);
+  c.style.transition = "transform var(--t-n) var(--ease)"; c.style.transform = ""; c.classList.remove("lifted");
+  setTimeout(() => { c.style.transition = ""; c.style.zIndex = ""; }, MOTION.n + 20);
   const still = !d.wasEditing && Math.hypot(d.cx - d.x, d.cy - d.y) < 10 && d.keys.join("\n") === d.keys0;
   if (still) { setEdit(false); tileMenu(c, c.dataset.key); return; }  // held and let go without moving: the tile's menu
   saveOrder(d.keys);
@@ -2307,10 +2312,10 @@ function swPaint(row, stages, k, d) {
 }
 function swBack(row, keepTone) {                                     // spring back into place
   const fg = row.querySelector(".sw-fg"), bg = row.querySelector(".sw-bg");
-  fg.style.transition = "transform .34s var(--ease)"; fg.style.transform = "";
-  bg.style.transition = "width .34s var(--ease),background .3s ease"; bg.style.width = "0px";
+  fg.style.transition = "transform var(--t-s) var(--ease)"; fg.style.transform = "";
+  bg.style.transition = "width var(--t-s) var(--ease),background var(--t-n) var(--ease)"; bg.style.width = "0px";
   if (!keepTone) row.dataset.stage = "0";
-  setTimeout(() => { if (!row._sw) { row.dataset.stage = "0"; row.classList.remove("r"); fg.style.transition = bg.style.transition = ""; } }, 360);
+  setTimeout(() => { if (!row._sw) { row.dataset.stage = "0"; row.classList.remove("r"); fg.style.transition = bg.style.transition = ""; } }, MOTION.s + 20);
 }
 function attachSwipe(row, stages, onCommit, rStages, onRight) {     // left: stages / onCommit; right (optional): rStages / onRight
   const fg = row.querySelector(".sw-fg"), bg = row.querySelector(".sw-bg"); let s = null;
@@ -2356,11 +2361,11 @@ function swDone(row, text) {                                         // Library:
 }
 function swOut(row, cb) {                                            // Queue: the row leaves and the gap closes
   const fg = row.querySelector(".sw-fg"), bg = row.querySelector(".sw-bg");
-  fg.style.transition = "transform .2s var(--ease)"; fg.style.transform = "translateX(-100%)";
-  bg.style.transition = "width .2s var(--ease)"; bg.style.width = "100%";
+  fg.style.transition = "transform var(--t-n) var(--ease)"; fg.style.transform = "translateX(-100%)";
+  bg.style.transition = "width var(--t-n) var(--ease)"; bg.style.width = "100%";
   row.style.height = row.offsetHeight + "px"; row.classList.add("collapse");
-  setTimeout(() => { row.style.height = "0px"; row.style.opacity = "0"; }, 150);
-  setTimeout(cb, 380);
+  setTimeout(() => { row.style.height = "0px"; row.style.opacity = "0"; }, MOTION.q);
+  setTimeout(cb, MOTION.q + MOTION.n + 20);
 }
 function libSwipe(row, id) {                                         // left: Play next, further: Play last; right: the song's menu
   attachSwipe(row, LIB_STAGES, k => { enqueue(id, k === 2); swDone(row, k === 2 ? "Added" : "Plays next"); },
@@ -2373,7 +2378,7 @@ function swipeHint() {                                               // once eve
   setTimeout(() => {
     if (!row.isConnected) return;
     const fg = row.querySelector(".sw-fg"), bg = row.querySelector(".sw-bg");
-    fg.style.transition = bg.style.transition = "transform .5s var(--ease),width .5s var(--ease)";
+    fg.style.transition = bg.style.transition = "transform var(--t-s) var(--ease),width var(--t-s) var(--ease)";
     fg.style.transform = "translateX(-76px)"; bg.style.width = "76px"; swPaint(row, LIB_STAGES, 1, 76);
     setTimeout(() => swBack(row), 1100);
     toast(matchMedia("(pointer:fine)").matches ? "Right-click a song to queue it" : "Swipe a song left to queue it, right for more");
@@ -2465,7 +2470,7 @@ function beginDrag(r, from, group, e, el, opt = {}) {
   swActive = r; qDrag = r; r._dragging = true; haptic("medium");
   ui.classList.add("dragging"); r.classList.remove("landing"); r.classList.add("lifted");
   r.style.transition = "none";
-  rows.forEach(x => { if (x !== r) x.style.transition = "transform .24s var(--ease),opacity .22s ease"; });
+  rows.forEach(x => { if (x !== r) x.style.transition = "transform var(--t-n) var(--ease),opacity var(--t-n) var(--ease)"; });
   const frame = () => {
     const b = ui.getBoundingClientRect(), v = y < b.top + 34 ? -6 : y > b.bottom - 34 ? 6 : 0;   // keep scrolling while held near the edge
     if (v) ui.scrollTop += v;
@@ -2497,7 +2502,7 @@ function beginDrag(r, from, group, e, el, opt = {}) {
     let land = 0;                                                     // glide into the gap that opened for it
     if (to > me) for (let j = me + 1; j <= to; j++) land += hts[j];
     else for (let j = to; j < me; j++) land -= hts[j];
-    r.style.transition = "transform .28s var(--ease)"; r.style.transform = `translateY(${land}px)`;
+    r.style.transition = "transform var(--t-n) var(--ease)"; r.style.transform = `translateY(${land}px)`;
     r.classList.remove("lifted"); r.classList.add("landing"); ui.classList.remove("dragging");
     haptic("light");
     setTimeout(() => {
@@ -2758,13 +2763,13 @@ function pressDown(el) {
   if (RM || !el.animate) return;
   const s = curScale(el), deep = el.classList.contains("player-btn") ? .86 : el.classList.contains("tab-btn") ? .88 : .94;
   if (el._pa) el._pa.cancel();
-  el._pa = el.animate([{ scale: String(s) }, { scale: String(deep) }], { duration: 110, easing: "cubic-bezier(.3,0,.4,1)", fill: "forwards" });
+  el._pa = el.animate([{ scale: String(s) }, { scale: String(deep) }], { duration: MOTION.q, easing: "cubic-bezier(.3,0,.4,1)", fill: "forwards" });
 }
 function pressUp(el) {
   if (RM || !el.animate) return;
   const s = curScale(el), big = el.classList.contains("player-btn") ? 1.08 : 1.045, e = "cubic-bezier(.25,.7,.4,1)";
   if (el._pa) el._pa.cancel();
-  el._pa = el.animate([{ scale: String(s), easing: e }, { scale: String(big), offset: .36, easing: e }, { scale: ".982", offset: .66, easing: e }, { scale: "1.005", offset: .86, easing: e }, { scale: "1" }], { duration: 580 });
+  el._pa = el.animate([{ scale: String(s), easing: e }, { scale: String(big), offset: .36, easing: e }, { scale: ".982", offset: .66, easing: e }, { scale: "1.005", offset: .86, easing: e }, { scale: "1" }], { duration: MOTION.s });
 }
 let pressedEl = null;
 document.addEventListener("pointerdown", e => {
@@ -2793,10 +2798,10 @@ function setPlayIcon(playing) {
   const xpPlay = $("xp-play"); if (xpPlay) xpPlay.setAttribute("aria-label", playing ? "Pause" : "Play");
   $("play-btn").setAttribute("aria-label", playing ? "Pause (hold to shuffle)" : "Play (hold to shuffle)");
   if (RM) { pbT = to; setD(pbPath(to)); return; }
-  const from = pbT, t0 = performance.now(), D = 420, back = x => 1 + 2.2 * Math.pow(x - 1, 3) + 1.2 * Math.pow(x - 1, 2);
+  const from = pbT, t0 = performance.now(), D = MOTION.s, back = x => 1 + 2.2 * Math.pow(x - 1, 3) + 1.2 * Math.pow(x - 1, 2);
   const step = now => { const x = Math.min(1, (now - t0) / D); pbT = from + (to - from) * back(x); setD(pbPath(pbT)); if (x < 1) pbRaf = requestAnimationFrame(step); else pbT = to; };
   pbRaf = requestAnimationFrame(step);
-  [$("pb-icon"), $("xp-pb-icon")].forEach(ic => ic && ic.animate && ic.animate([{ transform: `rotate(${playing ? -14 : 14}deg) scale(.72)` }, { transform: "none" }], { duration: 480, easing: "cubic-bezier(.22,1.35,.36,1)" }));
+  [$("pb-icon"), $("xp-pb-icon")].forEach(ic => ic && ic.animate && ic.animate([{ transform: `rotate(${playing ? -14 : 14}deg) scale(.72)` }, { transform: "none" }], { duration: MOTION.s, easing: "cubic-bezier(.22,1.35,.36,1)" }));
 }
 /* the comet round Play's rim; b = brightness 0..1 */
 function ringFire(b, dur) {
@@ -2835,7 +2840,7 @@ function holdStop(quiet) {
 function holdBurst() {
   const ring = $("pb-hold");
   if (RM || !ring.animate) { ring.classList.remove("on"); holdPaint(0); return; }
-  ring.animate([{ scale: "1", opacity: 1 }, { scale: "1.45", opacity: 0 }], { duration: 480, easing: "cubic-bezier(.22,1,.36,1)" }).onfinish = () => { if (!hold) holdPaint(0); };
+  ring.animate([{ scale: "1", opacity: 1 }, { scale: "1.45", opacity: 0 }], { duration: MOTION.s, easing: MOTION.ease }).onfinish = () => { if (!hold) holdPaint(0); };
   ring.classList.remove("on");
   ringFire(1, 1000);
 }
@@ -2843,13 +2848,13 @@ function holdBurst() {
 playBtn.addEventListener("contextmenu", e => e.preventDefault());
 playBtn.addEventListener("click", () => { if (longFired) { longFired = false; return; } audio.paused ? playTrack() : pauseTrack(); });
 /* prev / next: the icon nudges the way it points */
-function nudge(btn, d) { const i = btn.querySelector("svg"); if (RM || !i.animate) return; i.animate([{ translate: "0 0" }, { translate: `${d * 4}px 0`, offset: .3 }, { translate: `${-d}px 0`, offset: .65 }, { translate: "0 0" }], { duration: 440, easing: "ease-out" }); }
+function nudge(btn, d) { const i = btn.querySelector("svg"); if (RM || !i.animate) return; i.animate([{ translate: "0 0" }, { translate: `${d * 4}px 0`, offset: .3 }, { translate: `${-d}px 0`, offset: .65 }, { translate: "0 0" }], { duration: MOTION.s, easing: MOTION.ease }); }
 $("prev-btn").addEventListener("click", () => { nudge($("prev-btn"), -1); playPrev(); });
 $("skip-btn").addEventListener("click", () => { nudge($("skip-btn"), 1); playNext(); });
 
 /* song change. songDir: 1 = Next (and songs that follow on their own), -1 = Previous, 0 = picked from a list */
 let songDir = 0, coverWait = null, flare = 0;
-const SONG_OUT = 170;                                                // ms the old title takes to leave; the new title, times and bar arrive after it
+const SONG_OUT = MOTION.q;                                                // ms the old title takes to leave; the new title, times and bar arrive after it
 function songOut(dir) {                                              // before the new title is written: the old one leaves, the cover dips
   const pm = $("player-main"); if (RM || pm.style.display === "none" || !pm.animate || (XP && XP.expanded) || $("xp").classList.contains("show")) return false;   // not while the big player is open or moving
   const tt = pm.querySelector(".track-text"), g = tt.cloneNode(true), dx = dir * 22, dy = dir ? 0 : -10;
@@ -2860,7 +2865,7 @@ function songOut(dir) {                                              // before t
     { duration: SONG_OUT, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" }).onfinish = () => g.remove();
   const box = $("album-art-box"); box.getAnimations().forEach(a => a.cancel());
   box.animate([{ transform: "none", filter: "brightness(1)" }, { transform: `translateX(${-dx * .5}px) scale(.88)`, filter: "brightness(.72)" }],
-    { duration: 210, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
+    { duration: MOTION.n, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
   if (coverWait) clearTimeout(coverWait.timer);
   const w = coverWait = { dir, t: performance.now(), same: false };
   w.timer = setTimeout(() => coverIn(w, true), 1400);                // artwork slow to arrive: bring the cover back anyway
@@ -2871,7 +2876,7 @@ function songIn(dir) {                                               // after: t
   [$("track-title").parentNode, document.querySelector(".artist-row")].forEach((el, i) => {
     el.getAnimations().forEach(a => a.cancel());
     el.animate([{ opacity: 0, transform: `translate(${dx}px,${dy}px)`, filter: "blur(4px)" }, { opacity: 1, transform: "none", filter: "blur(0px)" }],
-      { duration: 480, delay: SONG_OUT + i * 60, easing: "cubic-bezier(.22,1,.36,1)", fill: "backwards" });   // only once the old title has gone: never two at once
+      { duration: MOTION.s, delay: SONG_OUT + i * 60, easing: MOTION.ease, fill: "backwards" });   // only once the old title has gone: never two at once
   });
 }
 function coverArrived(same) {                                        // called by setCover once the new artwork is on screen (or unchanged)
@@ -2884,7 +2889,7 @@ function coverIn(w, late) {
   const box = $("album-art-box"), dx = w.dir * 22; box.getAnimations().forEach(a => a.cancel());
   const from = w.same || late ? `translateX(${-dx * .5}px) scale(.88)` : `translateX(${dx * .5}px) scale(.86)`;   // same artwork: it just springs back; new artwork arrives from the other side
   box.animate([{ transform: from, filter: "brightness(1.35)" }, { transform: "scale(1.035)", filter: "brightness(1.08)", offset: .5 }, { transform: "none", filter: "brightness(1)" }],
-    { duration: 640, easing: "cubic-bezier(.22,1,.36,1)" });
+    { duration: MOTION.s, easing: MOTION.ease });
   flare = 1; startPulse();
 }
 if ("mediaSession" in navigator) {                    // headphone / lock-screen buttons
@@ -3193,8 +3198,8 @@ function showOnly(el, dir) {
   swap();
   if (ghost) {
     Object.assign(prev.style, { display: "block", position: "absolute", top: ghost.top + "px", left: ghost.left + "px", width: ghost.width + "px", pointerEvents: "none", zIndex: "0" });
-    ghost.a = prev.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translate(${-(dir || 0) * 12}px,${dir ? 0 : -4}px)` }], { duration: 200, easing: "ease-out", fill: "forwards" });
-    viewFade = ghost; ghost.t = setTimeout(endViewFade, 230);
+    ghost.a = prev.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translate(${-(dir || 0) * 12}px,${dir ? 0 : -4}px)` }], { duration: MOTION.n, easing: MOTION.ease, fill: "forwards" });
+    viewFade = ghost; ghost.t = setTimeout(endViewFade, MOTION.n + 30);
   }
   if (!el) return;
   el.style.setProperty("--dx", (dir || 0) * 18 + "px"); el.style.setProperty("--dy", dir ? "0px" : "8px");
@@ -4280,8 +4285,8 @@ XP = (() => {
     const from = wrap.offsetHeight; wrap.style.height = ""; const to = wrap.offsetHeight;
     if (RM || Math.abs(to - from) < 2) return;
     wrap.style.height = from + "px"; void wrap.offsetHeight;
-    wrap.style.transition = "height .34s var(--ease)"; wrap.style.height = to + "px";
-    st.shT = setTimeout(() => { wrap.style.transition = ""; wrap.style.height = ""; }, 360);
+    wrap.style.transition = "height var(--t-s) var(--ease)"; wrap.style.height = to + "px";
+    st.shT = setTimeout(() => { wrap.style.transition = ""; wrap.style.height = ""; }, MOTION.s + 20);
   }
   /* cubic-bezier(.22,1,.36,1), the --ease every panel in the app uses (x solved by Newton steps, then y) */
   const easeApp = u => { if (u <= 0 || u >= 1) return u; const bz = (a, b, s) => 3 * a * s * (1 - s) * (1 - s) + 3 * b * s * s * (1 - s) + s * s * s;
@@ -4530,15 +4535,15 @@ XP = (() => {
     const h = st.h1; layout(); measureRects();
     if (Math.abs(h - st.h1) < .5) return;
     if (RM) { wrap.style.height = st.h1 + "px"; return; }
-    wrap.style.transition = "height .36s var(--ease)"; wrap.style.height = st.h1 + "px";
-    clearTimeout(st.shT); st.shT = setTimeout(() => { wrap.style.transition = ""; }, 380);
+    wrap.style.transition = "height var(--t-s) var(--ease)"; wrap.style.height = st.h1 + "px";
+    clearTimeout(st.shT); st.shT = setTimeout(() => { wrap.style.transition = ""; }, MOTION.s + 20);
   }
   function onSong(dir, auto) {
     if (!shown()) { stripDirty = true; return; }
     sync(true);
     if (!st.expanded || RM || !auto) return;
-    meta.animate([{ opacity: 0, transform: dir ? `translateX(${dir * 26}px)` : "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 480, easing: "cubic-bezier(.22,1,.36,1)" });
-    clip.animate([{ transform: "scale(.93)", filter: "brightness(.8)" }, { transform: "scale(1.015)", filter: "brightness(1.08)", offset: .55 }, { transform: "none", filter: "brightness(1)" }], { duration: 620, easing: "cubic-bezier(.22,1,.36,1)" });
+    meta.animate([{ opacity: 0, transform: dir ? `translateX(${dir * 26}px)` : "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: MOTION.s, easing: MOTION.ease });
+    clip.animate([{ transform: "scale(.93)", filter: "brightness(.8)" }, { transform: "scale(1.015)", filter: "brightness(1.08)", offset: .55 }, { transform: "none", filter: "brightness(1)" }], { duration: MOTION.s, easing: "cubic-bezier(.22,1,.36,1)" });
 
   }
   let sDrag = null;
@@ -4580,7 +4585,7 @@ XP = (() => {
     const cs = [...strip.children], k = cs.indexOf(nowEl), was = prevNow == null || prevNow === curId ? null
       : cs[k - 1] && cs[k - 1]._id === prevNow ? cs[k - 1] : cs[k + 1] && cs[k + 1]._id === prevNow ? cs[k + 1] : null;
     if (!was || !live || RM) { strip.scrollLeft = to; return; }
-    const from = Math.max(0, was.offsetLeft - 20), t0 = performance.now(), D = 420;   // Next / Previous: the strip slides one card along
+    const from = Math.max(0, was.offsetLeft - 20), t0 = performance.now(), D = MOTION.s;   // Next / Previous: the strip slides one card along
     strip.scrollLeft = from;
     const go = now => { const p = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - p, 3); strip.scrollLeft = from + (to - from) * e; slide = p < 1 ? requestAnimationFrame(go) : 0; };
     slide = requestAnimationFrame(go);
@@ -4618,18 +4623,18 @@ XP = (() => {
       c.removeEventListener("pointermove", mv); c.removeEventListener("pointerup", up); c.removeEventListener("pointercancel", up);
       qDrag = null; setTimeout(() => { c._sup = false; }, 400);
       if (armed && ev.type === "pointerup") { removeCard(c); return; }
-      c.classList.remove("rm"); c.style.transition = "transform .3s var(--ease),opacity .25s ease"; c.style.transform = ""; c.style.opacity = "";
-      setTimeout(() => { c.style.transition = ""; }, 320);
+      c.classList.remove("rm"); c.style.transition = "transform var(--t-n) var(--ease),opacity var(--t-n) var(--ease)"; c.style.transform = ""; c.style.opacity = "";
+      setTimeout(() => { c.style.transition = ""; }, MOTION.n + 20);
     };
     c.addEventListener("pointermove", mv); c.addEventListener("pointerup", up); c.addEventListener("pointercancel", up);
   }
   function removeCard(c) {                                           // the card lifts away, the gap closes, then the queue changes
     haptic("light"); sDrag = c;
-    c.style.transition = "transform .18s var(--ease),opacity .18s ease"; c.style.transform = "translateY(-34px) scale(.9)"; c.style.opacity = "0";
+    c.style.transition = "transform var(--t-q) var(--ease),opacity var(--t-q) var(--ease)"; c.style.transform = "translateY(-34px) scale(.9)"; c.style.opacity = "0";
     setTimeout(() => {
-      Object.assign(c.style, { overflow: "hidden", minWidth: "0", transition: "flex-basis .22s var(--ease),margin .22s var(--ease),padding .22s var(--ease)", flexBasis: "0px", marginRight: "-8px", paddingLeft: "0", paddingRight: "0", borderWidth: "0" });
-    }, 160);
-    setTimeout(() => { sDrag = null; removeRow(c.dataset.kind, c._i); }, 400);
+      Object.assign(c.style, { overflow: "hidden", minWidth: "0", transition: "flex-basis var(--t-n) var(--ease),margin var(--t-n) var(--ease),padding var(--t-n) var(--ease)", flexBasis: "0px", marginRight: "-8px", paddingLeft: "0", paddingRight: "0", borderWidth: "0" });
+    }, MOTION.q + 10);
+    setTimeout(() => { sDrag = null; removeRow(c.dataset.kind, c._i); }, MOTION.q + MOTION.n + 20);
   }
   function liftCard(c, x0, y0, id) {                                 // hold, then drag sideways to reorder (within your queue, or within the album)
     const kind = c.dataset.kind, cards = [...strip.querySelectorAll(`.xp-card[data-kind="${kind}"]`)], me = cards.indexOf(c);
@@ -4640,7 +4645,7 @@ XP = (() => {
     const sl0 = strip.scrollLeft; let x = x0, y = y0, to = me, cx = 0, cy = 0, sc = 1, raf = 0, armed = false, done = false;
     sDrag = c; qDrag = c; haptic("medium");
     strip.classList.add("dragging"); c.classList.add("lifted"); c.style.transition = "none";
-    cards.forEach(o => { if (o !== c) o.style.transition = "transform .24s var(--ease),opacity .22s ease"; });
+    cards.forEach(o => { if (o !== c) o.style.transition = "transform var(--t-n) var(--ease),opacity var(--t-n) var(--ease)"; });
     const frame = () => {
       const r = strip.getBoundingClientRect(), v = x < r.left + 36 ? -6 : x > r.right - 36 ? 6 : 0;   // keeps scrolling while held near an edge
       if (v) strip.scrollLeft += v;
@@ -4667,7 +4672,7 @@ XP = (() => {
       if (armed && ev.type === "pointerup") { c.classList.remove("lifted"); cards.forEach(o => { if (o !== c) o.style.transform = ""; }); removeCard(c); return; }
       let land = 0;
       if (to > me) for (let j = me + 1; j <= to; j++) land += ws[j] + gap; else for (let j = to; j < me; j++) land -= ws[j] + gap;
-      c.classList.remove("rm", "lifted"); c.style.transition = "transform .28s var(--ease)"; c.style.transform = `translate(${land}px,0)`;
+      c.classList.remove("rm", "lifted"); c.style.transition = "transform var(--t-n) var(--ease)"; c.style.transform = `translate(${land}px,0)`;
       haptic("light");
       setTimeout(() => {
         sDrag = null;
@@ -4747,9 +4752,9 @@ XP = (() => {
     side.classList.add("on"); xp.classList.add("lyr-open");
     LYR.visible(true);
     if (RM || !pLyr.animate) return;
-    lyr.anim = pLyr.animate([{ clipPath: from, backgroundColor: "rgba(255,255,255,.08)" }, { clipPath: FULL, backgroundColor: "rgba(255,255,255,0)" }], { duration: 520, easing: EASE });
+    lyr.anim = pLyr.animate([{ clipPath: from, backgroundColor: "rgba(255,255,255,.08)" }, { clipPath: FULL, backgroundColor: "rgba(255,255,255,0)" }], { duration: MOTION.s, easing: EASE });
     lyr.anim.onfinish = () => { lyr.anim = null; };
-    lyr.kids = [...pLyr.children].map(c => c.animate([{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "none" }], { duration: 440, delay: 80, easing: EASE, fill: "backwards" }));
+    lyr.kids = [...pLyr.children].map(c => c.animate([{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "none" }], { duration: MOTION.s, delay: 80, easing: EASE, fill: "backwards" }));
   }
   function lyrClose(after) {
     if (!lyr.open) { if (after) after(); return; }
@@ -4757,8 +4762,8 @@ XP = (() => {
     xp.classList.remove("lyr-open");
     const done = () => { lyrStop(); if (!lyr.open) side.classList.remove("on"); if (after) after(); };
     if (RM || !pLyr.animate) { done(); return; }
-    lyr.kids = [...pLyr.children].map(c => c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 170, easing: "ease-out", fill: "forwards" }));
-    lyr.anim = pLyr.animate([{ clipPath: FULL, backgroundColor: "rgba(255,255,255,0)" }, { clipPath: bubClip(), backgroundColor: "rgba(255,255,255,.08)" }], { duration: 400, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
+    lyr.kids = [...pLyr.children].map(c => c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: MOTION.q, easing: EASE, fill: "forwards" }));
+    lyr.anim = pLyr.animate([{ clipPath: FULL, backgroundColor: "rgba(255,255,255,0)" }, { clipPath: bubClip(), backgroundColor: "rgba(255,255,255,.08)" }], { duration: MOTION.s, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
     lyr.anim.onfinish = done;
   }
   function lyrReset() { lyrStop(); lyr.open = false; side.classList.remove("on"); xp.classList.remove("lyr-open"); if (LYR) LYR.visible(false); }
