@@ -1004,7 +1004,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v40";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v41";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -5147,13 +5147,34 @@ async function tgSync() {
       if (TGL.done[x.id] || TGL.waiting.has(x.id)) continue;
       const name = tgSafe((x.artist ? x.artist + " - " : "") + (x.title || "Song")) + (TG_EXT[String(x.mime || "").toLowerCase()] || ".mp3");
       TGL.waiting.set(x.id, 1);
-      natSend({ cmd: "download", id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name });
+      tgQueue({ id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name });
     }
     for (const id of Object.keys(TGL.done)) if (!seen.has(id)) { natSend({ cmd: "delete", n: TGL.done[id] }); delete TGL.done[id]; gone++; }
     if (gone) { store.set("tgDone", JSON.stringify(TGL.done)); setTimeout(natSync, 300); }
     TGL.version = j.version; tgLinkUI();
   } catch (e) { TGL.err = "couldn't reach your music server (" + (e && e.name === "AbortError" ? "no answer" : e.message || e) + ")"; tgLinkUI(); }
   finally { TGL.busy = false; }
+}
+/* Downloads go through the page (the same connection that lists your songs), two at a time. Each song is handed to
+   the app in 2 MB pieces ("chunk"), then "save" puts it in the Telegram folder and the app calls natDownloaded. */
+const TGQ = []; let tgActive = 0;
+function tgQueue(job) { TGQ.push(job); tgPump(); }
+function tgPump() {
+  while (tgActive < 2 && TGQ.length) { const job = TGQ.shift(); tgActive++; tgFetch(job).finally(() => { tgActive--; tgPump(); }); }
+}
+async function tgFetch({ id, url, name }) {
+  let err;
+  try {
+    const r = await fetchT(url, {}, 300000);                         // the server may first have to get a big song from Telegram
+    if (!r.ok) { let m = ""; try { m = (await r.json()).error || ""; } catch (e) {} throw new Error("the server answered " + r.status + (m ? ": " + m : "")); }
+    const b = await r.blob();
+    if (!b.size) throw new Error("the song was empty");
+    const CH = 2 * 1024 * 1024;
+    for (let i = 0, n = 0; i < b.size; i += CH, n++) natSend({ cmd: "chunk", id, n, b64: natB64(new Uint8Array(await b.slice(i, i + CH).arrayBuffer())) });
+    natSend({ cmd: "save", id, name });
+    return;
+  } catch (e) { err = e && e.name === "AbortError" ? "no answer from the server" : (e && e.message) || String(e); }
+  window.natDownloaded(id, "", false, err);
 }
 window.natDownloaded = (id, rel, ok, err) => {                       // the app calls this when a download finished (ok) or failed (err says why)
   TGL.waiting.delete(id);

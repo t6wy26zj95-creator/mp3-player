@@ -6,7 +6,8 @@ import UniformTypeIdentifiers
 /// The page talks to the app through window.webkit.messageHandlers.macaw:
 ///   { cmd: "import" }                  show the Files picker and copy the chosen songs in
 ///   { cmd: "art", n: path, b64: ... }  keep a song's cover (read from its tags by the page)
-///   { cmd: "download", id, url, name } download a song from the Telegram bot into the app, then call natDownloaded(id, path, ok)
+///   { cmd: "chunk", id, n, b64 }       a piece of a song the page downloaded from the Telegram bot (n = 0, 1, 2...)
+///   { cmd: "save", id, name }          that song is complete: put it at name, then call natDownloaded(id, path, ok, problem)
 ///   { cmd: "delete", n: path }         remove a song downloaded from the bot
 ///   { cmd: "open", url }               open a link in another app (Telegram)
 /// and the app calls window.natSync() when songs were added.
@@ -14,13 +15,7 @@ final class PlayerViewController: UIViewController, WKScriptMessageHandler, WKUI
     static let pageColor = UIColor(red: 0x0b / 255.0, green: 0x1d / 255.0, blue: 0x24 / 255.0, alpha: 1)
     private var web: WKWebView!
     private var loaded = false
-    private lazy var downloads: URLSession = {
-        let c = URLSessionConfiguration.default
-        c.httpMaximumConnectionsPerHost = 2                        // a few at a time, the rest wait their turn
-        c.timeoutIntervalForRequest = 180                          // the server may first have to fetch a big song from Telegram
-        c.waitsForConnectivity = true
-        return URLSession(configuration: c)
-    }()
+    private let incoming = DispatchQueue(label: "macaw.incoming")  // song pieces are written in the order they arrive
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -96,9 +91,16 @@ final class PlayerViewController: UIViewController, WKScriptMessageHandler, WKUI
         switch cmd {
         case "import":
             showPicker()
-        case "download":
-            guard let id = body["id"] as? String, let s = body["url"] as? String, let url = URL(string: s), let name = body["name"] as? String else { return }
-            download(id: id, from: url, as: name)
+        case "chunk":
+            guard let id = body["id"] as? String, let n = body["n"] as? Int, let b64 = body["b64"] as? String else { return }
+            incoming.async { Library.shared.appendPiece(b64, number: n, to: id) }
+        case "save":
+            guard let id = body["id"] as? String, let name = body["name"] as? String else { return }
+            incoming.async { [weak self] in
+                var rel: String?, problem = ""
+                do { rel = try Library.shared.finishPieces(id, as: name) } catch { problem = "couldn't save it: \(error.localizedDescription)" }
+                DispatchQueue.main.async { self?.callPage("natDownloaded", id, rel ?? "", rel != nil, problem) }
+            }
         case "delete":
             guard let rel = body["n"] as? String else { return }
             DispatchQueue.global(qos: .utility).async { Library.shared.deleteDownloaded(rel) }
@@ -111,23 +113,6 @@ final class PlayerViewController: UIViewController, WKScriptMessageHandler, WKUI
         default:
             break
         }
-    }
-
-    private func download(id: String, from url: URL, as name: String) {
-        downloads.downloadTask(with: url) { [weak self] tmp, response, error in
-            var rel: String?, problem = ""
-            if let error = error {
-                problem = error.localizedDescription
-            } else if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                problem = "the server answered \(http.statusCode)"
-            } else if let tmp = tmp {
-                do { rel = try Library.shared.store(downloaded: tmp, as: name) }   // must happen before this closure returns: tmp is deleted after
-                catch { problem = "couldn't save it: \(error.localizedDescription)" }
-            } else {
-                problem = "nothing arrived"
-            }
-            DispatchQueue.main.async { self?.callPage("natDownloaded", id, rel ?? "", rel != nil, problem) }
-        }.resume()
     }
 
     /// Calls window.<fn>(args...) in the page, with the arguments passed as JSON.

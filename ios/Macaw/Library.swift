@@ -83,6 +83,26 @@ final class Library {
         return String(dest.standardizedFileURL.resolvingSymlinksInPath().path.dropFirst(base.count + 1))
     }
 
+    // A song arriving from the page in pieces: written to a temporary file, then moved into place by finishPieces.
+    private func pieceFile(_ id: String) -> URL {
+        let safe = String(id.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_" }.map(Character.init))
+        return fm.temporaryDirectory.appendingPathComponent("tg-" + (safe.isEmpty ? "song" : safe) + ".part")
+    }
+    func appendPiece(_ b64: String, number n: Int, to id: String) {
+        guard let data = Data(base64Encoded: b64) else { return }
+        let file = pieceFile(id)
+        if n == 0 { try? data.write(to: file); return }               // the first piece starts the file afresh
+        guard let h = try? FileHandle(forWritingTo: file) else { return }
+        defer { try? h.close() }
+        _ = try? h.seekToEnd()
+        try? h.write(contentsOf: data)
+    }
+    func finishPieces(_ id: String, as rel: String) throws -> String {
+        let file = pieceFile(id)
+        guard fm.fileExists(atPath: file.path) else { throw CocoaError(.fileNoSuchFile) }
+        return try store(downloaded: file, as: rel)
+    }
+
     /// Removes a song the app downloaded from the bot (only those: the Telegram folder).
     func deleteDownloaded(_ rel: String) {
         guard rel.hasPrefix("Telegram/"), let file = songFile(rel) else { return }
