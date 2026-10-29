@@ -115,11 +115,18 @@ final class PlayerViewController: UIViewController, WKScriptMessageHandler, WKUI
 
     private func download(id: String, from url: URL, as name: String) {
         downloads.downloadTask(with: url) { [weak self] tmp, response, error in
-            var rel: String?
-            if let tmp = tmp, error == nil, let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
-                rel = try? Library.shared.store(downloaded: tmp, as: name)   // must happen before this closure returns: tmp is deleted after
+            var rel: String?, problem = ""
+            if let error = error {
+                problem = error.localizedDescription
+            } else if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                problem = "the server answered \(http.statusCode)"
+            } else if let tmp = tmp {
+                do { rel = try Library.shared.store(downloaded: tmp, as: name) }   // must happen before this closure returns: tmp is deleted after
+                catch { problem = "couldn't save it: \(error.localizedDescription)" }
+            } else {
+                problem = "nothing arrived"
             }
-            DispatchQueue.main.async { self?.callPage("natDownloaded", id, rel ?? "", rel != nil) }
+            DispatchQueue.main.async { self?.callPage("natDownloaded", id, rel ?? "", rel != nil, problem) }
         }.resume()
     }
 

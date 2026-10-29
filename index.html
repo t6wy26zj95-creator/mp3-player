@@ -1004,7 +1004,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v39";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v40";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -5079,7 +5079,7 @@ async function natSync() {
    (see "the iOS app" in install.sh). Then songs you send the bot download into the app's Telegram folder by themselves
    while the app is open, and a song you /remove in the bot leaves the app too. A song you delete from the app yourself
    (in the Files app) isn't downloaded again. */
-const TGL = { key: store.get("tgKey") || "", version: -1, busy: false, linking: false, done: {}, waiting: new Map(), t: 0 };
+const TGL = { key: store.get("tgKey") || "", version: -1, busy: false, linking: false, done: {}, waiting: new Map(), t: 0, err: "" };
 try { TGL.done = JSON.parse(store.get("tgDone") || "{}") || {}; } catch (e) {}
 const TG_EXT = { "audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/mp4": ".m4a", "audio/x-m4a": ".m4a", "audio/aac": ".aac", "audio/flac": ".flac", "audio/x-flac": ".flac",
   "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/ogg": ".ogg", "audio/aiff": ".aiff" };
@@ -5087,7 +5087,9 @@ const tgSafe = s => String(s).replace(/[\/\\:*?"<>|\x00-\x1f]/g, "_").replace(/^
 function tgLinkUI(msg) {
   const n = Object.keys(TGL.done).length;
   $("tg-link-row").style.display = "";
-  $("tg-link-sub").textContent = msg || (TGL.key ? `Linked: ${n} song${n === 1 ? "" : "s"} from the bot so far` : "Songs you send the bot download into the app");
+  const busy = TGL.waiting.size ? `, ${TGL.waiting.size} downloading` : "";
+  $("tg-link-sub").textContent = msg || (TGL.key ? `Linked: ${n} song${n === 1 ? "" : "s"} from the bot so far${busy}${TGL.err ? ". Problem: " + TGL.err : ""}`
+    : "Songs you send the bot download into the app");
   $("tg-link-btn").textContent = TGL.key ? "Unlink" : "Link";
 }
 async function tgLink() {
@@ -5103,18 +5105,30 @@ async function tgLink() {
     const r = await fetchT(API_BASE + "/api/link", { method: "POST" }), j = await r.json().catch(() => ({}));
     if (r.status === 404) throw new Error("it doesn't know about linking yet: it needs the server update");
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    store.set("tgPending", JSON.stringify({ code: j.code, until: Date.now() + (j.expires || 600) * 1000 }));
     natSend({ cmd: "open", url: j.url });                            // the app opens it in Telegram
-    tgLinkUI("Press Start in the bot, then come back here");
-    const until = Date.now() + (j.expires || 600) * 1000;
-    while (Date.now() < until) {
-      await sleep(2000);
+  } catch (e) { TGL.linking = false; tgLinkUI("Couldn't reach your music server (" + (e.message || e) + ")"); return; }
+  TGL.linking = false;
+  tgPoll();
+}
+/* Waits for you to press Start in the bot. The code is kept (tgPending), so if iOS reloads the app while you're in
+   Telegram, the app carries on waiting when you come back instead of losing the link. */
+async function tgPoll() {
+  let p = null; try { p = JSON.parse(store.get("tgPending") || "null"); } catch (e) {}
+  if (!p || TGL.key || tgPoll.on) return;
+  tgPoll.on = true; tgLinkUI("Press Start in the bot, then come back here");
+  try {
+    while (Date.now() < p.until) {
       let a = null;
-      try { const q = await fetchT(API_BASE + "/api/link/" + j.code); if (q.status === 410) break; a = await q.json(); } catch (e) { continue; }
-      if (a && a.key) { TGL.key = a.key; TGL.version = -1; store.set("tgKey", a.key); toast("Telegram linked"); tgLinkUI(); tgSync(); return; }
+      try { const q = await fetchT(API_BASE + "/api/link/" + p.code); if (q.status === 410) break; a = await q.json(); } catch (e) { await sleep(2000); continue; }
+      if (a && a.key) {
+        store.set("tgPending", ""); TGL.key = a.key; TGL.version = -1; TGL.err = ""; store.set("tgKey", a.key);
+        toast("Telegram linked"); tgLinkUI(); tgSync(); return;
+      }
+      await sleep(2000);
     }
-    tgLinkUI("The link expired. Tap Link to try again");
-  } catch (e) { tgLinkUI("Couldn't reach your music server (" + (e.message || e) + ")"); }
-  finally { TGL.linking = false; }
+    store.set("tgPending", ""); tgLinkUI("The link expired. Tap Link to try again");
+  } finally { tgPoll.on = false; }
 }
 async function tgSync() {
   if (!TGL.key || TGL.busy) return;
@@ -5124,7 +5138,9 @@ async function tgSync() {
     if (r.status === 401 || r.status === 403) {                     // unlinked, or no longer let in by the bot's owner
       TGL.key = ""; store.set("tgKey", ""); tgLinkUI("The link stopped working. Tap Link to link again"); toast("Telegram is no longer linked"); return;
     }
-    if (!r.ok || j.same || !j.tracks) return;
+    if (!r.ok) { TGL.err = "the server said " + (j.error || "HTTP " + r.status); tgLinkUI(); return; }
+    if (TGL.err && !TGL.waiting.size) { TGL.err = ""; tgLinkUI(); }
+    if (j.same || !j.tracks) return;
     const seen = new Set(); let gone = 0;
     for (const x of j.tracks) {
       seen.add(x.id);
@@ -5134,18 +5150,22 @@ async function tgSync() {
       natSend({ cmd: "download", id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name });
     }
     for (const id of Object.keys(TGL.done)) if (!seen.has(id)) { natSend({ cmd: "delete", n: TGL.done[id] }); delete TGL.done[id]; gone++; }
-    if (gone) { store.set("tgDone", JSON.stringify(TGL.done)); setTimeout(natSync, 300); tgLinkUI(); }
-    TGL.version = j.version;
-  } catch (e) {} finally { TGL.busy = false; }
+    if (gone) { store.set("tgDone", JSON.stringify(TGL.done)); setTimeout(natSync, 300); }
+    TGL.version = j.version; tgLinkUI();
+  } catch (e) { TGL.err = "couldn't reach your music server (" + (e && e.name === "AbortError" ? "no answer" : e.message || e) + ")"; tgLinkUI(); }
+  finally { TGL.busy = false; }
 }
-window.natDownloaded = (id, rel, ok) => {                            // the app calls this when a download finished (ok) or failed
+window.natDownloaded = (id, rel, ok, err) => {                       // the app calls this when a download finished (ok) or failed (err says why)
   TGL.waiting.delete(id);
-  if (ok) { TGL.done[id] = rel; store.set("tgDone", JSON.stringify(TGL.done)); } else TGL.version = -1;   // a failed one is tried again on the next sync
+  if (ok) { TGL.done[id] = rel; store.set("tgDone", JSON.stringify(TGL.done)); }
+  else { TGL.version = -1; TGL.err = "a song didn't download (" + (err || "unknown error") + ")"; }   // a failed one is tried again on the next sync
   clearTimeout(TGL.t); TGL.t = setTimeout(() => { natSync(); tgLinkUI(); }, 500);
 };
 if (NAT) {
   tgLinkUI();
   $("tg-link-btn").addEventListener("click", () => { haptic("light"); tgLink(); });
+  setTimeout(tgPoll, 500);                                           // a link started before the app was reloaded
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) tgPoll(); });
   setTimeout(tgSync, 1500);
   setInterval(() => { if (!document.hidden) tgSync(); }, 20000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) tgSync(); });
