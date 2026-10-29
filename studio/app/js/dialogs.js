@@ -191,7 +191,7 @@ D.settings = (page = "general") => {
   const st = A.settings, save = () => { A.saveSettings(); A.applySettings(); A.refresh(); };
   const nav = h("div", { style: { width: "190px", background: "var(--panel2)", padding: "12px 8px", borderRight: "1px solid var(--line)", flex: "none" } });
   const main = h("div", { style: { flex: 1, padding: "18px 22px", overflow: "auto", minHeight: "430px" } });
-  const pages = { general: "General", canvas: "Canvas & snapping", shortcuts: "Shortcuts", send: "Send to Claude", macaw: "MacawP3 link", updates: "Updates", backups: "Backups" };
+  const pages = { general: "General", canvas: "Canvas & snapping", shortcuts: "Shortcuts", send: "Send to Claude", claude: "Ask Claude", macaw: "MacawP3 link", updates: "Updates", backups: "Backups" };
   const field = (label, el, hint) => h("div", { style: { marginBottom: "14px" } }, h("div", { style: { fontWeight: 600, marginBottom: "5px" } }, label), el, hint ? h("div", { cls: "hint", style: { marginTop: "4px" } }, hint) : null);
   const inp = (val, set, o = {}) => { const i = h("input", Object.assign({ value: val ?? "", style: { width: o.w || "100%", height: "30px", padding: "0 9px" } }, o.attrs || {})); i.onchange = () => set(i.value); i.onkeydown = e => e.stopPropagation(); return i; };
   const toggle = (on, set, label) => { const b = h("button", { cls: "tog" + (on ? " on" : "") }); b.onclick = () => { on = !on; b.classList.toggle("on", on); set(on); save(); }; return h("label", { cls: "row", style: { gap: "10px", marginBottom: "10px", cursor: "pointer" } }, b, label); };
@@ -216,6 +216,16 @@ D.settings = (page = "general") => {
       main.append(field("Arrow keys move by", h("div", { cls: "row" }, inp(st.nudge, v => { st.nudge = +v || 1; save(); }, { w: "60px" }), "px, with Shift", inp(st.bigNudge, v => { st.bigNudge = +v || 8; save(); }, { w: "60px" }), "px")));
     }
     if (p === "shortcuts") { main.append(h("p", { cls: "hint" }, "Every shortcut can be changed."), h("button", { cls: "pbtn", onclick: () => { m.close(); D.shortcuts(); } }, "Open the shortcut list")); }
+    if (p === "claude") {
+      main.append(h("div", { cls: "hint", style: { marginBottom: "14px", maxWidth: "460px" } }, "The chat at the bottom right talks to Claude with your own API key. It's billed by use on your Anthropic account: a question costs a few cents, a big redesign more."));
+      const k = inp("", () => {}, { attrs: { type: "password", placeholder: "sk-ant-…" }, w: "360px" });
+      const state = h("div", { cls: "hint", style: { marginTop: "6px" } });
+      S.host.claudeHasKey().then(has => { state.textContent = has ? "A key is saved (kept encrypted on this PC)." : "No key yet."; });
+      main.append(field("Claude API key", h("div", {}, h("div", { cls: "row" }, k,
+        h("button", { cls: "pbtn p sm", onclick: async () => { if (!k.value.trim()) return; await S.host.claudeSetKey(k.value); k.value = ""; S.toast("Key saved"); S.chat.needKey = false; S.chat.render(); show(p); } }, "Save"),
+        h("button", { cls: "pbtn sm danger", onclick: async () => { await S.host.claudeSetKey(""); S.toast("Key removed"); S.chat.render(); show(p); } }, "Remove")), state),
+        h("span", {}, "Make one at ", h("a", { href: "#", style: { color: "var(--acc)" }, onclick: e => { e.preventDefault(); S.host.openExternal("https://console.anthropic.com/settings/keys"); } }, "console.anthropic.com"), ". Ctrl+J jumps to the chat.")));
+    }
     if (p === "send") {
       const s = st.send = Object.assign({}, S.DEFAULT_SETTINGS.send, st.send);
       main.append(field("Send it by", h("div", { style: { width: "420px" } }, h("div", { cls: "seg" }, [["github", "GitHub (designs/ folder)"], ["folder", "Save to a folder"]].map(([v, l]) => h("span", { cls: s.delivery === v ? "on" : "", onclick: () => { s.delivery = v; save(); show(p); } }, l))))));

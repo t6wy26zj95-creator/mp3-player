@@ -382,6 +382,7 @@ def("rename", "Rename design…", "", () => A.rename());
 def("version", "Save version…", "Ctrl+Alt+S", () => A.saveVersion());
 def("exportpng", "Export picture…", "Ctrl+Shift+P", () => S.exporter.exportPictureDialog());
 def("send", "Send to Claude…", "Ctrl+Shift+E", () => S.exporter.sendDialog());
+def("askclaude", "Ask Claude", "Ctrl+J", () => S.chat.focus());
 def("settings", "Settings…", "Ctrl+,", () => S.dlg.settings());
 def("undo", "Undo", "Ctrl+Z", () => A.undo());
 def("redo", "Redo", "Ctrl+Y", () => A.redo(), { alt: "Ctrl+Shift+Z" });
@@ -464,7 +465,7 @@ A.keyOf = id => (A.settings.shortcuts && A.settings.shortcuts[id]) ?? act[id]?.k
 A.run = id => { const a = act[id]; if (!a) return; if (a.en && !a.en()) return; a.run(); };
 
 A.MENUS = {
-  File: ["home", "new", "open", "-", "save", "savecopy", "rename", "version", "-", "exportpng", "send", "-", "settings"],
+  File: ["home", "new", "open", "-", "save", "savecopy", "rename", "version", "-", "exportpng", "send", "askclaude", "-", "settings"],
   Edit: ["undo", "redo", "history", "-", "cut", "copy", "paste", "pastein", "dup", "del", "-", "selall", "copystyle", "pastestyle", "-", "find"],
   View: ["zoomin", "zoomout", "zoomfit", "zoomsel", "zoom50", "zoom100", "zoom200", "-", "t-rulers", "t-guides", "t-snap", "t-gridSnap", "t-chrome", "t-safe", "t-showHidden", "-", "panels", "theme"],
   Insert: ["addscreen", "copymacaw", "openimage", "-", "img", "iconpick", "ins-slider", "ins-toggle", "ins-checkbox", "ins-input", "ins-search", "ins-tabbar", "ins-row", "ins-progress", "ins-badge", "ins-divider", "ins-placeholder", "ins-cover", "-", "note"],

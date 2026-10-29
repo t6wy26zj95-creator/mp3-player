@@ -7,6 +7,10 @@ A Windows design tool for MacawP3. Nick draws screens here (or copies the real M
 - `screens/*.png` (and `*.notes.png` with numbered note pins), `before-after/*.png`, `flow.png`.
 - the editable `.macaw` file.
 
+## Ask Claude (the chat)
+
+The chat at the bottom right talks to Claude Opus 5.5 with an API key Nick pastes in Settings > Ask Claude (stored encrypted with Windows' safeStorage, never given to the page). `main.js` sends each request; `app/js/chat.js` runs the tools Claude uses to read and edit the open design (look_at_screen, see_screen, change_items, add_items, delete_items, add_screen, select_items). Each change is a normal undo step.
+
 ## Download
 
 https://github.com/t6wy26zj95-creator/mp3-player/releases/download/studio/MacawStudio-Setup.exe

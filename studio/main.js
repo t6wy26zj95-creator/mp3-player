@@ -4,7 +4,7 @@
    - Pictures for Send to Claude are drawn by app/render.html in a hidden window and captured as PNG.
    - Send to Claude uploads to the mp3-player repo's designs/ folder with GitHub's API (a key the user pastes in Settings).
    - Updates: every build on main is published to the "studio" release on GitHub; the app updates itself from there. */
-const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, clipboard, nativeImage, session, desktopCapturer, Menu } = require("electron");
+const { app, BrowserWindow, protocol, net, ipcMain, dialog, shell, clipboard, nativeImage, session, desktopCapturer, Menu, safeStorage } = require("electron");
 const path = require("path"), fs = require("fs"), fsp = fs.promises;
 
 if (!app.requestSingleInstanceLock()) { app.quit(); return; }
@@ -178,6 +178,50 @@ ipcMain.handle("send:githubTest", async (e, s) => {
   await gh(s.token, "GET", `/repos/${s.repo}/git/ref/heads/${encodeURIComponent(s.branch || "main")}`);
   return `Connected to ${r.full_name}. Designs will go to designs/ on ${s.branch || "main"}.`;
 });
+
+/* ---------- Ask Claude (the chat in the right panel) ----------
+   The API key is kept encrypted by Windows (safeStorage) in the app's data folder. The editor page never gets it back. */
+const KEYFILE = path.join(app.getPath("userData"), "claude-key.bin");
+async function readKey() {
+  try { const b = await fsp.readFile(KEYFILE); return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(b) : b.toString("utf8"); } catch (e) { return ""; }
+}
+ipcMain.handle("claude:setKey", async (e, key) => {
+  key = String(key || "").trim();
+  if (!key) { await fsp.unlink(KEYFILE).catch(() => {}); return false; }
+  await writeAtomic(KEYFILE, safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(key) : Buffer.from(key, "utf8"));
+  return true;
+});
+ipcMain.handle("claude:hasKey", async () => !!(await readKey()));
+const chats = new Map();
+ipcMain.handle("claude:turn", async (e, id, req) => {
+  const key = await readKey();
+  if (!key) return { error: "NO_KEY" };
+  const Anthropic = require("@anthropic-ai/sdk");
+  const client = new Anthropic({ apiKey: key });
+  let stream;
+  try {
+    stream = client.beta.messages.stream({
+      model: "claude-opus-5-5", max_tokens: 32000,
+      thinking: { type: "adaptive" }, output_config: { effort: "medium" },
+      cache_control: { type: "ephemeral" },
+      betas: ["server-side-fallback-2026-07-01"], fallbacks: "default",   // if a request is declined, the API retries it on a suitable model by itself
+      system: req.system, tools: req.tools, messages: req.messages
+    });
+    chats.set(id, stream);
+    stream.on("text", t => { if (!e.sender.isDestroyed()) e.sender.send("claude:delta", id, t); });
+    return { message: await stream.finalMessage() };
+  } catch (err) {
+    if (err instanceof Anthropic.APIUserAbortError) return { error: "STOPPED" };
+    if (err instanceof Anthropic.AuthenticationError) return { error: "Claude didn't accept the API key. Check it in Settings > Ask Claude." };
+    if (err instanceof Anthropic.PermissionDeniedError) return { error: "This API key isn't allowed to use Claude Opus 5.5." };
+    if (err instanceof Anthropic.RateLimitError) return { error: "Too many requests right now (or the account is out of credit). Try again in a minute." };
+    if (err instanceof Anthropic.BadRequestError) return { error: "Claude couldn't take that request: " + err.message };
+    if (err instanceof Anthropic.APIConnectionError) return { error: "Can't reach Claude. Check the internet connection." };
+    if (err instanceof Anthropic.APIError) return { error: `Claude had a problem (${err.status || "no status"}). Try again.` };
+    return { error: "GARBLED", detail: String(err && err.message || err).slice(0, 300) };   // e.g. a tool call that didn't come through whole
+  } finally { chats.delete(id); }
+});
+ipcMain.on("claude:stop", (e, id) => { const s = chats.get(id); if (s) s.abort(); });
 
 /* ---------- little things ---------- */
 ipcMain.handle("shell:show", async (e, p) => { if (inside(DESIGNS, p)) { const st = await fsp.stat(p).catch(() => null); if (st && st.isDirectory()) shell.openPath(p); else shell.showItemInFolder(p); } });

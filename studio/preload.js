@@ -17,5 +17,8 @@ contextBridge.exposeInMainWorld("studioHost", {
   updateState: () => inv("update:state"), checkUpdates: () => inv("update:check"), installUpdate: () => inv("update:install"),
   onUpdate: cb => ipcRenderer.on("studio:update", (e, s) => cb(s)),
   setZoom: z => ipcRenderer.send("ui:zoom", z), setTheme: t => ipcRenderer.send("ui:theme", t),
+  claudeSetKey: k => inv("claude:setKey", k), claudeHasKey: () => inv("claude:hasKey"),
+  claudeTurn: (id, req) => inv("claude:turn", id, req), claudeStop: id => ipcRenderer.send("claude:stop", id),
+  onClaudeDelta: cb => ipcRenderer.on("claude:delta", (e, id, t) => cb(id, t)),
   onFlush: cb => ipcRenderer.on("studio:flush", () => cb()), flushed: () => ipcRenderer.send("ui:flushed")
 });

@@ -39,6 +39,7 @@ C.render = () => {
   C.applyView();
 };
 C.applyView = () => {
+  if (!A.doc) return;
   const v = V();
   world.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.zoom})`;
   const g = 16 * Math.max(0.5, Math.min(2, v.zoom)); cv.style.backgroundSize = `${g}px ${g}px`; cv.style.backgroundPosition = `${v.x}px ${v.y}px`;
@@ -51,6 +52,7 @@ C.applyView = () => {
 const hnd = (x, y, cls, h, cur) => S.h("div", { cls: "hnd " + cls, "data-h": h, style: { left: x + "px", top: y + "px", cursor: cur } });
 const CURS = { nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize", n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize" };
 C.overlay = () => {
+  if (!A.doc) return;
   if (!A.doc || !ov) return;
   ov.innerHTML = "";
   const v = V(), z = v.zoom;

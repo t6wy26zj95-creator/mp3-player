@@ -29,7 +29,8 @@ const web = {
   updateState: async () => ({ state: "none" }), checkUpdates: async () => ({ state: "none" }), installUpdate: async () => {}, onUpdate: () => {},
   setZoom: z => { document.body.style.zoom = z; }, setTheme: () => {}, onMenu: () => {}, readClipboard: async () => ({ text: await navigator.clipboard.readText().catch(() => ""), image: null }),
   githubTest: async () => { throw new Error("GitHub upload only works in the Windows app"); },
-  onFlush: () => {}, flushed: () => {}
+  onFlush: () => {}, flushed: () => {},
+  claudeSetKey: async () => false, claudeHasKey: async () => false, claudeTurn: async () => ({ error: "The chat only works in the Windows app." }), claudeStop: () => {}, onClaudeDelta: () => {}
 };
 S.host = H ? Object.assign({}, web, H, { isApp: true }) : web;
 })();

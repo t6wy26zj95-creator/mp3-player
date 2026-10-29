@@ -7,7 +7,7 @@ A.settings = Object.assign({}, S.DEFAULT_SETTINGS, await S.host.getSettings().ca
 A.settings.send = Object.assign({}, S.DEFAULT_SETTINGS.send, A.settings.send);
 A.applySettings();
 S.dlg.buildMenubar();
-S.canvas.init(); S.panels.init();
+S.canvas.init(); S.panels.init(); S.chat.init();
 const btn = (id, icon, label, fn) => { const b = $(id); b.innerHTML = ""; b.append(S.icon(icon, 15)); if (label) b.append(label); b.onclick = fn; };
 btn("b-undo", "undo-2", "", () => A.undo()); btn("b-redo", "redo-2", "", () => A.redo());
 btn("b-preview", "play", "Preview", () => S.modes.preview()); btn("b-compare", "arrow-left-right", "Compare", () => S.modes.compare());
