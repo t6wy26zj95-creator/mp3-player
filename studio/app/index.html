@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; img-src 'self' data: blob: file:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.github.com data: blob:; media-src 'self' blob: data:">
+<title>Macaw Studio</title>
+<link rel="stylesheet" href="style.css">
+<style id="render-css"></style>
+</head>
+<body>
+<div id="app">
+  <div id="titlebar">
+    <div class="logo">M</div>
+    <div class="menubar" id="menubar"></div>
+    <div id="docname"><span id="doc-folder">Macaw Designs</span><span>/</span><b id="doc-title" title="Click to rename">Untitled</b><span id="savedot"><i></i><span>Saved</span></span></div>
+    <div class="tb-right">
+      <button class="ib" id="b-undo" title="Undo (Ctrl+Z)"></button>
+      <button class="ib" id="b-redo" title="Redo (Ctrl+Y)"></button>
+      <button class="ib box" id="b-zoom" title="Zoom">75%</button>
+      <button class="ib box" id="b-preview" title="Preview (Ctrl+Enter)"></button>
+      <button class="ib box" id="b-compare" title="Compare with the real app"></button>
+      <button class="btn-claude" id="b-send" title="Send to Claude (Ctrl+Shift+E)"></button>
+    </div>
+  </div>
+  <div id="body">
+    <div id="left">
+      <div class="tabs" id="left-tabs"><span data-t="screens">Screens</span><span data-t="layers" class="on">Layers</span><span data-t="parts">Parts</span><span data-t="assets">Assets</span></div>
+      <div class="pane" id="left-pane"></div>
+    </div>
+    <div id="center">
+      <div id="canvas" tabindex="0">
+        <div id="world"></div>
+        <div id="overlay"></div>
+        <div class="ruler" id="ruler-corner"></div><div class="ruler" id="ruler-x"></div><div class="ruler" id="ruler-y"></div>
+        <div id="minimap" class="hide"></div>
+        <div id="toolbar"></div>
+      </div>
+    </div>
+    <div id="right">
+      <div class="tabs" id="right-tabs"><span data-t="design" class="on">Design</span><span data-t="notes">Notes</span><span data-t="code">Code peek</span></div>
+      <div class="pane" id="right-pane"></div>
+    </div>
+  </div>
+  <div id="statusbar">
+    <span id="st-pos">X 0 · Y 0</span><span id="st-sel">Nothing selected</span><span id="st-hint"></span>
+    <div class="r"><span id="st-snap">Snap</span><span id="st-grid">Grid 8 px</span><span id="st-guides">Guides</span><span id="st-rulers">Rulers</span><span id="st-zoom">75%</span><span id="st-save"></span></div>
+  </div>
+</div>
+<input type="file" id="file-img" accept="image/*" multiple class="hide">
+<input type="file" id="file-any" class="hide">
+<script src="vendor/icons.js"></script>
+<script src="js/core.js"></script>
+<script src="js/parts.js"></script>
+<script src="js/bridge.js"></script>
+<script src="js/app.js"></script>
+<script src="js/canvas.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/dialogs.js"></script>
+<script src="js/export.js"></script>
+<script src="js/modes.js"></script>
+<script src="js/boot.js"></script>
+</body>
+</html>

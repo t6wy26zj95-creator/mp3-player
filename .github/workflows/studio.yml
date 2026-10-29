@@ -1,0 +1,86 @@
+# Builds Macaw Studio (the design tool for Windows) on GitHub's computers.
+# - Every push to main that touches studio/: the "studio" release gets the new version. Installed copies update themselves.
+#   Always-current download link:
+#     https://github.com/<owner>/<repo>/releases/download/studio/MacawStudio-Setup.exe
+# - A push to any other branch: the "studio-preview" pre-release gets that build (test builds update from there).
+# The version is 1.0.<run number>, so every build is newer than the one before it.
+name: Macaw Studio
+
+on:
+  push:
+    paths:
+      - studio/**
+      - .github/workflows/studio.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: studio-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  VERSION: 1.0.${{ github.run_number }}
+  CHANNEL: ${{ github.ref == 'refs/heads/main' && 'main' || 'preview' }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the code
+        working-directory: studio
+        run: for f in main.js preload.js render-preload.js app/js/*.js; do node --check "$f"; done
+      - name: Build the installer
+        working-directory: studio
+        run: |
+          npm ci
+          npx electron-builder --win --publish never -c.extraMetadata.version=$VERSION -c.extraMetadata.studioChannel=$CHANNEL
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            studio/dist/MacawStudio-Setup-*.exe
+            studio/dist/MacawStudio-Setup-*.exe.blockmap
+            studio/dist/latest.yml
+
+  publish:
+    needs: [windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+      - name: Publish to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [ "$CHANNEL" = main ]; then TAG=studio; TITLE="Macaw Studio"; PRE=""; else TAG=studio-preview; TITLE="Macaw Studio preview"; PRE="--prerelease"; fi
+          exe=$(ls out/windows/MacawStudio-Setup-*.exe)
+          cp "$exe" out/MacawStudio-Setup.exe
+          notes="Version $VERSION, built from ${GITHUB_REF_NAME} ($GITHUB_SHA).
+
+          Download MacawStudio-Setup.exe below and open it. Windows may say it protected your PC (the app isn't signed with a paid certificate): click More info, then Run anyway. After that the app updates itself."
+          # one release per channel, never marked "latest" (so the iOS app's links keep pointing at the iOS builds)
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --latest=false $PRE --title "$TITLE" --notes "$notes"
+          # the installer first, then latest.yml (which tells installed copies about it), then the fixed-name copy
+          gh release upload "$TAG" "$exe" "$exe.blockmap" --clobber
+          gh release upload "$TAG" out/windows/latest.yml --clobber
+          gh release upload "$TAG" out/MacawStudio-Setup.exe --clobber
+          gh release edit "$TAG" --title "$TITLE $VERSION" --notes "$notes"
+          # keep the two newest versioned installers
+          gh release view "$TAG" --json assets -q '.assets[].name' | grep -E '^MacawStudio-Setup-[0-9.]+\.exe$' | sort -t. -k3,3n | head -n -2 | while read -r old; do
+            gh release delete-asset "$TAG" "$old" --yes || true
+          done
+          echo "Download: https://github.com/$GH_REPO/releases/download/$TAG/MacawStudio-Setup.exe"

@@ -9,3 +9,7 @@ ios/Macaw/www/
 desktop/node_modules/
 desktop/dist/
 desktop/www/
+
+# Macaw Studio build output (made on GitHub, see .github/workflows/studio.yml)
+studio/node_modules/
+studio/dist/

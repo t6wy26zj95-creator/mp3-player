@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; img-src 'self' data: blob: file:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>Macaw Studio pictures</title>
+<style id="render-css"></style>
+<style>
+html,body{margin:0;padding:0;background:transparent;overflow:hidden}
+#out{position:absolute;left:0;top:0;font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.sheet{position:relative;background:#141518;color:#e8e9ec}
+.lab{position:absolute;font:600 15px Inter,"Segoe UI",system-ui,sans-serif;color:#c9cbd1;white-space:nowrap}
+.pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:#FFD43B;color:#2b2300;font:700 12px/24px Inter,"Segoe UI",sans-serif;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.5);z-index:100002}
+.pinbox{position:absolute;border:2px dashed #FFD43B;border-radius:4px;z-index:100001}
+.legend{position:absolute;top:0;width:300px;padding:20px 22px;box-sizing:border-box;font:13px/1.45 Inter,"Segoe UI",sans-serif;color:#e8e9ec}
+.legend h3{margin:0 0 12px;font-size:15px}
+.legend .n{display:flex;gap:10px;margin-bottom:10px}
+.legend .n b{flex:none;width:22px;height:22px;border-radius:50%;background:#FFD43B;color:#2b2300;font-size:11px;line-height:22px;text-align:center}
+.legend .n.done span{text-decoration:line-through;opacity:.6}
+.mark{position:absolute;border:2px solid #FF4D8D;border-radius:4px;z-index:5}
+.mark b{position:absolute;left:-2px;top:-22px;background:#FF4D8D;color:#fff;font:700 11px/20px Inter,sans-serif;padding:0 6px;border-radius:4px;white-space:nowrap}
+svg.arrows{position:absolute;left:0;top:0;overflow:visible;z-index:200000}
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script src="vendor/icons.js"></script>
+<script src="js/core.js"></script>
+<script src="js/render.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "name": "macaw-studio",
+  "productName": "Macaw Studio",
+  "version": "1.0.0",
+  "description": "Macaw Studio: design MacawP3 screens and send them to Claude",
+  "author": "Nick",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11"
+  },
+  "devDependencies": {
+    "electron": "44.9.3",
+    "electron-builder": "26.18.0"
+  },
+  "homepage": "https://github.com/t6wy26zj95-creator/mp3-player",
+  "studioChannel": "main",
+  "build": {
+    "appId": "app.macaw.studio",
+    "productName": "Macaw Studio",
+    "copyright": "Nick",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "render-preload.js", "package.json", "app/**", "build/icon.png"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.png",
+      "artifactName": "MacawStudio-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Macaw Studio",
+      "deleteAppDataOnUninstall": false
+    },
+    "linux": { "target": ["dir"], "icon": "build/icon.png" },
+    "publish": [{ "provider": "generic", "url": "https://github.com/t6wy26zj95-creator/mp3-player/releases/download/studio" }]
+  }
+}
