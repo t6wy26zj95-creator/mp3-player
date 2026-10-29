@@ -1071,7 +1071,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v45";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v46";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -5207,6 +5207,7 @@ async function natSync() {
   const first = !natSync.done;
   try {
     const list = await (await fetch(NAT_BASE + "list", { cache: "no-store" })).json();
+    natSync.files = new Map(list.map(x => [x.n, x.s]));                // name -> size: lets a bot song that's already here be skipped
     const key = x => x.n + "|" + x.s + "|" + x.m, todo = list.filter(x => !natTags[key(x)]).length;
     const seen = new Set(), added = [], keep = {}; let read = 0;
     if (todo > 3 && !(first && !tracks.length)) toast(`Adding ${todo} songs…`);
@@ -5296,6 +5297,7 @@ async function tgPoll() {
 }
 async function tgSync() {
   if (!TGL.key || TGL.busy) return;
+  if (!natSync.files) { setTimeout(tgSync, 1000); return; }         // first see which songs the app already has
   TGL.busy = true;
   try {
     const r = await fetchT(`${API_BASE}/api/library?since=${TGL.version}`, { headers: { "X-App-Key": TGL.key } }), j = await r.json().catch(() => ({}));
@@ -5305,19 +5307,38 @@ async function tgSync() {
     if (!r.ok) { TGL.err = "the server said " + (j.error || "HTTP " + r.status); tgLinkUI(); return; }
     if (TGL.err && !TGL.waiting.size) { TGL.err = ""; tgLinkUI(); }
     if (j.same || !j.tracks) return;
-    const seen = new Set(); let gone = 0;
+    const seen = new Set(); let gone = tgDedupe(), found = 0;
     for (const x of j.tracks) {
       seen.add(x.id);
       if (TGL.done[x.id] || TGL.waiting.has(x.id)) continue;
       const name = tgSafe((x.artist ? x.artist + " - " : "") + (x.title || "Song")) + (TG_EXT[String(x.mime || "").toLowerCase()] || ".mp3");
+      const have = natSync.files.get("Telegram/" + name);              // saved before, but the app closed before it heard back
+      if (have != null && (!x.size || have === x.size) && !Object.values(TGL.done).includes("Telegram/" + name)) { TGL.done[x.id] = "Telegram/" + name; found++; continue; }
       TGL.waiting.set(x.id, 1);
       tgQueue({ id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name, title: x.title });
     }
     for (const id of Object.keys(TGL.done)) if (!seen.has(id)) { natSend({ cmd: "delete", n: TGL.done[id] }); delete TGL.done[id]; gone++; }
+    if (found) store.set("tgDone", JSON.stringify(TGL.done));
     if (gone) { store.set("tgDone", JSON.stringify(TGL.done)); setTimeout(natSync, 300); }
     TGL.version = j.version; tgLinkUI();
   } catch (e) { TGL.err = "couldn't reach your music server (" + (e && e.name === "AbortError" ? "no answer" : e.message || e) + ")"; tgLinkUI(); }
   finally { TGL.busy = false; }
+}
+/* A song could get saved twice ("Song.mp3" and "Song 2.mp3") when the app was closed right after saving it, before the
+   page heard back. Those copies (same name apart from the number, same size, in the Telegram folder) are removed, and
+   the one that's kept is remembered as that bot song. Returns how many were removed. */
+function tgDedupe() {
+  const files = natSync.files, owner = {}; let n = 0;
+  for (const [id, rel] of Object.entries(TGL.done)) owner[rel] = id;
+  for (const [rel, size] of files) {
+    const m = /^(Telegram\/.+) (\d+)(\.\w+)$/.exec(rel); if (!m) continue;
+    const base = m[1] + m[3];
+    if (files.get(base) !== size) continue;
+    if (owner[rel] && owner[base]) continue;                           // two bot songs that just share a name: keep both
+    if (owner[rel]) { TGL.done[owner[rel]] = base; owner[base] = owner[rel]; delete owner[rel]; }
+    natSend({ cmd: "delete", n: rel }); files.delete(rel); n++;
+  }
+  return n;
 }
 /* Downloads go through the page (the same connection that lists your songs), two at a time. Each song is fetched in
    2 MB pieces (byte ranges), so no single request runs long enough for a proxy or iOS to cut it off, and a piece that
