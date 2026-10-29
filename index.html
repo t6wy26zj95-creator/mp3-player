@@ -1071,7 +1071,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v46";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v47";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -5250,10 +5250,10 @@ const TG_EXT = { "audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/mp4": ".m4a",
   "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/ogg": ".ogg", "audio/aiff": ".aiff" };
 const tgSafe = s => String(s).replace(/[\/\\:*?"<>|\x00-\x1f]/g, "_").replace(/^[.\s]+/, "").trim().slice(0, 120) || "Song";
 function tgLinkUI(msg) {
-  const n = Object.keys(TGL.done).length;
+  const v = Object.values(TGL.done), had = v.filter(r => r.startsWith("skip:")).length, n = v.length - had;
   $("tg-link-row").style.display = "";
   const busy = TGL.waiting.size ? `, ${TGL.waiting.size} downloading` : "";
-  $("tg-link-sub").textContent = msg || (TGL.key ? `Linked: ${n} song${n === 1 ? "" : "s"} from the bot so far${busy}${TGL.err ? ". Problem: " + TGL.err : ""}`
+  $("tg-link-sub").textContent = msg || (TGL.key ? `Linked: ${n} song${n === 1 ? "" : "s"} from the bot so far${had ? ` (and ${had} you already had)` : ""}${busy}${TGL.err ? ". Problem: " + TGL.err : ""}`
     : "Songs you send the bot download into the app");
   $("tg-link-btn").textContent = TGL.key ? "Unlink" : "Link";
 }
@@ -5297,7 +5297,7 @@ async function tgPoll() {
 }
 async function tgSync() {
   if (!TGL.key || TGL.busy) return;
-  if (!natSync.files) { setTimeout(tgSync, 1000); return; }         // first see which songs the app already has
+  if (!natSync.done || !natSync.files) { setTimeout(tgSync, 1000); return; }   // first see which songs the app already has
   TGL.busy = true;
   try {
     const r = await fetchT(`${API_BASE}/api/library?since=${TGL.version}`, { headers: { "X-App-Key": TGL.key } }), j = await r.json().catch(() => ({}));
@@ -5307,22 +5307,38 @@ async function tgSync() {
     if (!r.ok) { TGL.err = "the server said " + (j.error || "HTTP " + r.status); tgLinkUI(); return; }
     if (TGL.err && !TGL.waiting.size) { TGL.err = ""; tgLinkUI(); }
     if (j.same || !j.tracks) return;
-    const seen = new Set(); let gone = tgDedupe(), found = 0;
+    const seen = new Set(), mine = tgMine(); let gone = tgDedupe(), found = 0;
     for (const x of j.tracks) {
       seen.add(x.id);
-      if (TGL.done[x.id] || TGL.waiting.has(x.id)) continue;
+      if (TGL.waiting.has(x.id)) continue;
       const name = tgSafe((x.artist ? x.artist + " - " : "") + (x.title || "Song")) + (TG_EXT[String(x.mime || "").toLowerCase()] || ".mp3");
       const have = natSync.files.get("Telegram/" + name);              // saved before, but the app closed before it heard back
+      const dup = (x.title && mine.byKey.has(tgKey(x.artist, x.title))) || (x.size && mine.sizes.has(x.size));   // you already added this song yourself
+      if (dup && !String(TGL.done[x.id] || "").startsWith("skip:")) {
+        const extra = TGL.done[x.id] || (have != null && (!x.size || have === x.size) && !Object.values(TGL.done).includes("Telegram/" + name) ? "Telegram/" + name : "");
+        if (extra) { natSend({ cmd: "delete", n: extra }); gone++; }  // an extra copy downloaded earlier
+        TGL.done[x.id] = "skip:"; found++; continue;
+      }
+      if (TGL.done[x.id]) continue;
       if (have != null && (!x.size || have === x.size) && !Object.values(TGL.done).includes("Telegram/" + name)) { TGL.done[x.id] = "Telegram/" + name; found++; continue; }
       TGL.waiting.set(x.id, 1);
       tgQueue({ id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name, title: x.title });
     }
-    for (const id of Object.keys(TGL.done)) if (!seen.has(id)) { natSend({ cmd: "delete", n: TGL.done[id] }); delete TGL.done[id]; gone++; }
+    for (const id of Object.keys(TGL.done)) if (!seen.has(id)) { if (TGL.done[id].startsWith("Telegram/")) natSend({ cmd: "delete", n: TGL.done[id] }); delete TGL.done[id]; gone++; }
     if (found) store.set("tgDone", JSON.stringify(TGL.done));
     if (gone) { store.set("tgDone", JSON.stringify(TGL.done)); setTimeout(natSync, 300); }
     TGL.version = j.version; tgLinkUI();
   } catch (e) { TGL.err = "couldn't reach your music server (" + (e && e.name === "AbortError" ? "no answer" : e.message || e) + ")"; tgLinkUI(); }
   finally { TGL.busy = false; }
+}
+/* Songs you added to the app yourself (anything outside the Telegram folder). A bot song that is one of them (same
+   artist and title, or exactly the same file size) isn't downloaded again: it's remembered as "skip:" instead. */
+const tgKey = (a, t) => (String(a || "") + "|" + String(t || "")).toLowerCase().replace(/\(.*?\)|\[.*?\]|feat\..*$|[^\p{L}\p{N}|]+/gu, "");
+function tgMine() {
+  const byKey = new Set(), sizes = new Set();
+  for (const t of tracks) if (t.remote && t.remote.nat && !t.remote.nat.startsWith("Telegram/")) byKey.add(tgKey(t.artist, t.title));
+  for (const [rel, size] of natSync.files) if (!rel.startsWith("Telegram/")) sizes.add(size);
+  return { byKey, sizes };
 }
 /* A song could get saved twice ("Song.mp3" and "Song 2.mp3") when the app was closed right after saving it, before the
    page heard back. Those copies (same name apart from the number, same size, in the Telegram folder) are removed, and
