@@ -161,13 +161,7 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .tab-buttons{display:flex;gap:16px}
 .tab-btn{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.4);background:none;border:none;cursor:pointer;padding:10px 0}
 .tab-btn.active{color:#fff;text-shadow:0 0 10px rgba(255,255,255,.3)}
-/* "+ Songs" is an action, not a tab: a small glass button of its own (icon only on narrow phones, so the tabs keep their room) */
-.add-btn{display:flex;align-items:center;gap:4px;height:30px;padding:0 12px 0 8px;border-radius:999px;box-sizing:border-box;flex-shrink:0;
-  border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:rgba(255,255,255,.85);font:600 12px -apple-system,system-ui,sans-serif;letter-spacing:.1px;cursor:pointer;
-  transition:background .22s var(--ease),color .22s var(--ease),transform .18s var(--ease),border-color .22s var(--ease)}
-.add-btn svg{width:16px;height:16px;fill:currentColor;flex-shrink:0}
-.add-btn:active{background:rgba(255,255,255,.2);transform:scale(.95)}
-@media (max-width:370px){.add-btn{width:30px;padding:0;justify-content:center}.add-btn span{display:none}}
+.add-btn{color:rgba(255,255,255,.7)}
 
 .collapsible-content{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows var(--dur) var(--ease),opacity .28s ease}
 .collapsible-content.expanded{grid-template-rows:1fr;opacity:1}
@@ -855,7 +849,6 @@ html.desk-float .upd-pill:not([hidden]){position:fixed;top:23px;right:112px;box-
 @media (hover:hover) and (pointer:fine){
   .player-btn:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.28)}
   .tab-btn:not(.active):hover{color:rgba(255,255,255,.78)}
-  .add-btn:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.26);color:#fff}
   .back-btn:hover,.artist-more:hover{color:#fff}
   .back-btn:hover{background:rgba(255,255,255,.05)}
   .playlist-item:not(.active):not(.missing):hover,.queue-item:hover{background:rgba(255,255,255,.06)}
@@ -927,7 +920,7 @@ html.cf-land .cf-s{font-size:13px}
   </div>
 
   <div class="player-footer" id="footer-main" style="display:none;">
-    <button class="add-btn" id="btn-add" aria-label="Add songs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg><span>Songs</span></button>
+    <button class="tab-btn add-btn" id="btn-add">+ Songs</button>
     <button class="done-btn" id="edit-done" aria-label="Done">Done</button>
     <div class="tab-buttons">
       <button class="tab-btn" id="btn-queue">Queue</button>
@@ -1073,7 +1066,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v42";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v43";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -2759,7 +2752,7 @@ audio.addEventListener("ended", onEnded);
      springs back in once the new artwork is ready, and the cover light flares.
    Web Animations and small rAF loops only; nothing moves with reduced motion turned on. */
 const RM = matchMedia("(prefers-reduced-motion:reduce)").matches;
-const PRESSABLE = ".player-btn,.tab-btn,.add-btn,.chip,.circle-btn,.back-btn,.done-btn,.gear-btn,.set-pill,.set-x,.q-sec button,.artist-more,.switch,.xp-next-h button,.lyr-close";
+const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.done-btn,.gear-btn,.set-pill,.set-x,.q-sec button,.artist-more,.switch,.xp-next-h button,.lyr-close";
 const curScale = el => { const v = parseFloat(getComputedStyle(el).scale); return isFinite(v) ? v : 1; };
 function pressDown(el) {
   if (RM || !el.animate) return;
