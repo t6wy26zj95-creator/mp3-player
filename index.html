@@ -161,12 +161,18 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .tab-buttons{display:flex;gap:16px}
 .tab-btn{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.4);background:none;border:none;cursor:pointer;padding:10px 0}
 .tab-btn.active{color:#fff;text-shadow:0 0 10px rgba(255,255,255,.3)}
-.add-btn{color:rgba(255,255,255,.7)}
+/* "+ Songs" is an action, not a tab: a small glass button of its own (icon only on narrow phones, so the tabs keep their room) */
+.add-btn{display:flex;align-items:center;gap:4px;height:30px;padding:0 12px 0 8px;border-radius:999px;box-sizing:border-box;flex-shrink:0;
+  border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:rgba(255,255,255,.85);font:600 12px -apple-system,system-ui,sans-serif;letter-spacing:.1px;cursor:pointer;
+  transition:background .22s var(--ease),color .22s var(--ease),transform .18s var(--ease),border-color .22s var(--ease)}
+.add-btn svg{width:16px;height:16px;fill:currentColor;flex-shrink:0}
+.add-btn:active{background:rgba(255,255,255,.2);transform:scale(.95)}
+@media (max-width:370px){.add-btn{width:30px;padding:0;justify-content:center}.add-btn span{display:none}}
 
 .collapsible-content{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows var(--dur) var(--ease),opacity .28s ease}
 .collapsible-content.expanded{grid-template-rows:1fr;opacity:1}
 .drawer-inner{min-height:0;overflow:hidden}
-#view-host{box-sizing:border-box;overflow:hidden;border-top:1px solid rgba(255,255,255,.1);padding-top:14px;transition:height var(--dur) var(--ease)}
+#view-host{position:relative;box-sizing:border-box;overflow:hidden;border-top:1px solid rgba(255,255,255,.1);padding-top:14px;transition:height var(--dur) var(--ease)}
 
 .back-btn{display:flex;align-items:center;gap:8px;font:600 12px -apple-system,system-ui,sans-serif;color:rgba(255,255,255,.6);background:none;border:none;cursor:pointer;padding:8px 12px;margin-bottom:4px;border-radius:12px}
 .back-btn:active{color:#fff;background:rgba(255,255,255,.05)}
@@ -218,6 +224,17 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .chip{padding:8px 13px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);font-size:12px;cursor:pointer}
 .chip:active{background:rgba(255,255,255,.22)}
 .artist-card img,.artist-card .all-tracks-icon{border-radius:50%!important}
+.alb-head{display:flex;align-items:center;gap:12px;padding:2px 12px 10px}
+.alb-art{width:56px;height:56px;flex-shrink:0;border-radius:10px;overflow:hidden;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 6px 14px rgba(0,0,0,.28)}
+.alb-art img{width:100%;height:100%;object-fit:cover;display:block}
+.alb-art svg{width:22px;height:22px;fill:rgba(255,255,255,.45)}
+.alb-t{flex:1;min-width:0}
+.alb-n{font-size:15px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:break-word}
+.alb-s{margin-top:3px;font-size:12px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alb-play{width:36px;height:36px}
+.alb-play svg{width:15px;height:15px;margin-left:2px}
+.alb-play[disabled]{opacity:.35;pointer-events:none}
 .disc-h{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);padding:12px 12px 4px}
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);transform:translateX(-50%) translateY(10px);background:rgba(15,23,30,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);padding:10px 16px;border-radius:14px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:30;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%)}
@@ -268,12 +285,22 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 @supports (overflow:clip){.drawer-inner,#view-host{overflow-x:visible;overflow-y:clip}}
 .albums-grid-container,.artist-scroll{margin:-14px -20px 0;padding-inline:20px;padding-top:14px}
 .artist-scroll{padding-bottom:28px}
+/* the artist page scrolls below Back, never over it: the page starts under the button and fades out at its top edge */
+#artist-wrapper .back-btn{position:relative;z-index:3}
+#artist-ui{margin-top:0;padding-top:2px}
 .albums-grid{padding-bottom:24px}
 
 /* ===== glow layer: glows live outside the scrollers, are positioned by JS, and fade at the scroller's edges ===== */
 #glow-layer{position:absolute;left:0;right:0;top:0;height:0;overflow:hidden;z-index:-1;pointer-events:none;opacity:0;transition:opacity .3s var(--ease);
   -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}
 #glow-layer.on{opacity:1}
+/* lists that scroll fade out at an edge that has more behind it, instead of ending on a row cut in half (set by edgeFade) */
+@property --fdt{syntax:'<length>';inherits:false;initial-value:0px}
+@property --fdb{syntax:'<length>';inherits:false;initial-value:0px}
+.efade{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 var(--fdt),#000 calc(100% - var(--fdb)),transparent 100%);
+  mask-image:linear-gradient(to bottom,transparent 0,#000 var(--fdt),#000 calc(100% - var(--fdb)),transparent 100%);transition:--fdt .25s var(--ease),--fdb .25s var(--ease)}
+.efade.ft{--fdt:var(--fts,30px)}.efade.fb{--fdb:var(--fbs,40px)}
+.albums-grid-container.flow.efade{-webkit-mask-image:none;mask-image:none}
 #glow-layer.off .glow{opacity:0!important}
 .glow{position:absolute;left:0;top:0;border-radius:14px;background-size:cover;background-position:center;filter:blur(15px) saturate(1.5);opacity:0;transition:opacity .4s var(--ease);will-change:transform}
 .glow.in{opacity:.4}
@@ -597,6 +624,8 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-ctrls .xp-tog{width:40px;height:40px;background-color:transparent;border-color:transparent;box-shadow:none;color:rgba(255,255,255,.55)}
 .xp-ctrls .xp-tog:active{background-color:rgba(255,255,255,.1)}
 .xp-ctrls .xp-tog svg{width:20px;height:20px}
+@media (max-width:340px){                                           /* a 320 px phone: the five buttons keep some room between them */
+  .xp-ctrls .player-btn{width:42px;height:42px}.xp-ctrls #xp-play{width:54px;height:54px}.xp-ctrls .xp-tog{width:34px;height:34px}}
 .xp-tog.on{color:rgb(120,222,202)}
 .xp-tog::after{content:'';position:absolute;bottom:3px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;opacity:0;transition:opacity .25s var(--ease)}
 .xp-tog.on::after{opacity:1}
@@ -619,7 +648,8 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-card-art img{width:100%;height:100%;object-fit:cover;pointer-events:none;-webkit-user-drag:none}
 .xp-card-art svg{width:14px;height:14px;fill:rgba(255,255,255,.35)}
 .xp-card-t{min-width:0;flex:1}
-.xp-card-title{font-size:12px;font-weight:600;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.xp-card-title{font-size:12px;font-weight:600;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:normal;word-break:normal}
+.xp-card-title.one{display:block;white-space:nowrap;text-overflow:ellipsis}
 .xp-card-artist{font-size:10.5px;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 .xp-card.lifted{z-index:5;background:linear-gradient(135deg,rgba(255,255,255,.2),rgba(255,255,255,.06)),rgba(19,54,68,.96);border-color:rgba(255,255,255,.3);box-shadow:0 12px 26px rgba(0,0,0,.35)}
 .xp-strip.dragging .xp-card:not(.lifted){opacity:.55}
@@ -815,6 +845,45 @@ html.desk-float .upd-pill:not([hidden]){position:fixed;top:23px;right:112px;box-
 .upd-pill svg{width:13px;height:13px;fill:currentColor}
 .upd-pill:hover{filter:brightness(1.08)}
 @keyframes updIn{from{opacity:0;transform:translateY(-6px) scale(.9)}}
+
+/* ===== mouse and keyboard (computer, desktop app): hover feedback and a visible keyboard focus ===== */
+.gear-btn{padding:0;color:inherit;font:inherit}
+.album-art{cursor:pointer}
+:is(button,[role=button],[role=slider],[tabindex="0"]):focus{outline:none}
+:is(button,[role=button],[role=slider],[tabindex="0"]):focus-visible{outline:2px solid rgba(255,255,255,.75);outline-offset:2px}
+.custom-range-slider:focus-visible{outline-offset:8px;border-radius:4px}
+@media (hover:hover) and (pointer:fine){
+  .player-btn:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.28)}
+  .tab-btn:not(.active):hover{color:rgba(255,255,255,.78)}
+  .add-btn:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.26);color:#fff}
+  .back-btn:hover,.artist-more:hover{color:#fff}
+  .back-btn:hover{background:rgba(255,255,255,.05)}
+  .playlist-item:not(.active):not(.missing):hover,.queue-item:hover{background:rgba(255,255,255,.06)}
+  .albums-grid:not(.editing) .album-card:hover img,.albums-grid:not(.editing) .album-card:hover .all-tracks-icon{transform:translateY(-2px) scale(1.02);box-shadow:0 12px 20px rgba(0,0,0,.36)}
+  .albums-grid:not(.editing) .album-card:hover .album-card-title{color:#fff}
+  .gear-btn:not(.on):hover{background:rgba(15,23,30,.62);border-color:rgba(255,255,255,.2)}
+  .track-artist:hover,#xp-artist:hover{color:rgba(255,255,255,.88)}
+  .album-art:hover{filter:brightness(1.06)}
+  .xp-card:not(.now):hover{background:rgba(255,255,255,.13)}
+  .chip:hover,.circle-btn:hover,.set-pill:hover,.set-x:hover{background:rgba(255,255,255,.18)}
+  .set-row.set-radio:hover,button.set-row:not(.set-radio):hover{background:rgba(255,255,255,.05)}
+  .done-btn:hover{background:rgba(255,255,255,.2)}
+  .custom-range-slider:hover .slider-thumb{width:16px;height:16px}
+  .xp-next-h button:hover,.lyr-close:hover{color:#fff}
+}
+/* a tablet or a computer window: the Library, Queue and album lists get more of the height instead of one row and a lot of wallpaper */
+@media (min-width:600px) and (min-height:760px){
+  .albums-grid-container{max-height:min(430px,var(--room,430px))}
+  .scroll-container-wrapper{max-height:min(470px,calc(var(--room,470px) + 10px))}
+  .playlist-container,.queue-container{max-height:min(430px,calc(var(--room,474px) - 44px))}
+}
+/* landscape Cover Flow (html.cf-land, set by landFlow): the panel spans the screen, the player rows step aside */
+html.cf-land body{padding-top:calc(env(safe-area-inset-top,0px) + 10px)}
+html.cf-land .player-wrapper{max-width:none;padding:12px 16px;gap:10px}
+html.cf-land #player-main,html.cf-land #controls-main{display:none!important}
+html.cf-land .cf-stage{margin:0 -16px}
+html.cf-land .cf-t{font-size:16px}
+html.cf-land .cf-s{font-size:13px}
 </style>
 </head>
 <body>
@@ -835,7 +904,7 @@ html.desk-float .upd-pill:not([hidden]){position:fixed;top:23px;right:112px;box-
   <div class="track-info-container" id="player-main" style="display:none;">
     <canvas class="art-bloom" id="art-bloom" width="160" height="160"></canvas>
     <canvas class="art-light" id="art-light" width="128" height="128"></canvas>
-    <div class="album-art" id="album-art-box"><div class="art-clip">
+    <div class="album-art" id="album-art-box" role="button" tabindex="0" aria-label="Open the big player"><div class="art-clip">
       <svg id="fallback-art" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
       <img id="track-art-img" style="display:none;">
       <i class="g g-refr" aria-hidden="true"></i><i class="g g-shade" aria-hidden="true"></i><i class="g g-spec" aria-hidden="true"></i><i class="g g-streak" aria-hidden="true"></i><i class="g g-glow" aria-hidden="true"></i><i class="g g-rim" aria-hidden="true"></i>
@@ -849,16 +918,16 @@ html.desk-float .upd-pill:not([hidden]){position:fixed;top:23px;right:112px;box-
   <div class="progress-container" id="controls-main" style="display:none;">
     <div class="controls-cluster">
       <button class="player-btn" id="prev-btn" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
-      <button class="player-btn" id="play-btn" aria-label="Play / hold for shuffle"><svg class="pb-icon" id="pb-icon" viewBox="0 0 24 24"><path id="pb-path" d="M8 5L13.5 8.5L13.5 15.5L8 19ZM13.5 8.5L19 12L19 12L13.5 15.5Z"/></svg><i class="pb-shine" id="pb-shine" aria-hidden="true"><i class="pb-comet"></i><i class="pb-face"></i></i><i class="pb-hold" id="pb-hold" aria-hidden="true"></i></button>
-      <button class="player-btn" id="skip-btn"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+      <button class="player-btn" id="play-btn" aria-label="Play (hold to shuffle)"><svg class="pb-icon" id="pb-icon" viewBox="0 0 24 24"><path id="pb-path" d="M8 5L13.5 8.5L13.5 15.5L8 19ZM13.5 8.5L19 12L19 12L13.5 15.5Z"/></svg><i class="pb-shine" id="pb-shine" aria-hidden="true"><i class="pb-comet"></i><i class="pb-face"></i></i><i class="pb-hold" id="pb-hold" aria-hidden="true"></i></button>
+      <button class="player-btn" id="skip-btn" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
     </div>
     <span id="current-time">0:00</span>
-    <div class="custom-range-slider" id="progress-slider"><div class="slider-fill"></div><div class="slider-thumb"></div></div>
+    <div class="custom-range-slider" id="progress-slider" role="slider" tabindex="0" aria-label="Position in the song" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="slider-fill"></div><div class="slider-thumb"></div></div>
     <span id="total-duration">0:00</span>
   </div>
 
   <div class="player-footer" id="footer-main" style="display:none;">
-    <button class="tab-btn add-btn" id="btn-add">+ Songs</button>
+    <button class="add-btn" id="btn-add" aria-label="Add songs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg><span>Songs</span></button>
     <button class="done-btn" id="edit-done" aria-label="Done">Done</button>
     <div class="tab-buttons">
       <button class="tab-btn" id="btn-queue">Queue</button>
@@ -947,9 +1016,9 @@ html.desk-float .upd-pill:not([hidden]){position:fixed;top:23px;right:112px;box-
   <button class="desk-b" id="desk-min" aria-label="Minimize"><svg viewBox="0 0 24 24"><path d="M5 11h14v2H5z"/></svg></button>
   <button class="desk-b" id="desk-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
 </div>
-<div class="gear-btn" id="gear-trigger">
+<button class="gear-btn" id="gear-trigger" aria-label="Settings" aria-controls="settings-panel" aria-expanded="false">
   <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12c0,0.32,0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.5c-1.93,0-3.5-1.57-3.5-3.5 c0-1.93,1.57-3.5,3.5-3.5s3.5,1.57,3.5,3.5C15.5,13.93,13.93,15.5,12,15.5z"/></svg>
-</div>
+</button>
 <div class="set-ov" id="settings-ov"></div>
 <div class="floating-customizer" id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="set-title">
   <div class="set-head"><h2 id="set-title">Settings</h2><button class="set-x" id="settings-close" aria-label="Close settings"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
@@ -1004,7 +1073,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v41";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v42";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -1184,7 +1253,7 @@ $("settings-close").addEventListener("click", () => { settingsOpen(false); hapti
 document.addEventListener("keydown", e => { if (e.key === "Escape" && settingsPanel.classList.contains("active")) { e.stopImmediatePropagation(); settingsOpen(false); } }, true);
 new MutationObserver(() => {
   const on = settingsPanel.classList.contains("active");
-  settingsOv.classList.toggle("show", on); gearBtn.classList.toggle("on", on);
+  settingsOv.classList.toggle("show", on); gearBtn.classList.toggle("on", on); gearBtn.setAttribute("aria-expanded", String(on));
   settingsPanel.setAttribute("aria-hidden", String(!on)); settingsPanel.inert = !on;
   if (on) settingsPanel.querySelector(".set-body").scrollTop = 0;
 }).observe(settingsPanel, { attributes: true, attributeFilter: ["class"] });
@@ -1204,7 +1273,7 @@ function setupCustomSlider(id, cb, onMove) {
   slider.addEventListener("pointermove", e => { if (dragging) handle(e); });
   slider.addEventListener("pointerup", e => { if (!dragging) return; handle(e); dragging = false; cb(last); });
   slider.addEventListener("pointercancel", () => { dragging = false; });
-  return { setValue: v => { if (!dragging) visual(v * 100); }, get dragging() { return dragging; } };
+  return { setValue: v => { if (!dragging) { visual(v * 100); slider.setAttribute("aria-valuenow", String(Math.round(v * 100))); } }, get dragging() { return dragging; } };
 }
 /* the song's length: the real one once loaded; before that (iPhone loads nothing before Play) the one the server or the
    last session reported, so the scrubber also works before the first Play */
@@ -1216,7 +1285,31 @@ function songLen() {
 const progressCtrl = setupCustomSlider("progress-slider",
   v => { const d = songLen(); if (d) seekTo(v * d); },
   v => { const d = songLen(); if (d) $("current-time").innerText = fmt(v * d); });
-
+/* keyboard (the web version on a computer, and the desktop app): Space plays / pauses, ← → jump 5 s, Shift + ← → change
+   song, M opens the big player; Enter on the focused cover opens it too. Never while typing, or while a menu or Settings is open. */
+const kbFocus = { mouse: true };                                    // was the focus last moved by the mouse / a finger (true) or by Tab (false)?
+document.addEventListener("pointerdown", () => { kbFocus.mouse = true; }, true);
+document.addEventListener("keydown", e => { if (e.key === "Tab") kbFocus.mouse = false; }, true);
+document.addEventListener("keydown", e => {
+  if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || curId == null) return;
+  const tg = e.target, typing = tg.closest && tg.closest("input,textarea,select,[contenteditable]");
+  if (typing || settingsPanel.classList.contains("active") || document.querySelector(".crop-ov,.pl-pop.show")) return;
+  const onCtl = tg.closest && tg.closest("button,[role=button],[role=switch],a");
+  if (e.key === " " || e.code === "Space") {
+    if (onCtl && !kbFocus.mouse) return;                             // a control reached with Tab: Space presses it, as usual
+    e.preventDefault();                                              // a button last clicked with the mouse keeps the focus: Space still plays / pauses,
+    if (onCtl) { onCtl.blur(); document.addEventListener("keyup", u => { if (u.key === " " || u.code === "Space") u.preventDefault(); }, { capture: true, once: true }); }   // and doesn't press that button on release
+    audio.paused ? playTrack() : pauseTrack(); return;
+  }
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+    const fwd = e.key === "ArrowRight";
+    if (e.shiftKey) { e.preventDefault(); fwd ? playNext() : playPrev(); return; }
+    const d = songLen(); if (!d) return;
+    e.preventDefault(); seekTo(Math.max(0, Math.min(d - .25, (audio.currentTime || 0) + (fwd ? 5 : -5)))); syncPos();
+    return;
+  }
+  if ((e.key === "Enter" && tg.id === "album-art-box") || ((e.key === "m" || e.key === "M") && !onCtl)) { if (XP && !XP.expanded) { e.preventDefault(); XP.open(); } }
+});
 /* ---------- LOADING SONGS ---------- */
 function showPlayerUI() { $("drop-zone").style.display = "none"; $("player-main").style.display = "flex"; $("controls-main").style.display = "flex"; $("footer-main").style.display = "flex"; startPulse(); }
 $("drop-zone").addEventListener("click", () => { if (NAT) natImport(); else if (!botMode) $("file-input").click(); });
@@ -1302,7 +1395,9 @@ function fetchAlbumMeta(artist, album) {
 let mbChain = Promise.resolve();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const cleanTitle = s => s.replace(/\s*[\(\[].*?[\)\]]/g, "").replace(/\s-\s.*$/, "").trim();
-const mainArtist = s => s.split(/\s*(?:;|,|&|\bfeat\.|\bft\.)\s*/i)[0].trim();
+/* the lead artist: cut only at clear featuring markers ("feat.", "ft.", "featuring", "with" in brackets) and list separators (";", " / "),
+   never at "&" or ",", which are part of names like "Simon & Garfunkel" or "Earth, Wind & Fire" */
+const mainArtist = s => String(s || "").split(/\s*(?:;|\s\/\s|[([]\s*(?:feat\.?|ft\.?|featuring|with)\s|\s(?:feat\.?|ft\.?|featuring)\s)\s*/i)[0].trim() || String(s || "").trim();
 function refreshNowPlaying() {
   const t = trackById(curId); if (!t) return;
   setCover(t.art || albumCover(t.album));
@@ -1580,7 +1675,8 @@ const flow = (() => {
   function measure() {                                               // cover size from the row's width (the row is hidden while the Library is closed)
     const w = stage.clientWidth || (document.querySelector(".player-wrapper").clientWidth || 380);
     const room = parseFloat(document.querySelector(".player-wrapper").style.getPropertyValue("--room")) || 1e4;   // a short screen: covers small enough to fit under the player
-    const nw = Math.round(Math.max(64, Math.min(150, Math.max(96, w * .34), (room - 72) / 1.3)));
+    const land = document.documentElement.classList.contains("cf-land");   // phone on its side: the row fills the screen
+    const nw = Math.round(Math.max(64, Math.min(land ? 260 : 150, Math.max(96, w * (land ? .3 : .34)), (room - 72) / 1.3)));
     half = w / 2; if (nw !== W) { W = nw; box.style.setProperty("--fw", W + "px"); }
     CG = W * .66; SP = W * .3;                                       // middle -> first side cover, then the step between side covers
   }
@@ -1923,7 +2019,8 @@ document.addEventListener("keydown", e => { if (e.key !== "Escape") return; cons
 
 /* ---- drag to reorder (long-press, then drag) ---- */
 let drag = null, suppressClick = false, editing = false;
-function setEdit(v) { editing = v; $("albums-shelf").classList.toggle("editing", v); $("footer-main").classList.toggle("edit", v); }
+function setEdit(v) { editing = v; $("albums-shelf").classList.toggle("editing", v); $("footer-main").classList.toggle("edit", v); $("edit-done").inert = !v; }
+$("edit-done").inert = true;                                           // hidden until edit mode: kept out of the Tab order
 $("edit-done").addEventListener("click", () => setEdit(false));
 $("albums-grid-wrapper").addEventListener("click", e => { if (editing && (e.target.id === "albums-grid-wrapper" || e.target.id === "albums-shelf")) setEdit(false); });
 function hideAlbum(card, name) {
@@ -2045,6 +2142,23 @@ function itemHTML(art, title, sub) {
   return `<div class="item-art">${art ? `<img src="${art}" alt="">` : noteSvg}</div>
     <div class="item-text"><div class="item-title">${esc(title)}</div><div class="item-artist">${esc(sub)}</div></div>`;
 }
+/* the top of an album page: its cover, name, artist, year and song count, and a button that plays it from the start */
+function albumHead(all, pl, entries) {
+  const own = entries.map(e => e.track).filter(Boolean), h = document.createElement("div"); h.className = "alb-head";
+  const name = all ? "All Tracks" : currentCat ? currentCat.title : albumLabel(currentAlbum);
+  const arts = [...new Set(own.map(t => mainArtist(t.albumArtist || t.artist)).filter(a => a && a !== "Unknown Artist"))];
+  const who = all || pl ? "" : currentCat ? currentCat.artist : arts.length === 1 ? arts[0] : arts.length ? "Various artists" : "";
+  const year = all || pl ? 0 : Math.max(0, ...own.map(t => t.year || 0));
+  const n = own.length, cnt = n === 1 ? "1 song" : n + " songs";
+  const sub = [pl ? "Playlist" : "", who, year ? String(year) : "", cnt].filter(Boolean).join(" · ");
+  const art = all ? null : albumCover(currentAlbum);
+  h.innerHTML = `<div class="alb-art">${art ? `<img src="${esc(art)}" alt="">` : all ? '<svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg>' : noteSvg}</div>
+    <div class="alb-t"><div class="alb-n"></div><div class="alb-s"></div></div>
+    <button class="player-btn alb-play" aria-label="Play ${esc(name)}"${n ? "" : " disabled"}><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>`;
+  h.querySelector(".alb-n").textContent = name; h.querySelector(".alb-s").textContent = sub;
+  h.querySelector(".alb-play").addEventListener("click", () => { if (own.length) { haptic("light"); startContext(shuffle ? own[Math.floor(Math.random() * own.length)].id : own[0].id); } });
+  return h;
+}
 function renderPlaylist() {
   if (swActive) { swLater.add(renderPlaylist); return; }             // a finger is on a row: rebuild once it lets go
   const ui = $("playlist-ui"); ui.innerHTML = "";
@@ -2055,12 +2169,13 @@ function renderPlaylist() {
     : '<div class="artist-note" style="text-align:center;padding:16px">Loading tracks…</div>';
   if (currentCat && !resolving() && !albumEntries(currentAlbum).some(e => e.track)) { const ds = Object.keys(relDebug).filter(n => norm(relDebug[n].split(" · ")[0]) === norm(currentCat.artist)).map(n => n + " → " + relDebug[n].split(" · ").slice(1).join(" · ")); if (ds.length) { const n = document.createElement("div"); n.className = "artist-note"; n.style.fontSize = "10px"; n.textContent = "Matching: " + ds.join(" | "); ui.appendChild(n); } }
   if (currentCat && resolving()) { const n = document.createElement("div"); n.className = "artist-note"; n.textContent = "Checking your library…"; ui.appendChild(n); }
+  ui.prepend(albumHead(all, pl, entries));
   const multi = !all && entries.some(e => e.disc > 1); let lastDisc = null;
   entries.forEach(e => {
     if (multi && e.disc !== lastDisc) { lastDisc = e.disc; const h = document.createElement("div"); h.className = "disc-h"; h.textContent = e.disc >= 99 ? "Also in your files" : "Disc " + e.disc + (e.track && e.track.discName ? " · " + e.track.discName : ""); ui.appendChild(h); }
     const t = e.track, item = document.createElement("div");
     item.className = "playlist-item" + (t ? "" : " missing") + (t && t.id === curId ? " active" : "");
-    const label = (e.num ? e.num + ". " : "") + e.title;
+    const label = (e.num && !all ? e.num + ". " : "") + e.title;    // All Tracks mixes albums: their track numbers would read as a broken list
     if (!t) {
       item.innerHTML = itemHTML(albumCover(currentAlbum), label, "🔒 Not in your library");
       ui.appendChild(item); return;
@@ -2268,7 +2383,7 @@ function swipeHint() {                                               // once eve
     fg.style.transition = bg.style.transition = "transform .5s var(--ease),width .5s var(--ease)";
     fg.style.transform = "translateX(-76px)"; bg.style.width = "76px"; swPaint(row, LIB_STAGES, 1, 76);
     setTimeout(() => swBack(row), 1100);
-    toast("Swipe a song left to queue it, right for more");
+    toast(matchMedia("(pointer:fine)").matches ? "Right-click a song to queue it" : "Swipe a song left to queue it, right for more");
   }, 650);
 }
 
@@ -2310,7 +2425,7 @@ function renderQueue(scrollToNow) {
     up.slice(0, n).forEach((id, i) => { const t = trackById(id); if (t) row(t, "ctx", i, "ctx"); });
     if (up.length > n) note(`Show all ${up.length}`, "q-more q-link", () => { renderQueue.all = true; renderQueue(); });
     else if (ctxList().length) note(repeatMode === "off" ? (up.length ? `Then ${ctx.name} stops` : `${ctx.name} stops after this song`) : up.length ? `Then ${ctx.name} starts again` : `${ctx.name} starts again from the top`, "q-more");
-  } else if (!queue.length) note("Nothing after this song. Swipe a song left in Library to queue it.", "q-empty");
+  } else if (!queue.length) note(matchMedia("(pointer:fine)").matches ? "Nothing after this song. Right-click a song in Library to queue it." : "Nothing after this song. Swipe a song left in Library to queue it.", "q-empty");
   ui.scrollTop = scrollToNow ? nowSec.offsetTop : keep;
 }
 function removeRow(kind, i) {
@@ -2491,6 +2606,7 @@ let curUrl = null;
 /* o.from: where the song came from ("context" | "queue" | "other")
    o.back: going back through History (the song you leave isn't added to History again)
    o.noHist: restoring the last session */
+const timeHold = { on: false, t: 0, stale: "" };                   // see paintTimes
 function loadTrack(id, autoplay, o = {}) {
   const t = trackById(id); if (!t) return;
   glowKick();                                                        // the album glowing as "now playing" may change
@@ -2499,7 +2615,7 @@ function loadTrack(id, autoplay, o = {}) {
   if (curId !== null && curId !== id && curPlayed && !o.back && !o.noHist) pushHistory(curId, nowFrom);
   nowFrom = o.from || "other"; curPlayed = false; pendingSeek = null; badFor = null;
   if (resumeAt && resumeAt.id !== id) resumeAt = null;
-  curId = id;
+  curId = id; timeHold.stale = audio.src;                           // until the new song's source is set, the audio still reports the old one
   if (curUrl) { URL.revokeObjectURL(curUrl); curUrl = null; }
   let later = false;                                                 // true: a bot song is being read from the phone cache, it starts itself
   if (RETRO) RETRO.cur = null;                                        // which version is loaded: set by blobFor when it hands out the old-sounding one
@@ -2509,8 +2625,10 @@ function loadTrack(id, autoplay, o = {}) {
   $("track-artist").innerText = t.artist;
   if (anim) songIn(dir);
   setCover(t.art || albumCover(t.album));
-  progressCtrl.setValue(0);
-  $("current-time").innerText = "0:00"; $("total-duration").innerText = "0:00";
+  clearTimeout(timeHold.t); timeHold.on = false;
+  if (anim) {                                                        // the times and bar keep the old song's until its title has gone, then change with the new title
+    timeHold.on = true; timeHold.t = setTimeout(() => { timeHold.on = false; paintTimes(); }, SONG_OUT);
+  } else paintTimes();
   if (XP) XP.onSong(dir, !!autoplay);                                // the big player's title, album and times
   if (!autoplay) setPlayIcon(false);                                 // autoplay: Play stays as it is, no flicker between songs
   if ("mediaSession" in navigator) {
@@ -2612,15 +2730,23 @@ function playPrev() {
   playId(h.id, back ? "context" : h.from === "queue" ? "queue" : "other", { back: true });
 }
 const fmt = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
+/* the compact times and bar for the loaded song: its length as soon as it's known (never a "0:00" in between) */
+function paintTimes() {
+  if (timeHold.on) return;
+  const stale = !!audio.src && audio.src === timeHold.stale, t = trackById(curId);
+  const d = stale ? (t && t.dur) || 0 : songLen(), at = stale ? 0 : pendingSeek != null ? pendingSeek : (audio.currentTime || 0);
+  if (!progressCtrl.dragging) { progressCtrl.setValue(d ? Math.min(1, at / d) : 0); $("current-time").innerText = fmt(at); }
+  $("total-duration").innerText = d ? fmt(d) : "0:00";
+}
 audio.addEventListener("timeupdate", () => {
-  if (pendingSeek != null) return;                                     // still waiting to jump back to the saved position
+  if (pendingSeek != null || timeHold.on) return;                       // still waiting to jump back to the saved position / the old song's times are leaving
   const d = songLen();                                                  // length not known yet: the reported one
   if (!audio.paused && Date.now() - lastSave > 5000) savePos();          // position survives the app being closed (just the position: cheap)
   if (d) progressCtrl.setValue(Math.min(1, audio.currentTime / d));
   if (!progressCtrl.dragging) $("current-time").innerText = fmt(audio.currentTime);
 });
 function syncPos() { const m = navigator.mediaSession; if (m && m.setPositionState && isFinite(audio.duration)) { try { m.setPositionState({ duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime, audio.duration) }); } catch (e) {} } }
-["loadedmetadata", "durationchange"].forEach(k => audio.addEventListener(k, () => { if (isFinite(audio.duration)) $("total-duration").innerText = fmt(audio.duration); syncPos(); }));
+["loadedmetadata", "durationchange"].forEach(k => audio.addEventListener(k, () => { if (isFinite(audio.duration) && !timeHold.on) $("total-duration").innerText = fmt(audio.duration); syncPos(); }));
 audio.addEventListener("play", () => { curPlayed = true; startPulse(); setPlayIcon(true); if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; syncPos(); });
 audio.addEventListener("pause", () => { if (audio.ended) return; setTimeout(() => { if (audio.paused) setPlayIcon(false); }, 150); if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; syncPos(); });
 audio.addEventListener("seeked", syncPos);
@@ -2633,7 +2759,7 @@ audio.addEventListener("ended", onEnded);
      springs back in once the new artwork is ready, and the cover light flares.
    Web Animations and small rAF loops only; nothing moves with reduced motion turned on. */
 const RM = matchMedia("(prefers-reduced-motion:reduce)").matches;
-const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.done-btn,.gear-btn,.set-pill,.set-x,.q-sec button,.artist-more,.switch,.xp-next-h button,.lyr-close";
+const PRESSABLE = ".player-btn,.tab-btn,.add-btn,.chip,.circle-btn,.back-btn,.done-btn,.gear-btn,.set-pill,.set-x,.q-sec button,.artist-more,.switch,.xp-next-h button,.lyr-close";
 const curScale = el => { const v = parseFloat(getComputedStyle(el).scale); return isFinite(v) ? v : 1; };
 function pressDown(el) {
   if (RM || !el.animate) return;
@@ -2672,6 +2798,7 @@ function setPlayIcon(playing) {
   if (pbState === playing) return; pbState = playing;
   const paths = [$("pb-path"), $("xp-pb-path")].filter(Boolean), setD = d => paths.forEach(p => p.setAttribute("d", d)), to = playing ? 1 : 0; cancelAnimationFrame(pbRaf);
   const xpPlay = $("xp-play"); if (xpPlay) xpPlay.setAttribute("aria-label", playing ? "Pause" : "Play");
+  $("play-btn").setAttribute("aria-label", playing ? "Pause (hold to shuffle)" : "Play (hold to shuffle)");
   if (RM) { pbT = to; setD(pbPath(to)); return; }
   const from = pbT, t0 = performance.now(), D = 420, back = x => 1 + 2.2 * Math.pow(x - 1, 3) + 1.2 * Math.pow(x - 1, 2);
   const step = now => { const x = Math.min(1, (now - t0) / D); pbT = from + (to - from) * back(x); setD(pbPath(pbT)); if (x < 1) pbRaf = requestAnimationFrame(step); else pbT = to; };
@@ -2729,6 +2856,7 @@ $("skip-btn").addEventListener("click", () => { nudge($("skip-btn"), 1); playNex
 
 /* song change. songDir: 1 = Next (and songs that follow on their own), -1 = Previous, 0 = picked from a list */
 let songDir = 0, coverWait = null, flare = 0;
+const SONG_OUT = 170;                                                // ms the old title takes to leave; the new title, times and bar arrive after it
 function songOut(dir) {                                              // before the new title is written: the old one leaves, the cover dips
   const pm = $("player-main"); if (RM || pm.style.display === "none" || !pm.animate || (XP && XP.expanded) || $("xp").classList.contains("show")) return false;   // not while the big player is open or moving
   const tt = pm.querySelector(".track-text"), g = tt.cloneNode(true), dx = dir * 22, dy = dir ? 0 : -10;
@@ -2736,7 +2864,7 @@ function songOut(dir) {                                              // before t
   Object.assign(g.style, { left: tt.offsetLeft + "px", top: tt.offsetTop + "px", width: tt.offsetWidth + "px", height: tt.offsetHeight + "px" });
   pm.appendChild(g);
   g.animate([{ opacity: 1, transform: "none", filter: "blur(0px)" }, { opacity: 0, transform: `translate(${-dx}px,${dy}px)`, filter: "blur(4px)" }],
-    { duration: 240, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" }).onfinish = () => g.remove();
+    { duration: SONG_OUT, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" }).onfinish = () => g.remove();
   const box = $("album-art-box"); box.getAnimations().forEach(a => a.cancel());
   box.animate([{ transform: "none", filter: "brightness(1)" }, { transform: `translateX(${-dx * .5}px) scale(.88)`, filter: "brightness(.72)" }],
     { duration: 210, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
@@ -2750,7 +2878,7 @@ function songIn(dir) {                                               // after: t
   [$("track-title").parentNode, document.querySelector(".artist-row")].forEach((el, i) => {
     el.getAnimations().forEach(a => a.cancel());
     el.animate([{ opacity: 0, transform: `translate(${dx}px,${dy}px)`, filter: "blur(4px)" }, { opacity: 1, transform: "none", filter: "blur(0px)" }],
-      { duration: 560, delay: 110 + i * 70, easing: "cubic-bezier(.22,1,.36,1)", fill: "backwards" });
+      { duration: 480, delay: SONG_OUT + i * 60, easing: "cubic-bezier(.22,1,.36,1)", fill: "backwards" });   // only once the old title has gone: never two at once
   });
 }
 function coverArrived(same) {                                        // called by setCover once the new artwork is on screen (or unchanged)
@@ -3042,16 +3170,39 @@ const viewHost = $("view-host");
 function fitRoom() {
   const w = document.querySelector(".player-wrapper"), pm = $("player-main"); if (pm.style.display === "none") return;
   const vh = window.visualViewport ? visualViewport.height : innerHeight, safeB = $("safe-probe").offsetHeight || 0;
-  const compact = 42 + pm.offsetHeight + $("controls-main").offsetHeight + $("footer-main").offsetHeight + 48 + 15;   // paddings + rows + gaps + the drawer's top line
-  const room = Math.round(vh - Math.max(0, w.getBoundingClientRect().top) - compact - safeB - 12);
+  const land = document.documentElement.classList.contains("cf-land"), cs = getComputedStyle(w);
+  const compact = land ? parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + $("footer-main").offsetHeight + parseFloat(cs.rowGap || 0) + 15   // landscape Cover Flow: only the tabs above the row
+    : 42 + pm.offsetHeight + $("controls-main").offsetHeight + $("footer-main").offsetHeight + 48 + 15;   // paddings + rows + gaps + the drawer's top line
+  // the panel stops above the gear button where the two would overlap (a narrow phone), so the gear never covers a row
+  const wr = w.getBoundingClientRect(), gr = gearBtn.offsetParent && !FLOAT ? gearBtn.getBoundingClientRect() : null;
+  const under = gr && gr.left < wr.right - 4 && gr.right > wr.left + 4 ? Math.max(0, vh - gr.top + 10 - safeB - 12) : 0;
+  const room = Math.round(vh - Math.max(0, wr.top) - compact - safeB - 12 - under);
   w.style.setProperty("--room", Math.max(110, room) + "px");
 }
 addEventListener("resize", fitRoom); if (window.visualViewport) visualViewport.addEventListener("resize", fitRoom);
+/* switching views crossfades: the old view stays where it was (lifted out of the flow) and fades out while the new one
+   fades in, so there is never an empty frame between them */
+let viewFade = null;
+function endViewFade() {
+  const f = viewFade; if (!f) return;
+  const keep = shownView(); viewFade = null;
+  clearTimeout(f.t); if (f.a) f.a.cancel();
+  ["position", "left", "top", "width", "pointerEvents", "zIndex"].forEach(k => { f.el.style[k] = ""; });
+  if (f.el !== keep) f.el.style.display = "none";
+}
+const shownView = () => allWraps.find(w => w.style.display === "block" && !(viewFade && viewFade.el === w));
 function showOnly(el, dir) {
-  fitRoom();
+  fitRoom(); endViewFade();
   const swap = () => { allWraps.forEach(w => { w.style.display = w === el ? "block" : "none"; }); };
   const open = drawerBox.classList.contains("expanded") && el;
-  const h0 = viewHost.offsetHeight; swap();
+  const prev = shownView(), h0 = viewHost.offsetHeight;
+  const ghost = open && prev && prev !== el && !RM && prev.animate ? { el: prev, top: prev.offsetTop, left: prev.offsetLeft, width: prev.offsetWidth } : null;
+  swap();
+  if (ghost) {
+    Object.assign(prev.style, { display: "block", position: "absolute", top: ghost.top + "px", left: ghost.left + "px", width: ghost.width + "px", pointerEvents: "none", zIndex: "0" });
+    ghost.a = prev.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translate(${-(dir || 0) * 12}px,${dir ? 0 : -4}px)` }], { duration: 200, easing: "ease-out", fill: "forwards" });
+    viewFade = ghost; ghost.t = setTimeout(endViewFade, 230);
+  }
   if (!el) return;
   el.style.setProperty("--dx", (dir || 0) * 18 + "px"); el.style.setProperty("--dy", dir ? "0px" : "8px");
   el.classList.remove("v-in"); void el.offsetWidth; el.classList.add("v-in");
@@ -3066,7 +3217,7 @@ function setTab(btn) { [btnQueue, btnPlaylist, btnArtists].forEach(b => b.classL
    the scroll position), so leaving for another tab and coming back lands where you were. Kept for this session only. */
 const tabMemory = new Map();
 function rememberTab() {
-  const b = [btnPlaylist, btnArtists].find(b => b.classList.contains("active")), el = allWraps.find(w => w.style.display === "block");
+  const b = [btnPlaylist, btnArtists].find(b => b.classList.contains("active")), el = shownView();
   if (!b || !el) return;
   const sc = el === playlistWrapper ? $("playlist-ui") : el === artistWrapper ? $("artist-ui") : el;
   tabMemory.set(b, { el, album: currentAlbum, cat: currentCat, origin: albumOrigin, artist: currentArtistName, stack: artistStack.slice(), scroll: sc.scrollTop });
@@ -4401,9 +4552,13 @@ XP = (() => {
   /* Queue strip: cards (cover, title, artist) in play order: played songs (greyed), the current one (lit), then your
      queue (a teal dot) and the rest of the album. Tap a card to play it; hold and drag sideways to reorder (within your
      queue, or within the album), pull a card up to remove it. */
+  let slide = 0;                                                     // the strip gliding to the new song (rAF id)
+  const slideStop = () => { cancelAnimationFrame(slide); slide = 0; };
+  ["pointerdown", "wheel", "touchstart"].forEach(k => strip.addEventListener(k, slideStop, { passive: true }));
   function renderStrip() {
     if (sDrag) { stripDirty = true; return; }
-    stripDirty = false;
+    stripDirty = false; slideStop();
+    const prevNow = renderStrip.now, live = strip.offsetWidth > 0; renderStrip.now = curId;
     strip.innerHTML = "";
     const hist = history.slice(-20), h0 = history.length - hist.length, all = [];
     hist.forEach((h, k) => all.push({ id: h.id, kind: "hist", i: h0 + k }));
@@ -4416,7 +4571,7 @@ XP = (() => {
       const c = document.createElement("div"), a = t.art || albumCover(t.album);
       c.className = "xp-card" + (it.kind === "queue" ? " q" : it.kind === "hist" ? " past" : it.kind === "now" ? " now" : ""); c.dataset.kind = it.kind; c._i = it.i;
       c.innerHTML = `<div class="xp-card-art">${a ? `<img src="${esc(a)}" alt="">` : noteSvg}</div><div class="xp-card-t"><div class="xp-card-title"></div><div class="xp-card-artist"></div></div>`;
-      c.querySelector(".xp-card-title").textContent = t.title; c.querySelector(".xp-card-artist").textContent = t.artist;
+      c.querySelector(".xp-card-title").textContent = t.title; c.querySelector(".xp-card-artist").textContent = t.artist; c._id = it.id;
       if (it.kind === "now") nowEl = c;
       else {
         c.addEventListener("click", () => { if (c._sup) { c._sup = false; return; } playFromQueue(it.kind, it.i); });
@@ -4424,7 +4579,18 @@ XP = (() => {
       }
       strip.appendChild(c);
     });
-    if (nowEl) strip.scrollLeft = Math.max(0, nowEl.offsetLeft - 20 - 46);   // the current song near the left, a bit of the last played one still in view
+    // a title with a word too long for the card goes on one line with "…", instead of breaking inside the word
+    const ts = [...strip.querySelectorAll(".xp-card-title")], over = ts.map(el => el.scrollWidth > el.clientWidth + 1);
+    ts.forEach((el, i) => el.classList.toggle("one", over[i]));
+    if (!nowEl) return;
+    const to = Math.max(0, nowEl.offsetLeft - 20);                   // the current song first, whole; what played before is a swipe to the right
+    const cs = [...strip.children], k = cs.indexOf(nowEl), was = prevNow == null || prevNow === curId ? null
+      : cs[k - 1] && cs[k - 1]._id === prevNow ? cs[k - 1] : cs[k + 1] && cs[k + 1]._id === prevNow ? cs[k + 1] : null;
+    if (!was || !live || RM) { strip.scrollLeft = to; return; }
+    const from = Math.max(0, was.offsetLeft - 20), t0 = performance.now(), D = 420;   // Next / Previous: the strip slides one card along
+    strip.scrollLeft = from;
+    const go = now => { const p = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - p, 3); strip.scrollLeft = from + (to - from) * e; slide = p < 1 ? requestAnimationFrame(go) : 0; };
+    slide = requestAnimationFrame(go);
   }
   function cardGestures(c) {
     c.addEventListener("contextmenu", e => e.preventDefault());
@@ -5942,7 +6108,8 @@ var glowKick = () => {};
     const cs = [...viewHost.querySelectorAll('.album-card[style*="--art"]')].filter(c => c.offsetParent);
     const rects = cs.map(c => c.getBoundingClientRect());
     const sc = cs.length && cs[0].closest(".albums-grid-container,.artist-scroll"), sr = sc ? sc.getBoundingClientRect() : di;
-    const rt = Math.max(sr.top, di.top), rb = Math.max(rt, Math.min(sr.bottom, di.bottom)), H = rb - rt + 2 * M;
+    const fb = !!(sc && sc.classList.contains("fb"));                 // the list fades out at its bottom: so do the glows, inside it
+    const rt = Math.max(sr.top, di.top), rb = Math.max(rt, Math.min(sr.bottom, di.bottom)), H = rb - rt + (fb ? M * .3 : 2 * M);
     const cur = trackById(curId), curAlbum = cur && cur.album;
     // writes
     layer.classList.toggle("on", open); layer.classList.toggle("off", editing);
@@ -5974,6 +6141,44 @@ var glowKick = () => {};
   new ResizeObserver(() => kick(300)).observe(wrap);
   addEventListener("resize", () => kick(300));
   document.addEventListener("visibilitychange", () => kick(900));
+})();
+/* landscape Cover Flow: a phone turned on its side with the Library open as Cover Flow shows just the row of covers, big,
+   across the whole screen (the tabs stay on top to leave it); turning the phone back brings the player back */
+(function landFlow() {
+  const H = document.documentElement, coarse = matchMedia("(pointer:coarse)");
+  const sync = () => {
+    const on = !FLOAT && coarse.matches && innerWidth > innerHeight && innerHeight < 560 && flowOn() && albumsGridWrapper.style.display === "block"
+      && drawerBox.classList.contains("expanded") && !(XP && XP.expanded);
+    if (on === H.classList.contains("cf-land")) return;
+    H.classList.toggle("cf-land", on); fitRoom(); flow.render();
+  };
+  addEventListener("resize", () => setTimeout(sync, 0));
+  const mo = new MutationObserver(sync);
+  mo.observe(albumsGridWrapper, { attributes: true, attributeFilter: ["style"] });
+  mo.observe(drawerBox, { attributes: true, attributeFilter: ["class"] });
+  mo.observe($("flow-switch"), { attributes: true, attributeFilter: ["aria-checked"] });
+  mo.observe(document.querySelector(".player-wrapper"), { attributes: true, attributeFilter: ["class"] });
+})();
+/* edge fades: each scrolling list fades out at the top once it's scrolled, and at the bottom while there's more below */
+(function edgeFade() {
+  const els = ["albums-grid-wrapper", "artists-wrapper", "playlist-ui", "queue-ui", "artist-ui", "hidden-list"].map($).filter(Boolean);
+  const upd = el => {
+    const max = el.scrollHeight - el.clientHeight, h = el.clientHeight;
+    if (h && h !== el._fh) { el._fh = h; el.style.setProperty("--fbs", (h < 170 ? 8 : Math.round(Math.min(40, h * .14))) + "px"); el.style.setProperty("--fts", (h < 170 ? 6 : Math.round(Math.min(30, h * .1))) + "px"); }   // a short list (a phone on its side) fades less
+    el.classList.toggle("ft", max > 2 && el.scrollTop > 2);
+    const pad = parseFloat(getComputedStyle(el.lastElementChild || el).paddingBottom) || 0;   // a grid's empty padding below the last row hides nothing
+    el.classList.toggle("fb", max > pad + 2 && el.scrollTop < max - pad - 2);
+  };
+  let q = new Set(), raf = 0;
+  const later = el => { q.add(el); if (!raf) raf = requestAnimationFrame(() => { raf = 0; const a = [...q]; q.clear(); a.forEach(upd); }); };
+  const ro = new ResizeObserver(es => es.forEach(e => later(e.target.closest(".efade") || e.target)));
+  els.forEach(el => {
+    el.classList.add("efade");
+    el.addEventListener("scroll", () => later(el), { passive: true });
+    ro.observe(el);
+    new MutationObserver(() => { later(el); [...el.children].forEach(c => ro.observe(c)); }).observe(el, { childList: true, subtree: true });
+    [...el.children].forEach(c => ro.observe(c));
+  });
 })();
 /* cover light colours: cluster the artwork into hue buckets, score them for how good they look as a glow, then correct the winner.
    Also measures how bright the artwork is, so the glass reflections read equally well on dark and light covers. */
