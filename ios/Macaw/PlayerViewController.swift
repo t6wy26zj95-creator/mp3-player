@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 ///   { cmd: "import" }                  show the Files picker and copy the chosen songs in
 ///   { cmd: "art", n: path, b64: ... }  keep a song's cover (read from its tags by the page)
 ///   { cmd: "chunk", id, n, b64 }       a piece of a song the page downloaded from the Telegram bot (n = 0, 1, 2...)
+///   { cmd: "drop", id }                that download failed: throw its pieces away
 ///   { cmd: "save", id, name }          that song is complete: put it at name, then call natDownloaded(id, path, ok, problem)
 ///   { cmd: "delete", n: path }         remove a song downloaded from the bot
 ///   { cmd: "open", url }               open a link in another app (Telegram)
@@ -101,6 +102,9 @@ final class PlayerViewController: UIViewController, WKScriptMessageHandler, WKUI
                 do { rel = try Library.shared.finishPieces(id, as: name) } catch { problem = "couldn't save it: \(error.localizedDescription)" }
                 DispatchQueue.main.async { self?.callPage("natDownloaded", id, rel ?? "", rel != nil, problem) }
             }
+        case "drop":
+            guard let id = body["id"] as? String else { return }
+            incoming.async { Library.shared.dropPieces(id) }
         case "delete":
             guard let rel = body["n"] as? String else { return }
             DispatchQueue.global(qos: .utility).async { Library.shared.deleteDownloaded(rel) }

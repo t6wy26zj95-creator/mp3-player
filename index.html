@@ -1071,7 +1071,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v44";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v45";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -5311,7 +5311,7 @@ async function tgSync() {
       if (TGL.done[x.id] || TGL.waiting.has(x.id)) continue;
       const name = tgSafe((x.artist ? x.artist + " - " : "") + (x.title || "Song")) + (TG_EXT[String(x.mime || "").toLowerCase()] || ".mp3");
       TGL.waiting.set(x.id, 1);
-      tgQueue({ id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name });
+      tgQueue({ id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name, title: x.title });
     }
     for (const id of Object.keys(TGL.done)) if (!seen.has(id)) { natSend({ cmd: "delete", n: TGL.done[id] }); delete TGL.done[id]; gone++; }
     if (gone) { store.set("tgDone", JSON.stringify(TGL.done)); setTimeout(natSync, 300); }
@@ -5319,25 +5319,56 @@ async function tgSync() {
   } catch (e) { TGL.err = "couldn't reach your music server (" + (e && e.name === "AbortError" ? "no answer" : e.message || e) + ")"; tgLinkUI(); }
   finally { TGL.busy = false; }
 }
-/* Downloads go through the page (the same connection that lists your songs), two at a time. Each song is handed to
-   the app in 2 MB pieces ("chunk"), then "save" puts it in the Telegram folder and the app calls natDownloaded. */
+/* Downloads go through the page (the same connection that lists your songs), two at a time. Each song is fetched in
+   2 MB pieces (byte ranges), so no single request runs long enough for a proxy or iOS to cut it off, and a piece that
+   fails is tried again (up to 4 times). Each piece goes to the app ("chunk"), then "save" puts the song in the Telegram
+   folder and the app calls natDownloaded. If the app was in the background, iOS cuts connections: that isn't counted
+   as a problem, the song just waits until the app is open again. */
 const TGQ = []; let tgActive = 0;
 function tgQueue(job) { TGQ.push(job); tgPump(); }
 function tgPump() {
-  while (tgActive < 2 && TGQ.length) { const job = TGQ.shift(); tgActive++; tgFetch(job).finally(() => { tgActive--; tgPump(); }); }
+  while (tgActive < 2 && TGQ.length && !document.hidden) { const job = TGQ.shift(); tgActive++; tgFetch(job).finally(() => { tgActive--; tgPump(); }); }
 }
-async function tgFetch({ id, url, name }) {
-  let err;
+document.addEventListener("visibilitychange", tgPump);
+const TG_PIECE = 2 * 1024 * 1024;
+async function tgPiece(url, from, ms) {                              // one byte range; returns { buf, total }
+  let last;
+  for (let i = 0; i < 4; i++) {
+    if (i) await sleep(1500 * i);
+    if (document.hidden) throw Object.assign(new Error("app in background"), { bg: true });
+    try {
+      const r = await fetchT(url, { headers: { Range: `bytes=${from}-${from + TG_PIECE - 1}` }, cache: "no-store" }, ms);
+      if (!r.ok) { let m = ""; try { m = (await r.json()).error || ""; } catch (e) {} const e = new Error("the server answered " + r.status + (m ? ": " + m : "")); e.final = r.status < 500; throw e; }
+      const buf = new Uint8Array(await r.arrayBuffer());
+      const cr = /\/(\d+)$/.exec(r.headers.get("Content-Range") || "");
+      return { buf, total: r.status === 206 && cr ? +cr[1] : buf.length, whole: r.status === 200 };
+    } catch (e) {
+      if (document.hidden) throw Object.assign(new Error("app in background"), { bg: true });
+      last = e; if (e.final) break;
+    }
+  }
+  throw last;
+}
+async function tgFetch({ id, url, name, title }) {
+  let err, at = 0;
   try {
-    const r = await fetchT(url, {}, 300000);                         // the server may first have to get a big song from Telegram
-    if (!r.ok) { let m = ""; try { m = (await r.json()).error || ""; } catch (e) {} throw new Error("the server answered " + r.status + (m ? ": " + m : "")); }
-    const b = await r.blob();
-    if (!b.size) throw new Error("the song was empty");
-    const CH = 2 * 1024 * 1024;
-    for (let i = 0, n = 0; i < b.size; i += CH, n++) natSend({ cmd: "chunk", id, n, b64: natB64(new Uint8Array(await b.slice(i, i + CH).arrayBuffer())) });
+    let total = Infinity, n = 0;
+    while (at < total) {
+      const p = await tgPiece(url, at, at ? 60000 : 300000);          // the first piece may wait while the server gets a big song from Telegram
+      if (!p.buf.length) throw new Error("the song was empty");
+      if (p.whole && at) throw new Error("the server sent the whole song again");
+      total = p.whole ? p.buf.length : p.total;
+      for (let i = 0; i < p.buf.length; i += TG_PIECE, n++) natSend({ cmd: "chunk", id, n, b64: natB64(p.buf.subarray(i, i + TG_PIECE)) });
+      at += p.buf.length;
+    }
     natSend({ cmd: "save", id, name });
     return;
-  } catch (e) { err = e && e.name === "AbortError" ? "no answer from the server" : (e && e.message) || String(e); }
+  } catch (e) {
+    if (e && e.bg) { natSend({ cmd: "drop", id }); TGL.waiting.delete(id); TGL.version = -1; tgLinkUI(); return; }   // tried again when the app is open
+    const why = e && e.name === "AbortError" ? "no answer from the server" : (e && e.message) || String(e);
+    err = `"${title || name.split("/").pop()}": ${why}` + (at ? ` after ${(at / 1048576).toFixed(1)} MB` : " before any of it arrived");
+  }
+  natSend({ cmd: "drop", id });
   window.natDownloaded(id, "", false, err);
 }
 window.natDownloaded = (id, rel, ok, err) => {                       // the app calls this when a download finished (ok) or failed (err says why)

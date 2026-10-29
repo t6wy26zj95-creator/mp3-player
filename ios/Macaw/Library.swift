@@ -97,6 +97,7 @@ final class Library {
         _ = try? h.seekToEnd()
         try? h.write(contentsOf: data)
     }
+    func dropPieces(_ id: String) { try? fm.removeItem(at: pieceFile(id)) }
     func finishPieces(_ id: String, as rel: String) throws -> String {
         let file = pieceFile(id)
         guard fm.fileExists(atPath: file.path) else { throw CocoaError(.fileNoSuchFile) }
