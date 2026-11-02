@@ -416,6 +416,7 @@ async function onMessage(m) {
   if (/^\/invite\b/.test(text)) return uid === db.owner ? invite(m) : reply(m, "Only the bot's owner can invite people.");
   if (/^\/users\b/.test(text)) return uid === db.owner ? usersList(m.chat.id) : reply(m, "Only the bot's owner can see that.");
   const a = audioOf(m);
+  if (!a && m.via_bot && m.via_bot.username === BOT_NAME) return sendPicked(m);
   if (!a) { if (text && !text.startsWith("/")) await reply(m, "Send or forward audio files here and they appear in your player."); return; }
   const uniq = a.file_unique_id, id = trackKey(uid, uniq);
   if (byId(id)) { await react(m, "👌"); return; }                           // already in this person's library
@@ -440,6 +441,50 @@ async function onMessage(m) {
     catch (e) { console.error("ingest", t.title, e.message); await react(m, "🤷"); }   // stays in the library under Telegram's title; the file is fetched again when played
   });
 }
+/* ---------- search: type @<bot> and a song name ----------
+   Lists songs from your own library (cover, title, "Artist: …", "Album: …"). In the bot's own chat, picking one posts
+   its name and the bot answers with the song. In any other chat the song itself is sent. Turn it on once in
+   @BotFather: /setinline, pick this bot, type a placeholder like "Search your music…". */
+const fold = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
+const picked = new Map();                                                 // "uid|text" -> track id, for the bot-chat flow, kept 10 minutes
+async function onInline(q) {
+  const uid = q.from.id, none = () => tg("answerInlineQuery", { inline_query_id: q.id, results: [], cache_time: 5, is_personal: true }).catch(() => {});
+  if (!isMember(uid)) return none();
+  const words = fold(q.query).split(" ").filter(Boolean), off = +q.offset || 0;
+  const mine = db.tracks.filter(t => t.uid === uid && t.fileId);
+  let hits;
+  if (!words.length) hits = mine.slice().sort((a, b) => b.added - a.added);
+  else {
+    hits = [];
+    for (const t of mine) {
+      const ti = fold(t.title), all = ` ${ti} ${fold(t.artist)} ${fold(t.albumArtist)} ${fold(t.album)} `;
+      if (!words.every(w => all.includes(" " + w))) continue;               // every word starts a word somewhere
+      const q1 = words.join(" "); hits.push([t, ti === q1 ? 0 : ti.startsWith(q1) ? 1 : ti.includes(q1) ? 2 : 3]);
+    }
+    hits = hits.sort((a, b) => a[1] - b[1] || a[0].title.localeCompare(b[0].title)).map(x => x[0]);
+  }
+  const page = hits.slice(off, off + 50), tok = makeToken(uid);
+  const host = (process.env.PUBLIC_URL || (process.env.DOMAIN ? "https://" + process.env.DOMAIN.trim() : "")).trim().replace(/\/+$/, "");   // where Telegram fetches covers from
+  const now = Date.now(); for (const [k, v] of picked) if (v.exp < now) picked.delete(k);
+  const results = page.map(t => {
+    const who = t.artist || "Unknown artist", label = `${t.title} — ${who}`;
+    if (q.chat_type !== "sender") return { type: "audio", id: t.id.slice(0, 64), audio_file_id: t.fileId };
+    picked.set(uid + "|" + label, { id: t.id, exp: now + 10 * 60e3 });
+    const r = { type: "article", id: t.id.slice(0, 64), title: t.title, description: `Artist: ${who}\nAlbum: ${t.album || "—"}`,
+      input_message_content: { message_text: label } };
+    if (host && t.cover) Object.assign(r, { thumbnail_url: `${host}/api/cover/${t.id}?t=${tok}`, thumbnail_width: 160, thumbnail_height: 160 });
+    return r;
+  });
+  await tg("answerInlineQuery", { inline_query_id: q.id, results, cache_time: 5, is_personal: true,
+    next_offset: hits.length > off + 50 ? String(off + 50) : "" }).catch(e => console.error("inline", e.message));
+}
+async function sendPicked(m) {                                            // a song picked from the search in the bot's own chat
+  const p = picked.get(m.from.id + "|" + (m.text || "").trim()), t = p && byId(p.id);
+  if (!t || t.uid !== m.from.id) return reply(m, "That song isn't in your library any more.");
+  await tg("sendAudio", { chat_id: m.chat.id, audio: t.fileId, reply_parameters: { message_id: m.message_id, allow_sending_without_reply: true } })
+    .catch(e => { console.error("send", e.message); return reply(m, "Couldn't send that song, try again."); });
+}
+
 /* ---------- the iOS app (MacawP3) ----------
    The app can't sign in through Telegram like the Mini App does, so it links once: Settings > Link Telegram asks the
    server for a code (POST /api/link), opens t.me/<bot>?start=app_<code>, you press Start, and the app picks up a key
@@ -464,7 +509,7 @@ async function linkApp(m, code) {
 const appUser = key => { const a = key && db.appKeys[key]; return a && isMember(a.uid) ? a.uid : null; };
 async function welcome(m) {
   const n = songsOf(m.from.id);
-  await say(m.chat.id, `Your music library 🎧\n\nSend or forward audio files here and they show up in the player (${n} song${n === 1 ? "" : "s"} so far).\n\nTo take a song out, reply /remove to it.` +
+  await say(m.chat.id, `Your music library 🎧\n\nSend or forward audio files here and they show up in the player (${n} song${n === 1 ? "" : "s"} so far).\n\nTo find a song, type @${BOT_NAME} and its name.\nTo take a song out, reply /remove to it.` +
     (m.from.id === db.owner ? "\n\nTo let a friend in, send /invite. /users shows who has access." : ""), openButton());
 }
 async function joinWithInvite(m, code) {
@@ -543,10 +588,10 @@ async function poll() {
   await setCommands();
   for (;;) {
     try {
-      const ups = await tg("getUpdates", { offset: db.offset, timeout: 50, allowed_updates: ["message", "callback_query"] });
+      const ups = await tg("getUpdates", { offset: db.offset, timeout: 50, allowed_updates: ["message", "callback_query", "inline_query"] });
       for (const u of ups) {
         db.offset = u.update_id + 1;
-        try { if (u.message) await onMessage(u.message); else if (u.callback_query) await onCallback(u.callback_query); } catch (e) { console.error("update", e.message); }
+        try { if (u.message) await onMessage(u.message); else if (u.callback_query) await onCallback(u.callback_query); else if (u.inline_query) await onInline(u.inline_query); } catch (e) { console.error("update", e.message); }
       }
       if (ups.length) save();
     } catch (e) { console.error("poll", e.message); await sleep(e.retry ? e.retry * 1000 : 5000); }
@@ -617,8 +662,8 @@ http.createServer(async (req, res) => {
     if (p === "/" || p === "/health") { res.writeHead(200, { ...CORS, "Content-Type": "text/plain" }); return res.end("macaw player server: ok\n"); }
     if (p === "/api/library" && req.method === "GET") {
       const uid = member(req, res); if (uid == null) return;
-      if (+url.searchParams.get("since") === db.version) return json(res, 200, { version: db.version, same: true });
-      return json(res, 200, { version: db.version, token: makeToken(uid), tracks: db.tracks.filter(t => t.uid === uid).map(pub) });
+      if (+url.searchParams.get("since") === db.version) return json(res, 200, { version: db.version, same: true, bot: BOT_NAME });
+      return json(res, 200, { version: db.version, bot: BOT_NAME, token: makeToken(uid), tracks: db.tracks.filter(t => t.uid === uid).map(pub) });
     }
     if (p === "/api/link" && req.method === "POST") {                   // the app starts linking
       if (!BOT_NAME) return json(res, 503, { error: "the bot is still starting, try again in a minute" });
