@@ -976,10 +976,17 @@ async def find(req):
     if not client: return err("log in under Settings > Song search", 409, manual=True)
     clean = re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip() or title
     async with locks.setdefault(uid, asyncio.Lock()):
-        found, problem = [], None
-        for q in dict.fromkeys([f"{artist} {clean}".strip(), clean]):    # artist + title first; the title alone if that finds nothing
+        # Music bots' search is quirky: "the sundays your eyes" may not list the song at all while "the sundays your ey" puts
+        # it first. So try a few phrasings, like a person would, and stop as soon as one gives an exact match.
+        bare = re.sub(r"(?i)^the\s+", "", artist)
+        queries = [f"{artist} {clean}", f'artist:"{artist}" track:"{clean}"', f"{clean} {artist}", f"{bare} {clean}", clean]
+        if len(clean) > 5: queries.append(f"{artist} {clean[:-2]}")
+        queries = [q.strip() for q in dict.fromkeys(queries) if q.strip() and (artist or q == clean)]
+        pool, seen, problem, answered = [], set(), None, False
+        for q in queries:
+            got = None
             for i in range(4):                                 # music bots are often slow to answer the first time: ask again
-                try: found = await client.inline_query(bot, q, entity=target); problem = None; break
+                try: got = await client.inline_query(bot, q, entity=target); problem = None; break
                 except errors.FloodWaitError as e:
                     problem = e
                     if e.seconds > 30: break
@@ -987,15 +994,22 @@ async def find(req):
                 except Exception as e:
                     problem = e; print(f"[{uid}] @{bot} '{q}' try {i + 1}: {type(e).__name__}: {e}", flush=True)
                     await asyncio.sleep(2 + 2 * i)
-            if found: break
-        if not found:
-            if problem: return err(f"@{bot} didn't answer ({type(problem).__name__}). Try again in a minute", 502)
+            if got is None: continue
+            answered = True
+            for r in got:
+                key = (r.title, r.description, r.id if hasattr(r, "id") else None)
+                if key not in seen: seen.add(key); pool.append(r)
+            top_now = max((score(r, artist, title, album)[0] for r in got), default=0)
+            print(f"[{uid}] '{q}': {len(got)} results, best {top_now:.0f}", flush=True)
+            if top_now >= 80: break
+        if not pool:
+            if problem and not answered: return err(f"@{bot} didn't answer ({type(problem).__name__}). Try again in a minute", 502)
             return err(f"@{bot} found nothing", 404)
-        ranked = sorted(((score(r, artist, title, album), r) for r in found), key=lambda x: -x[0][0])
+        ranked = sorted(((score(r, artist, title, album), r) for r in pool), key=lambda x: -x[0][0])
         (best, got_title, got_artist), r = ranked[0]
         top = [{"title": t, "artist": a, "score": round(s)} for (s, t, a), _ in ranked[:5]]
         print(f"[{uid}] {artist} - {title}: best {got_artist} - {got_title} ({best:.0f})", flush=True)
-        if best < 55: return err("no exact match" + (f" (closest: {top[0]['artist']} – {top[0]['title']})" if top and top[0]['title'] else ""), 404, candidates=top)
+        if best < 55: return err("no exact match in @" + bot, 404, candidates=top)
         try: msg = await r.click(target)
         except Exception as e: return err(f"couldn't send the result: {e}", 502)
         if not is_audio_msg(msg):                          # some music bots send a placeholder first and put the song in later
