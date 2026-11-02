@@ -179,7 +179,12 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
 .playlist-item,.queue-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:12px;cursor:pointer;gap:10px}
 .playlist-item:active,.queue-item:active{background:rgba(255,255,255,.08)}
-.playlist-item.missing{opacity:.35;cursor:default}
+.playlist-item.missing{cursor:default}
+.playlist-item.missing>:not(.miss-add){opacity:.35}
+.miss-add{flex:none;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:inherit;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.miss-add svg{width:18px;height:18px;fill:currentColor}
+.miss-add:active{background:rgba(255,255,255,.22)}
+.miss-add.busy{opacity:.4;pointer-events:none}
 .playlist-item.missing:active{background:none}
 .playlist-item.active{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.1)}
 .item-art{width:28px;height:28px;border-radius:6px;background:rgba(255,255,255,.05);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1)}
@@ -1071,7 +1076,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v47";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v48";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -1091,7 +1096,7 @@ const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
 /* Each write to Telegram's storage is a round trip through the app, so a key is sent at most once per its delay (the
    latest value wins), and whatever is still waiting is sent straight away when the app is hidden or closed. The play
    position changes every few seconds while you listen: it goes at most every 30 s (and on pause / hide). */
-const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName", "libView"], mirrorT = {}, mirrorV = {};
+const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName", "libView", "slotLinks"], mirrorT = {}, mirrorV = {};
 const MIRROR_DELAY = { playState: 3000, playPos: 30000, artistCache: 5000, releaseMap2: 5000 };
 function mirrorSend(k) { clearTimeout(mirrorT[k]); delete mirrorT[k]; if (!(k in mirrorV)) return; const v = mirrorV[k]; delete mirrorV[k]; try { tgStore.setItem(k, v); } catch (e) {} }
 function mirrorFlush() { Object.keys(mirrorV).forEach(mirrorSend); }
@@ -1587,7 +1592,7 @@ function albumCover(name) {
   if (tileCovers[coverKey(name)]) return tileCovers[coverKey(name)];
   const pl = plOf(name); if (pl) { const t = plTracks(pl).find(t => t.art || albumCover(t.album)); return t ? t.art || albumCover(t.album) : null; }
   if (currentCat && name === currentCat.key) return currentCat.cover; const t = tracks.find(t => t.album === name && t.art); return t ? t.art : (albumMeta[name] && albumMeta[name].cover) || null; }
-function albumEntries(name) {
+function albumEntriesRaw(name) {
   const pl = plOf(name); if (pl) return plTracks(pl).map(t => ({ track: t, title: t.title, num: 0, disc: 1 }));
   if (currentCat && name === currentCat.key) return catEntries(currentCat);
   const rid = albumRelease[name];
@@ -1604,6 +1609,90 @@ function albumEntries(name) {
   if (agree / local.length < 0.6) return plain();                  // Last.fm list looks like a different edition
   const byNum = new Map(local.map(t => [t.num, t]));
   return meta.tracks.map((n, i) => { const t = byNum.get(i + 1); return { track: t || null, title: t ? t.title : n, num: i + 1, disc: 1 }; });
+}
+function albumEntries(name) { return fillMissing(name, albumEntriesRaw(name)); }
+
+/* ---------- MISSING SONGS ----------
+   Greyed rows are songs an album has that you don't have in that album. A row lights up by itself when the same song
+   (same artist, same title, same version) is anywhere in your library, e.g. on a single or a best-of, including songs
+   that reach the bot later. The + on a grey row looks harder (ignores "Remastered", "feat.", accents, small spelling
+   differences) and links the closest song; hold the row and pick "Not this song" to undo. If nothing fits, the + offers
+   to copy the name and open the bot below. */
+const MISSING_BOT_URL = "";                              // the bot the + opens when a song isn't in your library ("" = our own bot)
+const MISSING_BOT_TEXT = "{artist} {title}";             // the text copied for you to paste there; {artist} and {title} are filled in
+let slotLinks = {}; try { slotLinks = JSON.parse(store.get("slotLinks") || "{}") || {}; } catch (e) {}
+const saveSlots = () => store.set("slotLinks", JSON.stringify(slotLinks));
+const slotKey = (album, e) => [norm(album), e.disc || 1, e.num || 0, norm(e.title)].join("|");
+const trackSig = t => [norm(t.artist), norm(t.title), norm(t.album)].join("|");
+const fz = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+  .replace(/\s+-\s+(?:\d{4}\s+)?(?:remaster|mono|stereo|single|radio|edit|version|mix|bonus|from ).*$/, "")
+  .replace(/[\(\[][^\)\]]*(?:remaster|feat|ft\.|with |version|edit|mono|stereo|deluxe|bonus|single|from )[^\)\]]*[\)\]]/g, "")
+  .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
+function fzSim(a, b) {                                               // 0..1: shared words, or one name inside the other
+  if (!a || !b) return 0; if (a === b) return 1;
+  const A = a.split(" "), bs = new Set(b.split(" ")), dice = 2 * A.filter(w => bs.has(w)).length / (A.length + bs.size);
+  const x = a.replace(/ /g, ""), y = b.replace(/ /g, "");
+  return Math.max(dice, x.includes(y) || y.includes(x) ? Math.min(x.length, y.length) / Math.max(x.length, y.length) : 0);
+}
+let mTIdx = null, mTKey = "";
+function titleIndex() {                                              // songs by plain title, rebuilt when the library changes
+  const k = tracks.length + ":" + uid; if (k === mTKey) return mTIdx;
+  mTKey = k; mTIdx = new Map();
+  tracks.forEach(t => { const n = norm(cleanTitle(t.title)); if (!mTIdx.has(n)) mTIdx.set(n, []); mTIdx.get(n).push(t); });
+  return mTIdx;
+}
+/* the library song that best fits artist + title, or null. strict: same title and artist (used for lighting rows up by
+   itself); otherwise close enough (used by the +). A live / demo / acoustic... version only matches the same version. */
+function findInLibrary(artist, title, opt = {}) {
+  const fa = fz(mainArtist(artist)), ver = verOf(title), skip = opt.skip || new Set(), ft = fz(title);
+  const pool = opt.strict ? titleIndex().get(norm(cleanTitle(title))) || [] : tracks;
+  let best = null, bs = 0;
+  for (const t of pool) {
+    if (skip.has(t.id) || verOf(t.title) !== ver) continue;
+    const ts = opt.strict ? 1 : fzSim(fz(t.title), ft); if (ts < .8) continue;
+    const as = !fa ? (opt.strict ? 0 : .5) : Math.max(fzSim(fz(mainArtist(t.albumArtist || t.artist)), fa), fzSim(fz(mainArtist(t.artist)), fa), (" " + fz(t.artist) + " ").includes(" " + fa + " ") ? .9 : 0);
+    if (as < (opt.strict ? .9 : .6)) continue;
+    const sc = ts * .7 + as * .3; if (sc > bs) { bs = sc; best = t; }
+  }
+  return best;
+}
+function albumArtistOf(name) {
+  if (currentCat && name === currentCat.key) return currentCat.artist || "";
+  const t = tracks.find(t => t.album === name); return t ? mainArtist(t.albumArtist || t.artist) : "";
+}
+function fillMissing(name, entries) {                                // grey rows take a song from elsewhere in the library when it fits
+  if (!entries.some(e => !e.track)) return entries;
+  const artist = albumArtistOf(name), used = new Set(entries.filter(e => e.track).map(e => e.track.id));
+  return entries.map(e => {
+    if (e.track) return e;
+    const k = slotKey(name, e), sig = slotLinks[k];
+    let t = sig ? tracks.find(x => !used.has(x.id) && trackSig(x) === sig) || null : null;
+    if (!t && sig !== "") t = findInLibrary(e.artist || artist, e.title, { strict: true, skip: used });
+    if (!t) return { ...e, slot: k, artist: e.artist || artist };
+    used.add(t.id); return { ...e, track: t, slot: k, linked: true };
+  });
+}
+function missingAdd(e, btn) {                                        // the + on a grey row
+  haptic("light");
+  const used = new Set(albumEntries(currentAlbum).filter(x => x.track).map(x => x.track.id));
+  const t = findInLibrary(e.artist, e.title, { skip: used });
+  if (t) {
+    slotLinks[e.slot] = trackSig(t); saveSlots(); renderPlaylist();
+    toast(`Found “${t.title}”${t.album !== currentAlbum ? " on " + t.album : ""}`); return;
+  }
+  const text = MISSING_BOT_TEXT.replace(/\{artist\}/g, e.artist || "").replace(/\{title\}/g, e.title).replace(/\s+/g, " ").trim();
+  const bot = MISSING_BOT_URL || (store.get("tgBot") ? "https://t.me/" + store.get("tgBot") : "");
+  plMenu(btn, ({ el, item }) => {
+    const h = document.createElement("div"); h.className = "pl-h"; h.textContent = "Not in your library yet"; el.appendChild(h);
+    const copy = () => { try { navigator.clipboard.writeText(text).catch(() => {}); } catch (x) {} };
+    item("Copy the name", ICON_COPY, () => { plPopClose(); copy(); toast("Copied"); });
+    if (bot) item("Copy and open the bot", ICON_ADD, () => { plPopClose(); copy(); openExternal(bot); });
+  });
+}
+function openExternal(url) {
+  if (NAT) natSend({ cmd: "open", url });
+  else if (TG && /^https:\/\/t\.me\//.test(url) && TG.openTelegramLink) TG.openTelegramLink(url);
+  else window.open(url, "_blank");
 }
 function contextList() { return currentAlbum === "All Tracks" ? tracks : albumEntries(currentAlbum).filter(e => e.track).map(e => e.track); }
 
@@ -1903,7 +1992,7 @@ function newPlaylist(name, keys) {
   const p = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: name || "My playlist " + (playlists.length + 1), keys };
   playlists.push(p); savePl(); return p;
 }
-function songMenu(t, row) {
+function songMenu(t, row, slot) {
   if (!t) return;
   const k = tkey(t), here = plOf(currentAlbum) && playlistWrapper.style.display === "block" ? plOf(currentAlbum) : null;
   plMenu(row, ({ el, item, sep, ask }) => {
@@ -1927,6 +2016,7 @@ function songMenu(t, row) {
       nw.remove(); if (rm) rm.remove();
       ask("Playlist name", "", "Create", name => { const p = newPlaylist(name, [k]); haptic("light"); plPopClose(); toast(`Added to ${p.name}`); });
     }, "add");
+    if (slot) item("Not this song", ICON_UNDO, () => { plPopClose(); slotLinks[slot] = ""; saveSlots(); haptic("light"); renderPlaylist(); }, "danger");
     const rm = here && here.keys.includes(k) ? item(`Remove from ${here.name}`, ICON_REMOVE, () => {
       plPopClose(); here.keys = here.keys.filter(x => x !== k); haptic("light"); savePl(); toast(`Removed from ${here.name}`);
     }, "danger") : null;
@@ -2144,9 +2234,10 @@ function itemHTML(art, title, sub) {
 function albumHead(all, pl, entries) {
   const own = entries.map(e => e.track).filter(Boolean), h = document.createElement("div"); h.className = "alb-head";
   const name = all ? "All Tracks" : currentCat ? currentCat.title : albumLabel(currentAlbum);
-  const arts = [...new Set(own.map(t => mainArtist(t.albumArtist || t.artist)).filter(a => a && a !== "Unknown Artist"))];
+  const home = entries.filter(e => e.track && !e.linked).map(e => e.track);   // songs borrowed from other albums don't change who made this one
+  const arts = [...new Set(home.map(t => mainArtist(t.albumArtist || t.artist)).filter(a => a && a !== "Unknown Artist"))];
   const who = all || pl ? "" : currentCat ? currentCat.artist : arts.length === 1 ? arts[0] : arts.length ? "Various artists" : "";
-  const year = all || pl ? 0 : Math.max(0, ...own.map(t => t.year || 0));
+  const year = all || pl ? 0 : Math.max(0, ...home.map(t => t.year || 0));
   const n = own.length, cnt = n === 1 ? "1 song" : n + " songs";
   const sub = [pl ? "Playlist" : "", who, year ? String(year) : "", cnt].filter(Boolean).join(" · ");
   const art = all ? null : albumCover(currentAlbum);
@@ -2176,9 +2267,15 @@ function renderPlaylist() {
     const label = (e.num && !all ? e.num + ". " : "") + e.title;    // All Tracks mixes albums: their track numbers would read as a broken list
     if (!t) {
       item.innerHTML = itemHTML(albumCover(currentAlbum), label, "🔒 Not in your library");
+      if (e.slot && !all) {
+        const b = document.createElement("button"); b.className = "miss-add"; b.innerHTML = ICON_ADD;
+        b.setAttribute("aria-label", "Find " + e.title + " in your library");
+        b.addEventListener("click", ev => { ev.stopPropagation(); missingAdd(e, b); });
+        item.appendChild(b);
+      }
       ui.appendChild(item); return;
     }
-    item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : ""));
+    item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : "") + (e.linked && t.album !== currentAlbum ? " · from " + t.album : ""));
     item.addEventListener("click", () => { if (item._swiped) { item._swiped = false; return; } startContext(t.id); });
     const row = swShell(item); row.classList.add("can"); libSwipe(row, t.id);   // swipe left: Play next / Play last; right: the song's menu
     if (pl) {                                                        // hold and move (or drag the handle): reorder; hold and let go: the menu
@@ -2186,7 +2283,7 @@ function renderPlaylist() {
       const art = t.art || albumCover(t.album); if (art) row.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
       attachReorder(row, pi++, "pl", { ui, drop: plReorder, still: () => songMenu(t, row) });
       item.addEventListener("contextmenu", ev => { ev.preventDefault(); if (ev.pointerType === "mouse" || ev.button === 2) songMenu(t, row); });
-    } else holdFor(item, () => { item._swiped = true; setTimeout(() => { item._swiped = false; }, 600); songMenu(t, row); });
+    } else holdFor(item, () => { item._swiped = true; setTimeout(() => { item._swiped = false; }, 600); songMenu(t, row, e.linked ? e.slot : null); });
     ui.appendChild(row);
   });
   if (playlistWrapper.style.display === "block") swipeHint();
@@ -2207,6 +2304,7 @@ const ICON_LAST = `<svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h1
 const ICON_REMOVE = `<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
 const ICON_CHECK = `<svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>`;
 const ICON_MORE = `<svg viewBox="0 0 24 24"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>`;
+const ICON_COPY = `<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
 const ICON_ADD = `<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
 const ICON_PHOTO = `<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>`;
 const ICON_EDIT = `<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
@@ -5126,6 +5224,7 @@ async function syncLibrary() {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
     lib.offline = false;
+    if (j.bot) store.set("tgBot", j.bot);
     if (j.same) return;
     const relink = lib.full; lib.full = false;
     applyLibrary(j, first, false, relink);
@@ -5306,6 +5405,7 @@ async function tgSync() {
     }
     if (!r.ok) { TGL.err = "the server said " + (j.error || "HTTP " + r.status); tgLinkUI(); return; }
     if (TGL.err && !TGL.waiting.size) { TGL.err = ""; tgLinkUI(); }
+    if (j.bot) store.set("tgBot", j.bot);
     if (j.same || !j.tracks) return;
     const seen = new Set(), mine = tgMine(); let gone = tgDedupe(), found = 0;
     for (const x of j.tracks) {

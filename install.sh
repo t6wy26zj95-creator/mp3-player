@@ -617,8 +617,8 @@ http.createServer(async (req, res) => {
     if (p === "/" || p === "/health") { res.writeHead(200, { ...CORS, "Content-Type": "text/plain" }); return res.end("macaw player server: ok\n"); }
     if (p === "/api/library" && req.method === "GET") {
       const uid = member(req, res); if (uid == null) return;
-      if (+url.searchParams.get("since") === db.version) return json(res, 200, { version: db.version, same: true });
-      return json(res, 200, { version: db.version, token: makeToken(uid), tracks: db.tracks.filter(t => t.uid === uid).map(pub) });
+      if (+url.searchParams.get("since") === db.version) return json(res, 200, { version: db.version, same: true, bot: BOT_NAME });
+      return json(res, 200, { version: db.version, bot: BOT_NAME, token: makeToken(uid), tracks: db.tracks.filter(t => t.uid === uid).map(pub) });
     }
     if (p === "/api/link" && req.method === "POST") {                   // the app starts linking
       if (!BOT_NAME) return json(res, 503, { error: "the bot is still starting, try again in a minute" });
