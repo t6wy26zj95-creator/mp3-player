@@ -979,11 +979,15 @@ async def find(req):
         # Music bots' search is quirky: "the sundays your eyes" may not list the song at all while "the sundays your ey" puts
         # it first. So try a few phrasings, like a person would, and stop as soon as one gives an exact match.
         # Music bots also limit how often you may search ("Too many requests"), so at most 4 tries, with a pause between.
+        # Telegram also keeps a bot's answer to the exact same text for a while (an empty "Too many requests" answer too),
+        # so the tries are all different texts, lowercase ones included, the way someone typing would send them.
+        low = f"{artist} {clean}".lower()
         queries = [f"{artist} {clean}"]
-        if len(clean) > 5: queries.append(f"{artist} {clean[:-2]}")   # cut short: oddly, often what makes the song show up
-        queries += [f"{clean} {artist}", clean]
-        queries = [q.strip() for q in dict.fromkeys(queries) if q.strip()][:4]
-        pool, seen, problem, answered = [], set(), None, False
+        if len(clean) > 5: queries.append(f"{artist} {clean[:-2]}".lower())   # cut short: oddly, often what makes the song show up
+        queries += [low, f"{clean} {artist}".lower(), clean.lower()]
+        if len(clean) > 6: queries.append(f"{artist} {clean[:-3]}".lower())
+        queries = [q.strip() for q in dict.fromkeys(queries) if q.strip()][:5]
+        pool, seen, problem, answered, limited = [], set(), None, False, ""
         for n, q in enumerate(queries):
             if n: await asyncio.sleep(1.5)
             got = None
@@ -999,10 +1003,9 @@ async def find(req):
             if got is None: continue
             answered = True
             pm = getattr(getattr(got, "switch_pm", None), "text", "") or ""
-            if not got and pm:                                 # the bot answers with a button instead of songs: usually its rate limit
+            if not got and pm:                                 # a button instead of songs ("Too many requests"), maybe an old kept answer
                 print(f"[{uid}] @{bot} '{q}': no results, button '{pm}'", flush=True)
-                if pool: break
-                return err(f"@{bot} says “{pm}”. Wait a few minutes (or open @{bot} and press its button), then try again", 429)
+                limited = pm; continue                         # a different text gets a fresh answer
             for r in got:
                 key = (r.title, r.description, r.id if hasattr(r, "id") else None)
                 if key not in seen: seen.add(key); pool.append(r)
@@ -1010,6 +1013,7 @@ async def find(req):
             print(f"[{uid}] '{q}': {len(got)} results, best {top_now:.0f}", flush=True)
             if top_now >= 80: break
         if not pool:
+            if limited: return err(f"@{bot} says “{limited}”. Wait a few minutes (or open @{bot} and press its button), then try again", 429)
             if problem and not answered: return err(f"@{bot} didn't answer ({type(problem).__name__}). Try again in a minute", 502)
             return err(f"@{bot} found nothing", 404)
         ranked = sorted(((score(r, artist, title, album), r) for r in pool), key=lambda x: -x[0][0])
