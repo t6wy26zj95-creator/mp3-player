@@ -1088,11 +1088,11 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v48";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v49";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
-const SOURCE_BOT = "@deezload2bot";
+const SOURCE_BOT = "@mybot";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
 const NAT = (() => { try { return window.MACAW_APP && window.webkit && window.webkit.messageHandlers.macaw ? window.MACAW_APP : null; } catch (e) { return null; } })();
@@ -2269,7 +2269,7 @@ async function getSong(ctx, title) {
   if (g && (g.st === "busy" || g.st === "done")) return;
   haptic("light");
   getShow(k, "busy", "Looking in " + SOURCE_BOT + "…");
-  const st = await searchStatus();
+  const st = await searchStatus(!(SRCH.st && SRCH.st.ready));       // a failed or "not logged in" answer is never reused
   if (!st.ready) return manualGet(ctx, title, k, st);
   try {
     const j = await apiCall("/api/fetch", { bot: SOURCE_BOT, artist: ctx.artist, title, album: ctx.album }, 150000);   // the music bot can take a while
@@ -2284,7 +2284,7 @@ async function getSong(ctx, title) {
   }
 }
 function manualGet(ctx, title, k, st) {                              // no login: open your chat with the bot, search typed in
-  if (!st.bot) { getShow(k, "fail", st.old ? "Your server needs the update (run install.sh again)" : "Can't reach your music server. Tap + to try again"); return; }
+  if (!st.bot) { getShow(k, "fail", st.old ? "Your server needs the update (run install.sh again)" : "Can't reach your music server (" + (st.error || "no answer") + "). Tap + to try again"); return; }
   const text = [SOURCE_BOT.replace(/^@?/, "@"), ctx.artist, cleanTitle(title) || title].filter(Boolean).join(" ");
   const url = "https://t.me/" + st.bot + "?text=" + encodeURIComponent(text);
   getShow(k, "busy", "Pick the song in the bot chat");
@@ -2309,7 +2309,8 @@ function searchUI() {
   const open = SRCH.open && s && s.available && !s.ready;
   form.hidden = !open; btn.hidden = !s || !s.available;
   if (!s) sub.textContent = "Checking…";
-  else if (!s.available) sub.textContent = s.old ? "Your server needs the update (run install.sh again)" : "Off on your server: + opens the bot chat with the search typed in";
+  else if (!s.available) sub.textContent = s.old ? "Your server needs the update (run install.sh again)"
+    : s.error ? `Not answering right now (${s.error}). Close Settings and open them again to check` : "Off on your server: + opens the bot chat with the search typed in";
   else if (s.ready) { sub.textContent = `On, with ${s.name || "your account"}. The + on grey songs gets them by itself`; btn.textContent = "Log out"; }
   else if (open) {
     sub.textContent = SRCH.err || (SRCH.step === "phone" ? "Your Telegram number. Telegram sends you a code" : SRCH.step === "code" ? "Telegram sent you a code (in the Telegram app)" : "This account has a cloud password");
