@@ -179,8 +179,19 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 
 .playlist-item,.queue-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:12px;cursor:pointer;gap:10px}
 .playlist-item:active,.queue-item:active{background:rgba(255,255,255,.08)}
-.playlist-item.missing{opacity:.35;cursor:default}
+.playlist-item.missing{cursor:default}
+.playlist-item.missing>.item-art,.playlist-item.missing>.item-text{opacity:.35}
 .playlist-item.missing:active{background:none}
+/* + on a grey song: find it with SOURCE_BOT (busy: spinning ring; done: tick; failed: red, tap to try again) */
+.get-btn{width:26px;height:26px;flex-shrink:0;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;
+  display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background var(--t-n) var(--ease),transform .15s}
+.get-btn:active{transform:scale(.88)}
+.get-btn svg{width:14px;height:14px;fill:currentColor}
+.get-btn.busy{border-color:rgba(255,255,255,.12);border-top-color:#fff;background:none;animation:getSpin .8s linear infinite;pointer-events:none}
+.get-btn.busy svg{display:none}
+.get-btn.done{background:#2ecc71;border-color:#2ecc71;pointer-events:none}
+.get-btn.fail{background:rgba(231,76,60,.35);border-color:rgba(231,76,60,.6)}
+@keyframes getSpin{to{transform:rotate(360deg)}}
 .playlist-item.active{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.1)}
 .item-art{width:28px;height:28px;border-radius:6px;background:rgba(255,255,255,.05);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1)}
 .item-art img{width:100%;height:100%;object-fit:cover}
@@ -774,6 +785,10 @@ button.set-row:active{background:rgba(255,255,255,.08)}
 .set-link:disabled{color:rgba(255,255,255,.55);cursor:default}
 .set-pill{flex-shrink:0;height:32px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.12);color:#fff;font:600 13px -apple-system,system-ui,sans-serif;cursor:pointer}
 .set-pill:active{background:rgba(255,255,255,.24)}
+.set-pill:disabled{opacity:.5}
+.set-row[hidden]+.set-row{box-shadow:none}
+.set-in{flex:1;min-width:0;height:34px;padding:0 12px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.2);color:#fff;font:15px -apple-system,system-ui,sans-serif;outline:none}
+.set-in:focus{border-color:rgba(255,255,255,.45)}
 .set-wall{width:34px;height:34px;flex-shrink:0;border-radius:9px;background:#1d4e5f center/cover no-repeat;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
 .set-slide{flex-wrap:wrap;row-gap:4px;padding-bottom:12px}
 .set-slide input{flex-basis:100%;margin:0;height:28px;background:none;-webkit-appearance:none;appearance:none;cursor:pointer;touch-action:none}
@@ -1031,6 +1046,8 @@ html.cf-land .cf-s{font-size:13px}
       <button class="set-row" id="hidden-toggle" aria-expanded="false" aria-controls="hidden-list"><span class="set-l">Hidden albums</span><span class="set-v" id="hidden-count">None</span><svg class="set-chev" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
       <div class="hidden-list" id="hidden-list" style="display:none"></div>
       <div class="set-row" id="tg-link-row" style="display:none"><span class="set-l">Telegram<small id="tg-link-sub">Songs you send the bot download into the app</small></span><button class="set-pill" id="tg-link-btn">Link</button></div>
+      <div class="set-row" id="search-row" style="display:none"><span class="set-l">Song search<small id="search-sub">Checking…</small></span><button class="set-pill" id="search-btn" hidden>Log in</button></div>
+      <form class="set-row" id="search-form" hidden><input class="set-in" id="search-in" autocomplete="off"><button class="set-pill" id="search-go" type="submit">Next</button></form>
     </div>
     <div class="set-h">Sound effect</div>
     <div class="set-group" id="retro-sw" role="radiogroup" aria-label="Sound effect">
@@ -1071,8 +1088,11 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v47";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v48";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
+/* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
+   Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
+const SOURCE_BOT = "@mybot";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
 const NAT = (() => { try { return window.MACAW_APP && window.webkit && window.webkit.messageHandlers.macaw ? window.MACAW_APP : null; } catch (e) { return null; } })();
@@ -2169,13 +2189,16 @@ function renderPlaylist() {
   if (currentCat && resolving()) { const n = document.createElement("div"); n.className = "artist-note"; n.textContent = "Checking your library…"; ui.appendChild(n); }
   ui.prepend(albumHead(all, pl, entries));
   const multi = !all && entries.some(e => e.disc > 1); let lastDisc = null;
+  const gctx = !all && !pl && canGet() && entries.some(e => !e.track) ? albumCtx() : null;   // grey songs get a + (see + ON A GREY SONG)
   entries.forEach(e => {
     if (multi && e.disc !== lastDisc) { lastDisc = e.disc; const h = document.createElement("div"); h.className = "disc-h"; h.textContent = e.disc >= 99 ? "Also in your files" : "Disc " + e.disc + (e.track && e.track.discName ? " · " + e.track.discName : ""); ui.appendChild(h); }
     const t = e.track, item = document.createElement("div");
     item.className = "playlist-item" + (t ? "" : " missing") + (t && t.id === curId ? " active" : "");
     const label = (e.num && !all ? e.num + ". " : "") + e.title;    // All Tracks mixes albums: their track numbers would read as a broken list
     if (!t) {
-      item.innerHTML = itemHTML(albumCover(currentAlbum), label, "🔒 Not in your library");
+      const g = gctx && getting.get(gkey(gctx, e.title));
+      item.innerHTML = itemHTML(albumCover(currentAlbum), label, g ? g.msg : "🔒 Not in your library");
+      if (gctx) { item.dataset.get = gkey(gctx, e.title); item.appendChild(getButton(gctx, e.title)); }
       ui.appendChild(item); return;
     }
     item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : ""));
@@ -2191,6 +2214,138 @@ function renderPlaylist() {
   });
   if (playlistWrapper.style.display === "block") swipeHint();
 }
+/* ---------- + ON A GREY SONG ----------
+   The + next to a song that isn't in your library gets it with SOURCE_BOT's inline search ("@mybot Artist Title").
+   - Logged in under Settings > Song search: your server does it by itself with YOUR Telegram account, in your chat with
+     the Macaw bot: it picks the result that matches best and sends it, and the song lands in your library like any song
+     you send the bot (see "song search" in install.sh). Each person logs in with their own account.
+   - Not logged in (or the server has no song search): the + opens your chat with the bot with the search already typed;
+     you tap the right song yourself.
+   Works inside Telegram, and in the iOS app once it's linked to Telegram. A row keeps its state (searching, added, failed)
+   while you move around; once the library brings the song in, the row becomes a normal song by itself. */
+const getting = new Map();                                           // "artist|title" -> { st: "busy" | "done" | "fail", msg }
+const canGet = () => { try { return botMode || !!(NAT && TGL.key); } catch (e) { return false; } };   // TGL is set up further down
+const gk = s => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");     // keeps Cyrillic etc. (norm() keeps only a-z0-9)
+const gkey = (ctx, title) => gk(ctx.artist) + "|" + gk(title);
+const PLUS_SVG = '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/></svg>';
+const TICK_SVG = '<svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>';
+function albumCtx() {                                                // who and which album the grey songs belong to
+  if (currentCat) return { artist: currentCat.artist || "", album: currentCat.title || "" };
+  const own = tracks.filter(t => t.album === currentAlbum);
+  const arts = [...new Set(own.map(t => mainArtist(t.albumArtist || t.artist)).filter(a => a && a !== "Unknown Artist"))];
+  return { artist: arts[0] || "", album: albumLabel(currentAlbum) };
+}
+function getButton(ctx, title) {
+  const g = getting.get(gkey(ctx, title)), b = document.createElement("button");
+  b.className = "get-btn" + (g ? " " + g.st : ""); b.setAttribute("aria-label", "Get " + title + " with " + SOURCE_BOT);
+  b.innerHTML = g && g.st === "done" ? TICK_SVG : PLUS_SVG;
+  b.addEventListener("click", ev => { ev.stopPropagation(); getSong(ctx, title); });
+  return b;
+}
+function getShow(k, st, msg) {                                       // update the row(s) in place: no rebuild, so the list doesn't jump
+  getting.set(k, { st, msg });
+  document.querySelectorAll(".playlist-item[data-get]").forEach(it => {
+    if (it.dataset.get !== k) return;
+    const b = it.querySelector(".get-btn"), sub = it.querySelector(".item-artist");
+    if (b) { b.className = "get-btn " + st; b.innerHTML = st === "done" ? TICK_SVG : PLUS_SVG; }
+    if (sub) sub.textContent = msg;
+  });
+}
+function apiHeaders(json) {
+  const h = json ? { "Content-Type": "application/json" } : {};
+  if (botMode) h["X-Init-Data"] = TG.initData; else if (NAT && TGL.key) h["X-App-Key"] = TGL.key;
+  return h;
+}
+async function apiCall(path, body, ms) {
+  const r = await fetchT(API_BASE + path, body !== undefined ? { method: "POST", headers: apiHeaders(true), body: JSON.stringify(body) } : { headers: apiHeaders() }, ms || 20000);
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 404 && j.error === "not found") throw Object.assign(new Error("your server needs the update (run install.sh again)"), { old: true });
+  if (!r.ok) throw Object.assign(new Error(j.error || "HTTP " + r.status), { j });
+  return j;
+}
+async function getSong(ctx, title) {
+  if (/^@?mybot$/i.test(SOURCE_BOT)) { toast("Put your music bot in index.html (SOURCE_BOT)"); haptic("light"); return; }
+  const k = gkey(ctx, title), g = getting.get(k);
+  if (g && (g.st === "busy" || g.st === "done")) return;
+  haptic("light");
+  getShow(k, "busy", "Looking in " + SOURCE_BOT + "…");
+  const st = await searchStatus();
+  if (!st.ready) return manualGet(ctx, title, k, st);
+  try {
+    const j = await apiCall("/api/fetch", { bot: SOURCE_BOT, artist: ctx.artist, title, album: ctx.album }, 150000);   // the music bot can take a while
+    getShow(k, "done", "Added: " + (j.artist ? j.artist + " – " : "") + (j.title || title));
+    haptic("medium");
+    if (botMode) { syncLibrary(); setTimeout(syncLibrary, 4000); } else tgSync();   // tags (album, cover) are read a moment later
+  } catch (e) {
+    if (e.j && e.j.manual) { SRCH.st = null; return manualGet(ctx, title, k, await searchStatus()); }   // logged out meanwhile
+    const why = e && e.name === "AbortError" ? "no answer from your server" : (e && e.message) || "no connection";
+    getShow(k, "fail", "Didn't work: " + why + ". Tap + to try again");
+    toast("Couldn't get “" + title + "”");
+  }
+}
+function manualGet(ctx, title, k, st) {                              // no login: open your chat with the bot, search typed in
+  if (!st.bot) { getShow(k, "fail", st.old ? "Your server needs the update (run install.sh again)" : "Can't reach your music server. Tap + to try again"); return; }
+  const text = [SOURCE_BOT.replace(/^@?/, "@"), ctx.artist, cleanTitle(title) || title].filter(Boolean).join(" ");
+  const url = "https://t.me/" + st.bot + "?text=" + encodeURIComponent(text);
+  getShow(k, "busy", "Pick the song in the bot chat");
+  if (TG) TG.openTelegramLink(url); else if (NAT) natSend({ cmd: "open", url }); else window.open(url, "_blank");
+  setTimeout(() => { const g = getting.get(k); if (g && g.st === "busy") getShow(k, "fail", "Not added yet. Tap + to open the bot again"); }, 120000);
+}
+/* Settings > Song search: log in with your own Telegram account (phone number, the code Telegram sends you, and your
+   cloud password if you have one). Your server keeps the login; Log out here, or end the "Macaw song search" session
+   in Telegram (Settings > Devices). */
+const SRCH = { st: null, step: "phone", open: false, busy: false, err: "" };
+async function searchStatus(fresh) {
+  if (SRCH.st && !fresh) return SRCH.st;
+  if (!canGet()) return { ready: false };
+  try { SRCH.st = await apiCall("/api/search"); } catch (e) { SRCH.st = { available: false, ready: false, error: e.message, old: !!e.old }; }
+  searchUI(); return SRCH.st;
+}
+const SRCH_STEP = { phone: ["tel", "Phone, like +7 999 123 45 67"], code: ["text", "Code from Telegram"], password: ["password", "Cloud password (two-step)"] };
+function searchUI() {
+  if (!canGet()) return;
+  const s = SRCH.st, row = $("search-row"), sub = $("search-sub"), btn = $("search-btn"), form = $("search-form"), inp = $("search-in");
+  row.style.display = "";
+  const open = SRCH.open && s && s.available && !s.ready;
+  form.hidden = !open; btn.hidden = !s || !s.available;
+  if (!s) sub.textContent = "Checking…";
+  else if (!s.available) sub.textContent = s.old ? "Your server needs the update (run install.sh again)" : "Off on your server: + opens the bot chat with the search typed in";
+  else if (s.ready) { sub.textContent = `On, with ${s.name || "your account"}. The + on grey songs gets them by itself`; btn.textContent = "Log out"; }
+  else if (open) {
+    sub.textContent = SRCH.err || (SRCH.step === "phone" ? "Your Telegram number. Telegram sends you a code" : SRCH.step === "code" ? "Telegram sent you a code (in the Telegram app)" : "This account has a cloud password");
+    btn.textContent = "Cancel";
+    const [type, ph] = SRCH_STEP[SRCH.step]; if (inp.type !== type) inp.type = type; inp.placeholder = ph;
+    inp.inputMode = SRCH.step === "code" ? "numeric" : SRCH.step === "phone" ? "tel" : "text";
+  } else { sub.textContent = "Log in with your Telegram account and the + on grey songs gets them by itself"; btn.textContent = "Log in"; }
+}
+$("search-btn").addEventListener("click", async () => {
+  const s = SRCH.st; if (!s || SRCH.busy) return;
+  haptic("light");
+  if (s.ready) {
+    const yes = await new Promise(res => { const q = "Log out of song search? The + will open the bot chat instead.";
+      try { if (TG && tgAt("6.2")) return TG.showConfirm(q, res); } catch (e) {} res(confirm(q)); });
+    if (!yes) return;
+    SRCH.busy = true;
+    try { await apiCall("/api/search/logout", {}); toast("Logged out"); } catch (e) { toast("Couldn't log out: " + e.message); }
+    SRCH.busy = false; await searchStatus(true); return;
+  }
+  SRCH.open = !SRCH.open; SRCH.step = "phone"; SRCH.err = ""; $("search-in").value = ""; searchUI();
+  if (SRCH.open) setTimeout(() => $("search-in").focus(), 50);
+});
+$("search-form").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const inp = $("search-in"), v = inp.value.trim(); if (!v || SRCH.busy) return;
+  SRCH.busy = true; $("search-go").disabled = true; SRCH.err = "";
+  try {
+    const j = await apiCall("/api/search/login", { step: SRCH.step, value: v }, 40000);
+    if (j.next) { SRCH.step = j.next; inp.value = ""; }
+    else if (j.done) { SRCH.open = false; SRCH.step = "phone"; inp.value = ""; toast("Song search is on"); haptic("medium"); SRCH.busy = false; $("search-go").disabled = false; await searchStatus(true); return; }
+  } catch (e) { SRCH.err = e.message; if (e.j && e.j.restart) { SRCH.step = "phone"; inp.value = ""; } }
+  SRCH.busy = false; $("search-go").disabled = false; searchUI();
+  if (SRCH.open) inp.focus();
+});
+gearBtn.addEventListener("click", () => { if (canGet()) searchStatus(true); });
+setTimeout(() => { if (canGet()) searchStatus(); }, 3000);
 /* ---------- PLAYBACK MODEL ----------
    Three separate things decide what plays:
    - queue:   only the songs you added (swipe in Library: Play next = top, Play last = bottom). Always plays first.

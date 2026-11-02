@@ -17,7 +17,8 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 docker compose version
 
-mkdir -p "$DIR/app" "$DIR/data"
+mkdir -p "$DIR/app" "$DIR/data" "$DIR/finder" "$DIR/data/finder"
+chmod 700 "$DIR/data/finder"                                              # everyone's song-search logins live here
 cd "$DIR"
 if [ ! -f .env ]; then
   say "Settings (asked only the first time)"
@@ -53,6 +54,12 @@ if ! grep -q '^TG_API_ID=' .env; then
   else
     echo "TG_API_ID=" >> .env; echo "Skipped."
   fi
+fi
+if ! grep -q '^FINDER_URL=' .env && [ -n "$(grep '^TG_API_ID=' .env | cut -d= -f2-)" ]; then
+  # song search (the + on grey songs in the player) uses the api_id / api_hash this server already has
+  echo "FINDER_URL=http://finder:8090" >> .env
+  if grep -q '^COMPOSE_PROFILES=..*' .env; then grep -Eq '^COMPOSE_PROFILES=(.*,)?finder(,.*)?$' .env || sed -i 's/^COMPOSE_PROFILES=\(.*\)$/COMPOSE_PROFILES=\1,finder/' .env
+  else sed -i '/^COMPOSE_PROFILES=/d' .env; echo "COMPOSE_PROFILES=finder" >> .env; fi
 fi
 
 say "Writing files"
@@ -94,6 +101,16 @@ services:
       - TELEGRAM_LOCAL=1
     volumes:
       - botapi:/var/lib/telegram-bot-api
+  # song search (on when the server has api_id/api_hash: COMPOSE_PROFILES has "finder"): each person's own Telegram
+  # account, logged in from the player, uses the music bot's inline search for the + on grey songs
+  finder:
+    build: ./finder
+    container_name: macaw-finder
+    restart: unless-stopped
+    profiles: ["finder"]
+    env_file: .env
+    volumes:
+      - ./data/finder:/session
 volumes:
   caddy_data: {}
   caddy_config: {}
@@ -404,6 +421,8 @@ async function setCommands() {
 }
 async function onMessage(m) {
   if (!m || !m.from || m.chat.type !== "private") return;
+  const w = waitBy.get(m.from.id);
+  if (w && audioOf(m)) { waitBy.delete(m.from.id); w.res(await addAudio(m, w.uid)); return; }   // the song search just sent this for someone's +
   const text = (m.text || "").trim(), uid = m.from.id;
   const start = /^\/start(?:\s+([\w-]+))?/.exec(text);
   if (start && !db.owner) { db.owner = uid; save(true); console.log("owner is now Telegram user", uid); setCommands(); }
@@ -415,14 +434,17 @@ async function onMessage(m) {
   if (/^\/stats\b/.test(text)) return stats(m);
   if (/^\/invite\b/.test(text)) return uid === db.owner ? invite(m) : reply(m, "Only the bot's owner can invite people.");
   if (/^\/users\b/.test(text)) return uid === db.owner ? usersList(m.chat.id) : reply(m, "Only the bot's owner can see that.");
+  if (!audioOf(m)) { if (text && !text.startsWith("/")) await reply(m, "Send or forward audio files here and they appear in your player."); return; }
+  await addAudio(m, uid);
+}
+async function addAudio(m, uid) {                                         // one audio message -> uid's library; returns the song (null if it can't be taken)
   const a = audioOf(m);
-  if (!a) { if (text && !text.startsWith("/")) await reply(m, "Send or forward audio files here and they appear in your player."); return; }
   const uniq = a.file_unique_id, id = trackKey(uid, uniq);
-  if (byId(id)) { await react(m, "👌"); return; }                           // already in this person's library
+  if (byId(id)) { await react(m, "👌"); return byId(id); }                 // already in this person's library
   if (a.file_size && a.file_size > MAX_DOWNLOAD) {
     await react(m, "🤷");
     await reply(m, `That file is ${Math.round(a.file_size / 1048576)} MB. ${LOCAL ? "The limit is 2000 MB." : "Bots can only download files up to 20 MB from Telegram, so send an MP3 or M4A version of it."}`);
-    return;
+    return null;
   }
   const name = a.file_name || "";
   let ext = ((name.match(/\.[a-z0-9]{2,5}$/i) || [])[0] || "").toLowerCase();
@@ -432,14 +454,47 @@ async function onMessage(m) {
     num: 0, disc: 0, year: 0, isrc: "", duration: a.duration || 0, size: a.file_size || 0, mime, ext,
     thumbId: (a.thumbnail || a.thumb || {}).file_id || null, cover: null, added: Date.now(), used: Date.now(), rev: 1 };
   const twin = db.tracks.find(x => x.uniq === uniq && x.rev > 1);         // someone already has this exact song: reuse what we know, nothing to download
-  if (twin) { for (const k of META) t[k] = twin[k]; t.rev = 2; db.tracks.push(t); bump(); await react(m, "👌"); return; }
+  if (twin) { for (const k of META) t[k] = twin[k]; t.rev = 2; db.tracks.push(t); bump(); await react(m, "👌"); return t; }
   db.tracks.push(t); bump();
   await react(m, "✍");                                                     // ✍ = reading it, 👌 = in your library
   enqueue(async () => {
     try { await readTags(t); t.rev++; bump(); await react(m, "👌"); }
     catch (e) { console.error("ingest", t.title, e.message); await react(m, "🤷"); }   // stays in the library under Telegram's title; the file is fetched again when played
   });
+  return t;
 }
+/* ---------- song search (optional: FINDER_URL, on when the server has api_id/api_hash) ----------
+   The + on a grey song in the player. Bots can't use another bot's inline search, so each person logs their own Telegram
+   account in once (player: Settings > Song search; the "finder" container keeps the login). Then + makes that account
+   type "@musicbot Artist Title" in its chat with this bot, pick the best result and send it. Whatever audio that account
+   sends next goes into the library of the person who pressed + (usually the same person; it may also be a spare account
+   that isn't a member). One search at a time per person. Without a login the player opens the chat with the search typed in. */
+const FINDER = (process.env.FINDER_URL || "").trim();
+const waitBy = new Map(), findChains = new Map();                          // Telegram account id -> { uid, res } ; uid -> its searches in a row
+async function finder(p, body) {
+  const r = await fetch(FINDER + p, body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {});
+  return { code: r.status, body: await r.json().catch(() => ({ error: "song search: HTTP " + r.status })) };
+}
+function findSong(uid, q) {
+  const run = async () => {
+    if (!FINDER) return { code: 501, body: { error: "song search is off on the server", manual: true } };
+    let st; try { st = (await finder("/status?uid=" + uid)).body; } catch { return { code: 503, body: { error: "song search isn't running", manual: true } }; }
+    if (!st.ready) return { code: 409, body: { error: "log in under Settings > Song search", manual: true } };
+    const got = new Promise(res => waitBy.set(st.id, { uid, res }));
+    let r; try { r = await finder("/find", { ...q, uid, target: BOT_NAME }); } catch { waitBy.delete(st.id); return { code: 502, body: { error: "song search didn't answer" } }; }
+    if (r.code !== 200) { waitBy.delete(st.id); return r; }
+    const t = await Promise.race([got, sleep(30000).then(() => null)]);   // the bot hears about the song a moment after it's sent
+    waitBy.delete(st.id);
+    if (!t) return { code: 504, body: { error: "the song was sent, but it didn't reach the bot" } };
+    console.log("search", uid, q.artist, "-", q.title, "->", r.body.artist, "-", r.body.title);
+    return { code: 200, body: { ok: true, id: t.id, title: t.title, artist: t.artist } };
+  };
+  const p = (findChains.get(uid) || Promise.resolve()).then(run, run);
+  findChains.set(uid, p.catch(() => {})); return p;
+}
+const readBody = req => new Promise((ok, no) => {
+  let b = ""; req.on("data", c => { b += c; if (b.length > 1e4) { no(new Error("too big")); req.destroy(); } }); req.on("end", () => ok(b)); req.on("error", no);
+});
 /* ---------- the iOS app (MacawP3) ----------
    The app can't sign in through Telegram like the Mini App does, so it links once: Settings > Link Telegram asks the
    server for a code (POST /api/link), opens t.me/<bot>?start=app_<code>, you press Start, and the app picks up a key
@@ -578,7 +633,7 @@ function tokenUser(tok) {
 }
 const pub = t => ({ id: t.id, title: t.title, artist: t.artist, album: t.album, albumArtist: t.albumArtist, num: t.num, disc: t.disc, year: t.year, isrc: t.isrc,
   duration: t.duration, size: t.size, mime: t.mime, cover: !!t.cover, rev: t.rev, added: t.added });
-const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "X-Init-Data, X-App-Key, Range", "Access-Control-Allow-Methods": "GET, HEAD, POST, DELETE, OPTIONS",
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "X-Init-Data, X-App-Key, Range, Content-Type", "Access-Control-Allow-Methods": "GET, HEAD, POST, DELETE, OPTIONS",
   "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges", "Access-Control-Max-Age": "86400" };
 function json(res, code, obj) { res.writeHead(code, { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" }); res.end(JSON.stringify(obj)); }
 function serveFile(req, res, file, type) {                                // with byte ranges: iPhones won't play audio without them
@@ -640,6 +695,24 @@ http.createServer(async (req, res) => {
       db.appKeys[key] = { uid: l.uid, created: Date.now() }; save(true);
       return json(res, 200, { key });
     }
+    if (p.startsWith("/api/search") || p === "/api/fetch") {          // song search (see above)
+      const uid = member(req, res); if (uid == null) return;
+      if (p === "/api/search" && req.method === "GET") {
+        if (!FINDER) return json(res, 200, { available: false, bot: BOT_NAME });
+        try { const s = (await finder("/status?uid=" + uid)).body; return json(res, 200, { available: true, ready: !!s.ready, name: s.name || "", bot: BOT_NAME }); }
+        catch { return json(res, 200, { available: false, error: "song search isn't running", bot: BOT_NAME }); }
+      }
+      if (req.method !== "POST") return json(res, 404, { error: "not found" });
+      let q; try { q = JSON.parse(await readBody(req) || "{}"); } catch { return json(res, 400, { error: "bad request" }); }
+      const s = v => String(v || "").slice(0, 200).trim();
+      if (p === "/api/fetch") { const r = await findSong(uid, { bot: s(q.bot), artist: s(q.artist), title: s(q.title), album: s(q.album) }); return json(res, r.code, r.body); }
+      if (!FINDER) return json(res, 501, { error: "song search is off on the server" });
+      try {
+        if (p === "/api/search/login") { const r = await finder("/login", { uid, step: s(q.step), value: s(q.value) }); return json(res, r.code, r.body); }
+        if (p === "/api/search/logout") { const r = await finder("/logout", { uid }); return json(res, r.code, r.body); }
+      } catch { return json(res, 503, { error: "song search isn't running" }); }
+      return json(res, 404, { error: "not found" });
+    }
     m = /^\/api\/track\/([\w-]+)$/.exec(p);
     if (m && req.method === "DELETE") {
       const uid = member(req, res); if (uid == null) return;
@@ -665,6 +738,209 @@ process.on("SIGTERM", () => { save(true); process.exit(0); });
 poll();
 MACAW_EOF
 
+cat > finder/Dockerfile <<'MACAW_EOF'
+FROM python:3.12-slim
+RUN pip install --no-cache-dir "telethon>=1.34,<2" "aiohttp>=3.9,<4"
+WORKDIR /app
+COPY finder.py ./
+CMD ["python", "-u", "finder.py"]
+MACAW_EOF
+
+cat > finder/finder.py <<'MACAW_EOF'
+# Macaw song search ("finder").
+# Bots can't use another bot's inline search, so each person logs their own Telegram account in once (player Settings >
+# Song search). Then the + on a grey song does what they'd do by hand, in THEIR chat with the Macaw bot: types
+# "@musicbot Artist Title", picks the result that matches best and sends it. The bot gets it like any song they send.
+# Only the Macaw server talks to this (internal Docker network, port 8090); it passes the player user's id as "uid".
+# Logins are kept in /session (one file per person). Uses the server's api_id / api_hash (TG_API_ID, TG_API_HASH).
+import asyncio, difflib, os, re, unicodedata
+from aiohttp import web
+from telethon import TelegramClient, errors
+from telethon.tl.types import DocumentAttributeAudio, DocumentAttributeFilename
+
+API_ID = int(os.environ.get("TG_API_ID") or 0)
+API_HASH = os.environ.get("TG_API_HASH") or ""
+DIR = "/session"
+DEVICE = "Macaw song search"
+WAIT_AUDIO = 75                      # seconds to wait when the music bot sends a placeholder first and the song later
+
+clients, pending, locks = {}, {}, {}  # uid -> logged-in client; uid -> login in progress; uid -> one search at a time
+def spath(uid): return os.path.join(DIR, f"u{int(uid)}")
+def new_client(uid): return TelegramClient(spath(uid), API_ID, API_HASH, device_model=DEVICE, system_version="server", app_version="1.0")
+def ok(**k): return web.json_response(k)
+def err(msg, code=400, **k): return web.json_response({"error": msg, **k}, status=code)
+
+async def client_of(uid):
+    c = clients.get(uid)
+    if c is None:
+        if not os.path.exists(spath(uid) + ".session"): return None
+        c = new_client(uid)
+    try:
+        if not c.is_connected(): await c.connect()
+        if await c.is_user_authorized(): clients[uid] = c; return c
+    except Exception as e: print(f"[{uid}] connect: {e}", flush=True)
+    clients.pop(uid, None)
+    return None
+
+def forget(uid):
+    clients.pop(uid, None)
+    for ext in (".session", ".session-journal"):
+        try: os.remove(spath(uid) + ext)
+        except FileNotFoundError: pass
+
+# ---------- login (three steps: phone -> code -> 2FA password if the account has one) ----------
+async def login(req):
+    j = await req.json(); uid = int(j.get("uid") or 0); step = j.get("step"); v = str(j.get("value") or "").strip()
+    if not uid: return err("bad request")
+    if step == "phone":
+        old = pending.pop(uid, None)
+        if old: await old["c"].disconnect()
+        c = clients.pop(uid, None)
+        if c: await c.disconnect()
+        forget(uid)
+        phone = re.sub(r"[^\d+]", "", v)
+        if not re.fullmatch(r"\+?\d{7,15}", phone): return err("That phone number doesn't look right. Write it with the country code, like +7 999 123 45 67")
+        c = new_client(uid); await c.connect()
+        try: sent = await c.send_code_request(phone)
+        except errors.FloodWaitError as e: await c.disconnect(); return err(f"Telegram asks to wait {e.seconds // 60 + 1} min before trying again")
+        except (errors.PhoneNumberInvalidError, errors.PhoneNumberBannedError) as e: await c.disconnect(); return err("Telegram doesn't accept that number")
+        except Exception as e: await c.disconnect(); return err(f"Telegram said: {e}")
+        pending[uid] = {"c": c, "phone": phone, "hash": sent.phone_code_hash}
+        return ok(next="code")
+    p = pending.get(uid)
+    if not p: return err("Start again: enter your phone number", restart=True)
+    c = p["c"]
+    try:
+        if step == "code":
+            try: await c.sign_in(p["phone"], re.sub(r"\D", "", v), phone_code_hash=p["hash"])
+            except errors.SessionPasswordNeededError: return ok(next="password")
+        elif step == "password": await c.sign_in(password=v)
+        else: return err("bad request")
+    except errors.PhoneCodeInvalidError: return err("Wrong code. Check it in Telegram and try again")
+    except errors.PhoneCodeExpiredError: pending.pop(uid, None); await c.disconnect(); return err("The code expired. Start again", restart=True)
+    except errors.PasswordHashInvalidError: return err("Wrong password")
+    except errors.FloodWaitError as e: return err(f"Telegram asks to wait {e.seconds // 60 + 1} min")
+    except Exception as e: return err(f"Telegram said: {e}")
+    pending.pop(uid, None); clients[uid] = c
+    me = await c.get_me()
+    print(f"[{uid}] logged in as {me.id}", flush=True)
+    return ok(done=True, name=me.first_name or me.username or str(me.id), id=me.id)
+
+async def logout(req):
+    uid = int((await req.json()).get("uid") or 0)
+    c = await client_of(uid)
+    if c:
+        try: await c.log_out()
+        except Exception: pass
+    forget(uid)
+    return ok(ok=True)
+
+async def status(req):
+    uid = int(req.query.get("uid") or 0)
+    c = await client_of(uid)
+    if not c: return ok(ready=False)
+    try: me = await c.get_me()
+    except Exception as e: return ok(ready=False, error=str(e))
+    return ok(ready=True, id=me.id, name=me.first_name or me.username or str(me.id))
+
+# ---------- picking the best result ----------
+JUNK = re.compile(r"\b(remix|live|cover|karaoke|instrumental|sped ?up|slowed|nightcore|reverb|8d|acoustic|demo|edit|version|mashup|minus|минус)\b", re.I)
+
+def norm(s):
+    s = unicodedata.normalize("NFKC", str(s or "")).casefold()
+    s = re.sub(r"\(.*?\)|\[.*?\]", " ", s)
+    s = re.sub(r"\b(feat|ft|featuring)\b.*$", " ", s)
+    return re.sub(r"[^\w]+", " ", s).strip()
+
+def sim(a, b):
+    a, b = norm(a), norm(b)
+    if not a or not b: return 0.0
+    if a == b: return 1.0
+    r = difflib.SequenceMatcher(None, a, b).ratio()
+    if a in b or b in a: r = max(r, 0.85)
+    return r
+
+def describe(r):
+    """(title, artist, album, is_audio, is_album) of one inline result, from its audio tags or the text the bot shows."""
+    title, desc = r.title or "", r.description or ""
+    artist = album = ""
+    doc, is_audio = r.document, False
+    if doc is not None:
+        is_audio = (doc.mime_type or "").startswith("audio/")
+        for a in doc.attributes:
+            if isinstance(a, DocumentAttributeAudio) and not a.voice:
+                is_audio = True; title = a.title or title; artist = a.performer or artist
+            elif isinstance(a, DocumentAttributeFilename) and not title:
+                title = re.sub(r"\.[a-z0-9]{2,5}$", "", a.file_name, flags=re.I)
+    m = re.search(r"(?:artist|исполнитель)\s*:\s*(.+)", desc, re.I)
+    if m: artist = artist or m.group(1).strip()
+    m = re.search(r"(?:album|альбом)\s*:\s*(.+)", desc, re.I)
+    if m: album = m.group(1).strip()
+    if not artist and desc: artist = desc.splitlines()[0].strip()
+    if not artist and " - " in title: artist, title = [x.strip() for x in title.split(" - ", 1)]
+    is_album = bool(re.search(r"\((album|ep|playlist|альбом)\)\s*$", r.title or "", re.I))
+    return title, artist, album, is_audio, is_album
+
+def score(r, want_artist, want_title, want_album):
+    title, artist, album, is_audio, is_album = describe(r)
+    s = 60 * sim(title, want_title) + 35 * max(sim(artist, want_artist), sim(r.description or "", want_artist) * 0.9)
+    if want_album and album and sim(album, want_album) > 0.8: s += 5
+    if is_audio: s += 3
+    if is_album: s -= 60
+    for w in set(x.lower() for x in JUNK.findall(title + " " + (r.title or ""))):
+        if w not in want_title.lower(): s -= 15
+    return s, title, artist
+
+def is_audio_msg(m):
+    return bool(m and m.media and (m.audio or (m.document and (m.document.mime_type or "").startswith("audio/"))))
+
+async def find(req):
+    j = await req.json()
+    uid = int(j.get("uid") or 0)
+    bot, target = str(j.get("bot") or "").lstrip("@"), str(j.get("target") or "").lstrip("@")
+    artist, title, album = j.get("artist") or "", j.get("title") or "", j.get("album") or ""
+    if not re.fullmatch(r"[A-Za-z0-9_]{4,32}", bot) or not target or not title: return err("bad request")
+    client = await client_of(uid)
+    if not client: return err("log in under Settings > Song search", 409, manual=True)
+    clean = re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip() or title
+    async with locks.setdefault(uid, asyncio.Lock()):
+        found = []
+        for q in dict.fromkeys([f"{artist} {clean}".strip(), clean]):    # artist + title first; the title alone if that finds nothing
+            try: found = await client.inline_query(bot, q, entity=target)
+            except Exception as e: return err(f"@{bot} didn't answer: {e}", 502)
+            if found: break
+        if not found: return err(f"@{bot} found nothing", 404)
+        ranked = sorted(((score(r, artist, title, album), r) for r in found), key=lambda x: -x[0][0])
+        (best, got_title, got_artist), r = ranked[0]
+        top = [{"title": t, "artist": a, "score": round(s)} for (s, t, a), _ in ranked[:5]]
+        print(f"[{uid}] {artist} - {title}: best {got_artist} - {got_title} ({best:.0f})", flush=True)
+        if best < 55: return err("nothing close enough", 404, candidates=top)
+        try: msg = await r.click(target)
+        except Exception as e: return err(f"couldn't send the result: {e}", 502)
+        if not is_audio_msg(msg):                          # some music bots send a placeholder first and put the song in later
+            for _ in range(WAIT_AUDIO // 3):
+                await asyncio.sleep(3)
+                m = await client.get_messages(target, ids=msg.id)
+                if is_audio_msg(m):
+                    await client.send_file(target, m.media)         # again as a new message, so the Macaw bot surely sees it
+                    try: await client.delete_messages(target, msg.id)
+                    except Exception: pass
+                    break
+            else: return err(f"@{bot} didn't send a song", 504)
+        return ok(ok=True, title=got_title, artist=got_artist, score=round(best), candidates=top)
+
+async def main():
+    os.makedirs(DIR, exist_ok=True)
+    if not API_ID or not API_HASH: print("song search: TG_API_ID / TG_API_HASH are missing in /opt/macaw-player/.env, so it's off", flush=True)
+    app = web.Application()
+    app.router.add_get("/status", status); app.router.add_post("/login", login); app.router.add_post("/logout", logout); app.router.add_post("/find", find)
+    runner = web.AppRunner(app); await runner.setup(); await web.TCPSite(runner, "0.0.0.0", 8090).start()
+    print("song search: ready", flush=True)
+    await asyncio.Event().wait()
+
+asyncio.run(main())
+MACAW_EOF
+
 say "Checking the domain"
 IP=$(curl -fsS4 --max-time 10 https://api.ipify.org 2>/dev/null || true)
 DNS=$(getent ahostsv4 "$DOMAIN" 2>/dev/null | awk '{print $1; exit}' || true)
@@ -681,3 +957,5 @@ else echo "HTTPS isn't answering yet. The certificate can take a minute; if it s
 say "Done"
 echo "Open your bot in Telegram and send /start. The first account to do that becomes the owner."
 echo "Then send /invite to the bot to get a one-time link for a friend."
+if grep -q '^FINDER_URL=' .env; then echo "Song search is on: in the player, Settings > Song search > Log in (each person with their own account)."
+else echo "Song search is off: it needs api_id/api_hash (the 'Big files' question). Without it, + opens the bot chat with the search typed in."; fi
