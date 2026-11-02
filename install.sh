@@ -978,12 +978,14 @@ async def find(req):
     async with locks.setdefault(uid, asyncio.Lock()):
         # Music bots' search is quirky: "the sundays your eyes" may not list the song at all while "the sundays your ey" puts
         # it first. So try a few phrasings, like a person would, and stop as soon as one gives an exact match.
-        bare = re.sub(r"(?i)^the\s+", "", artist)
-        queries = [f"{artist} {clean}", f'artist:"{artist}" track:"{clean}"', f"{clean} {artist}", f"{bare} {clean}", clean]
-        if len(clean) > 5: queries.append(f"{artist} {clean[:-2]}")
-        queries = [q.strip() for q in dict.fromkeys(queries) if q.strip() and (artist or q == clean)]
+        # Music bots also limit how often you may search ("Too many requests"), so at most 4 tries, with a pause between.
+        queries = [f"{artist} {clean}"]
+        if len(clean) > 5: queries.append(f"{artist} {clean[:-2]}")   # cut short: oddly, often what makes the song show up
+        queries += [f"{clean} {artist}", clean]
+        queries = [q.strip() for q in dict.fromkeys(queries) if q.strip()][:4]
         pool, seen, problem, answered = [], set(), None, False
-        for q in queries:
+        for n, q in enumerate(queries):
+            if n: await asyncio.sleep(1.5)
             got = None
             for i in range(4):                                 # music bots are often slow to answer the first time: ask again
                 try: got = await client.inline_query(bot, q, entity=target); problem = None; break
@@ -996,6 +998,11 @@ async def find(req):
                     await asyncio.sleep(2 + 2 * i)
             if got is None: continue
             answered = True
+            pm = getattr(getattr(got, "switch_pm", None), "text", "") or ""
+            if not got and pm:                                 # the bot answers with a button instead of songs: usually its rate limit
+                print(f"[{uid}] @{bot} '{q}': no results, button '{pm}'", flush=True)
+                if pool: break
+                return err(f"@{bot} says “{pm}”. Wait a few minutes (or open @{bot} and press its button), then try again", 429)
             for r in got:
                 key = (r.title, r.description, r.id if hasattr(r, "id") else None)
                 if key not in seen: seen.add(key); pool.append(r)
