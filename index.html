@@ -789,6 +789,8 @@ button.set-row:active{background:rgba(255,255,255,.08)}
 .set-row[hidden]+.set-row{box-shadow:none}
 .set-in{flex:1;min-width:0;height:34px;padding:0 12px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.2);color:#fff;font:15px -apple-system,system-ui,sans-serif;outline:none}
 .set-in:focus{border-color:rgba(255,255,255,.45)}
+.qr-box{width:150px;height:150px;flex-shrink:0;background:#fff;border-radius:12px;padding:6px;box-sizing:border-box}
+.qr-box svg{display:block;width:100%;height:100%}
 .set-wall{width:34px;height:34px;flex-shrink:0;border-radius:9px;background:#1d4e5f center/cover no-repeat;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
 .set-slide{flex-wrap:wrap;row-gap:4px;padding-bottom:12px}
 .set-slide input{flex-basis:100%;margin:0;height:28px;background:none;-webkit-appearance:none;appearance:none;cursor:pointer;touch-action:none}
@@ -1048,6 +1050,8 @@ html.cf-land .cf-s{font-size:13px}
       <div class="set-row" id="tg-link-row" style="display:none"><span class="set-l">Telegram<small id="tg-link-sub">Songs you send the bot download into the app</small></span><button class="set-pill" id="tg-link-btn">Link</button></div>
       <div class="set-row" id="search-row" style="display:none"><span class="set-l">Song search<small id="search-sub">Checking…</small></span><button class="set-pill" id="search-btn" hidden>Log in</button></div>
       <form class="set-row" id="search-form" hidden><input class="set-in" id="search-in" autocomplete="off"><button class="set-pill" id="search-go" type="submit">Next</button></form>
+      <div class="set-row" id="search-qr" hidden><div class="qr-box" id="search-qr-box"></div><span class="set-l"><small>On your phone: Telegram › Settings › Devices › Link Desktop Device, and scan this. It changes every half a minute, that's normal</small></span></div>
+      <div class="set-row" id="search-alt" hidden><button class="set-pill" id="search-alt-btn" type="button"></button></div>
     </div>
     <div class="set-h">Sound effect</div>
     <div class="set-group" id="retro-sw" role="radiogroup" aria-label="Sound effect">
@@ -1088,11 +1092,11 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v50";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v51";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
-const SOURCE_BOT = "@deezload2bot";
+const SOURCE_BOT = "@mybot";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
 const NAT = (() => { try { return window.MACAW_APP && window.webkit && window.webkit.messageHandlers.macaw ? window.MACAW_APP : null; } catch (e) { return null; } })();
@@ -2294,30 +2298,67 @@ function manualGet(ctx, title, k, st) {                              // no login
 /* Settings > Song search: log in with your own Telegram account (phone number, the code Telegram sends you, and your
    cloud password if you have one). Your server keeps the login; Log out here, or end the "Macaw song search" session
    in Telegram (Settings > Devices). */
-const SRCH = { st: null, step: "phone", open: false, busy: false, err: "" };
+const SRCH = { st: null, step: "phone", open: false, busy: false, err: "", via: "", svg: "" };
 async function searchStatus(fresh) {
   if (SRCH.st && !fresh) return SRCH.st;
   if (!canGet()) return { ready: false };
   try { SRCH.st = await apiCall("/api/search"); } catch (e) { SRCH.st = { available: false, ready: false, error: e.message, old: !!e.old }; }
   searchUI(); return SRCH.st;
 }
-const SRCH_STEP = { phone: ["tel", "Phone, like +7 999 123 45 67"], code: ["text", "Code from Telegram"], password: ["password", "Cloud password (two-step)"] };
+const SRCH_STEP = { phone: ["tel", "Phone, like +7 999 123 45 67"], code: ["text", "Code"], password: ["password", "Cloud password (two-step)"] };
+const VIA_MSG = { app: "Telegram sent the code to your Telegram app: look in the chat named “Telegram”",
+  sms: "Telegram sent the code by SMS", call: "Telegram is calling you: the code is in the call (or the last digits of the number)",
+  email: "Telegram sent the code to your login email", fragment: "Telegram sent the code through Fragment" };
 function searchUI() {
   if (!canGet()) return;
   const s = SRCH.st, row = $("search-row"), sub = $("search-sub"), btn = $("search-btn"), form = $("search-form"), inp = $("search-in");
+  const qr = $("search-qr"), alt = $("search-alt"), altBtn = $("search-alt-btn");
   row.style.display = "";
   const open = SRCH.open && s && s.available && !s.ready;
-  form.hidden = !open; btn.hidden = !s || !s.available;
+  form.hidden = !open || SRCH.step === "qr"; qr.hidden = !(open && SRCH.step === "qr");
+  alt.hidden = !open || SRCH.step === "password"; btn.hidden = !s || !s.available;
   if (!s) sub.textContent = "Checking…";
   else if (!s.available) sub.textContent = s.old ? "Your server needs the update (run install.sh again)"
     : s.error ? `Not answering right now (${s.error}). Close Settings and open them again to check` : "Off on your server: + opens the bot chat with the search typed in";
   else if (s.ready) { sub.textContent = `On, with ${s.name || "your account"}. The + on grey songs gets them by itself`; btn.textContent = "Log out"; }
   else if (open) {
-    sub.textContent = SRCH.err || (SRCH.step === "phone" ? "Your Telegram number. Telegram sends you a code" : SRCH.step === "code" ? "Telegram sent you a code (in the Telegram app)" : "This account has a cloud password");
     btn.textContent = "Cancel";
-    const [type, ph] = SRCH_STEP[SRCH.step]; if (inp.type !== type) inp.type = type; inp.placeholder = ph;
-    inp.inputMode = SRCH.step === "code" ? "numeric" : SRCH.step === "phone" ? "tel" : "text";
+    sub.textContent = SRCH.err || (SRCH.step === "phone" ? "Your Telegram number. Telegram sends you a code"
+      : SRCH.step === "code" ? (VIA_MSG[SRCH.via] || "Telegram sent you a code" + (SRCH.via ? " (" + SRCH.via + ")" : ""))
+      : SRCH.step === "qr" ? "Scan this QR code with Telegram on your phone" : "This account has a cloud password");
+    if (SRCH.step === "qr") { if ($("search-qr-box")._svg !== SRCH.svg) { $("search-qr-box").innerHTML = SRCH.svg; $("search-qr-box")._svg = SRCH.svg; } }
+    else { const [type, ph] = SRCH_STEP[SRCH.step]; if (inp.type !== type) inp.type = type; inp.placeholder = ph;
+      inp.inputMode = SRCH.step === "code" ? "numeric" : SRCH.step === "phone" ? "tel" : "text"; }
+    altBtn.textContent = SRCH.step === "phone" ? "Log in with a QR code instead" : SRCH.step === "code" ? "Send the code by SMS" : "Use the phone number instead";
   } else { sub.textContent = "Log in with your Telegram account and the + on grey songs gets them by itself"; btn.textContent = "Log in"; }
+}
+async function searchStep(step, value) {                             // one login step; returns the server's answer (or null on error)
+  if (SRCH.busy) return null;
+  SRCH.busy = true; $("search-go").disabled = $("search-alt-btn").disabled = true; SRCH.err = "";
+  let j = null;
+  try {
+    j = await apiCall("/api/search/login", { step, value: value || "" }, 40000);
+    if (j.done) {
+      SRCH.open = false; SRCH.step = "phone"; $("search-in").value = ""; toast("Song search is on"); haptic("medium");
+      SRCH.busy = false; $("search-go").disabled = $("search-alt-btn").disabled = false; await searchStatus(true); return j;
+    }
+    if (j.next) { if (j.next !== SRCH.step) $("search-in").value = ""; SRCH.step = j.next; }
+    if (j.via) SRCH.via = j.via;
+    if (j.svg) SRCH.svg = j.svg;
+  } catch (e) { SRCH.err = e.message; if (e.j && e.j.restart) { SRCH.step = "phone"; $("search-in").value = ""; } }
+  SRCH.busy = false; $("search-go").disabled = $("search-alt-btn").disabled = false; searchUI();
+  if (SRCH.open && SRCH.step === "qr") qrPoll();
+  return j;
+}
+async function qrPoll() {                                            // waits for the scan (the server changes the QR every ~30 s)
+  if (qrPoll.on) return; qrPoll.on = true;
+  try {
+    while (SRCH.open && SRCH.step === "qr") {
+      await sleep(2500);
+      if (!SRCH.open || SRCH.step !== "qr" || SRCH.busy) continue;
+      await searchStep("qrwait");
+    }
+  } finally { qrPoll.on = false; }
 }
 $("search-btn").addEventListener("click", async () => {
   const s = SRCH.st; if (!s || SRCH.busy) return;
@@ -2330,20 +2371,20 @@ $("search-btn").addEventListener("click", async () => {
     try { await apiCall("/api/search/logout", {}); toast("Logged out"); } catch (e) { toast("Couldn't log out: " + e.message); }
     SRCH.busy = false; await searchStatus(true); return;
   }
-  SRCH.open = !SRCH.open; SRCH.step = "phone"; SRCH.err = ""; $("search-in").value = ""; searchUI();
+  SRCH.open = !SRCH.open; SRCH.step = "phone"; SRCH.err = ""; SRCH.via = ""; $("search-in").value = ""; searchUI();
   if (SRCH.open) setTimeout(() => $("search-in").focus(), 50);
 });
 $("search-form").addEventListener("submit", async ev => {
   ev.preventDefault();
-  const inp = $("search-in"), v = inp.value.trim(); if (!v || SRCH.busy) return;
-  SRCH.busy = true; $("search-go").disabled = true; SRCH.err = "";
-  try {
-    const j = await apiCall("/api/search/login", { step: SRCH.step, value: v }, 40000);
-    if (j.next) { SRCH.step = j.next; inp.value = ""; }
-    else if (j.done) { SRCH.open = false; SRCH.step = "phone"; inp.value = ""; toast("Song search is on"); haptic("medium"); SRCH.busy = false; $("search-go").disabled = false; await searchStatus(true); return; }
-  } catch (e) { SRCH.err = e.message; if (e.j && e.j.restart) { SRCH.step = "phone"; inp.value = ""; } }
-  SRCH.busy = false; $("search-go").disabled = false; searchUI();
-  if (SRCH.open) inp.focus();
+  const v = $("search-in").value.trim(); if (!v) return;
+  await searchStep(SRCH.step, v);
+  if (SRCH.open && SRCH.step !== "qr") $("search-in").focus();
+});
+$("search-alt-btn").addEventListener("click", () => {
+  haptic("light");
+  if (SRCH.step === "phone") searchStep("qr");
+  else if (SRCH.step === "code") searchStep("resend");
+  else { SRCH.step = "phone"; SRCH.err = ""; $("search-in").value = ""; searchUI(); }
 });
 gearBtn.addEventListener("click", () => { if (canGet()) searchStatus(true); });
 setTimeout(() => { if (canGet()) searchStatus(); }, 3000);

@@ -740,7 +740,7 @@ MACAW_EOF
 
 cat > finder/Dockerfile <<'MACAW_EOF'
 FROM python:3.12-slim
-RUN pip install --no-cache-dir "telethon>=1.34,<2" "aiohttp>=3.9,<4"
+RUN pip install --no-cache-dir "telethon>=1.34,<2" "aiohttp>=3.9,<4" "qrcode>=7.4,<9"
 WORKDIR /app
 COPY finder.py ./
 CMD ["python", "-u", "finder.py"]
@@ -788,43 +788,109 @@ def forget(uid):
         try: os.remove(spath(uid) + ext)
         except FileNotFoundError: pass
 
-# ---------- login (three steps: phone -> code -> 2FA password if the account has one) ----------
+# ---------- login ----------
+# By code: phone -> code (Telegram says where it sent it: the Telegram app, SMS, a call, email) -> 2FA password if any.
+# By QR: the player shows a QR code, you scan it in Telegram on your phone (Settings > Devices > Link Desktop Device).
+VIA = {"SentCodeTypeApp": "app", "SentCodeTypeSms": "sms", "SentCodeTypeFirebaseSms": "sms", "SentCodeTypeSmsWord": "sms",
+       "SentCodeTypeSmsPhrase": "sms", "SentCodeTypeCall": "call", "SentCodeTypeFlashCall": "call", "SentCodeTypeMissedCall": "call",
+       "SentCodeTypeEmailCode": "email", "SentCodeTypeSetUpEmailRequired": "setup_email", "SentCodeTypeFragmentSms": "fragment"}
+def via_of(sent):
+    name = type(getattr(sent, "type", None)).__name__
+    return VIA.get(name, name)
+
+def qr_svg(url):
+    import io, qrcode, qrcode.image.svg
+    buf = io.BytesIO()
+    qrcode.make(url, image_factory=qrcode.image.svg.SvgPathImage, box_size=10, border=2).save(buf)
+    return buf.getvalue().decode()
+
+async def qr_loop(uid, p):                                # waits for the scan; the QR code changes every ~30 s
+    qr = p["qr"]
+    for _ in range(20):
+        try:
+            await qr.wait(25)
+            p["state"] = "done"; return
+        except asyncio.TimeoutError:
+            if pending.get(uid) is not p: return
+            await qr.recreate(); p["svg"] = qr_svg(qr.url)
+        except errors.SessionPasswordNeededError:
+            p["state"] = "password"; return
+        except Exception as e:
+            p["state"] = "error"; p["error"] = str(e); return
+    p["state"] = "error"; p["error"] = "The QR code expired. Start again"
+
+async def finish(uid, c):
+    pending.pop(uid, None); clients[uid] = c
+    me = await c.get_me()
+    print(f"[{uid}] logged in as {me.id}", flush=True)
+    return ok(done=True, name=me.first_name or me.username or str(me.id), id=me.id)
+
+async def fresh(uid):                                     # drop any login in progress and any old login for this person
+    old = pending.pop(uid, None)
+    if old:
+        t = old.get("task")
+        if t: t.cancel()
+        await old["c"].disconnect()
+    c = clients.pop(uid, None)
+    if c: await c.disconnect()
+    forget(uid)
+    c = new_client(uid); await c.connect()
+    return c
+
 async def login(req):
     j = await req.json(); uid = int(j.get("uid") or 0); step = j.get("step"); v = str(j.get("value") or "").strip()
     if not uid: return err("bad request")
     if step == "phone":
-        old = pending.pop(uid, None)
-        if old: await old["c"].disconnect()
-        c = clients.pop(uid, None)
-        if c: await c.disconnect()
-        forget(uid)
         phone = re.sub(r"[^\d+]", "", v)
         if not re.fullmatch(r"\+?\d{7,15}", phone): return err("That phone number doesn't look right. Write it with the country code, like +7 999 123 45 67")
-        c = new_client(uid); await c.connect()
+        c = await fresh(uid)
         try: sent = await c.send_code_request(phone)
         except errors.FloodWaitError as e: await c.disconnect(); return err(f"Telegram asks to wait {e.seconds // 60 + 1} min before trying again")
-        except (errors.PhoneNumberInvalidError, errors.PhoneNumberBannedError) as e: await c.disconnect(); return err("Telegram doesn't accept that number")
+        except (errors.PhoneNumberInvalidError, errors.PhoneNumberBannedError): await c.disconnect(); return err("Telegram doesn't accept that number")
         except Exception as e: await c.disconnect(); return err(f"Telegram said: {e}")
+        via = via_of(sent)
+        print(f"[{uid}] code sent via {via} ({type(sent.type).__name__})", flush=True)
+        if via == "setup_email":
+            await c.disconnect()
+            return err("Telegram wants this account to have a login email before it sends codes here. Use the QR code instead")
         pending[uid] = {"c": c, "phone": phone, "hash": sent.phone_code_hash}
-        return ok(next="code")
+        return ok(next="code", via=via)
+    if step == "qr":
+        c = await fresh(uid)
+        try: qr = await c.qr_login()
+        except Exception as e: await c.disconnect(); return err(f"Telegram said: {e}")
+        p = {"c": c, "qr": qr, "state": "wait", "svg": qr_svg(qr.url)}
+        pending[uid] = p
+        p["task"] = asyncio.create_task(qr_loop(uid, p))
+        return ok(next="qr", svg=p["svg"])
     p = pending.get(uid)
-    if not p: return err("Start again: enter your phone number", restart=True)
+    if not p: return err("Start again", restart=True)
     c = p["c"]
+    if step == "qrwait":
+        if "qr" not in p: return err("Start again", restart=True)
+        if p["state"] == "done": return await finish(uid, c)
+        if p["state"] == "password": return ok(next="password")
+        if p["state"] == "error": pending.pop(uid, None); return err(p.get("error") or "Something went wrong. Start again", restart=True)
+        return ok(next="qr", svg=p["svg"])
     try:
+        if step == "resend":
+            if "phone" not in p: return err("Start again", restart=True)
+            from telethon.tl.functions.auth import ResendCodeRequest
+            sent = await c(ResendCodeRequest(p["phone"], p["hash"]))
+            p["hash"] = sent.phone_code_hash
+            via = via_of(sent); print(f"[{uid}] code re-sent via {via}", flush=True)
+            return ok(next="code", via=via)
         if step == "code":
             try: await c.sign_in(p["phone"], re.sub(r"\D", "", v), phone_code_hash=p["hash"])
             except errors.SessionPasswordNeededError: return ok(next="password")
         elif step == "password": await c.sign_in(password=v)
         else: return err("bad request")
-    except errors.PhoneCodeInvalidError: return err("Wrong code. Check it in Telegram and try again")
+    except errors.PhoneCodeInvalidError: return err("Wrong code. Check it and try again")
     except errors.PhoneCodeExpiredError: pending.pop(uid, None); await c.disconnect(); return err("The code expired. Start again", restart=True)
     except errors.PasswordHashInvalidError: return err("Wrong password")
     except errors.FloodWaitError as e: return err(f"Telegram asks to wait {e.seconds // 60 + 1} min")
     except Exception as e: return err(f"Telegram said: {e}")
-    pending.pop(uid, None); clients[uid] = c
-    me = await c.get_me()
-    print(f"[{uid}] logged in as {me.id}", flush=True)
-    return ok(done=True, name=me.first_name or me.username or str(me.id), id=me.id)
+    return await finish(uid, c)
 
 async def logout(req):
     uid = int((await req.json()).get("uid") or 0)
