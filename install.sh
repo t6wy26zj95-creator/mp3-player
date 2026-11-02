@@ -395,7 +395,7 @@ async function readTags(t) {                                              // alb
     const c = parseTags(f);
     if (s(c.title)) t.title = s(c.title);
     if (s(c.artist)) t.artist = s(c.artist);
-    t.album = s(c.album); t.albumArtist = s(c.albumArtist);
+    t.album = t.forceAlbum || s(c.album); t.albumArtist = s(c.albumArtist);
     t.num = c.track; t.disc = c.disc; t.year = c.year; t.isrc = s(c.isrc);
     if (c.picture) { fs.writeFileSync(coverFile(t), c.picture.data); t.cover = c.picture.mime; }
   } catch (e) { console.warn("tags", t.title, e.message); }
@@ -422,7 +422,7 @@ async function setCommands() {
 async function onMessage(m) {
   if (!m || !m.from || m.chat.type !== "private") return;
   const w = waitBy.get(m.from.id);
-  if (w && audioOf(m)) { waitBy.delete(m.from.id); w.res(await addAudio(m, w.uid)); return; }   // the song search just sent this for someone's +
+  if (w && audioOf(m)) { waitBy.delete(m.from.id); w.res(await addAudio(m, w.uid, w.album)); return; }   // the song search just sent this for someone's +
   const text = (m.text || "").trim(), uid = m.from.id;
   const start = /^\/start(?:\s+([\w-]+))?/.exec(text);
   if (start && !db.owner) { db.owner = uid; save(true); console.log("owner is now Telegram user", uid); setCommands(); }
@@ -434,13 +434,20 @@ async function onMessage(m) {
   if (/^\/stats\b/.test(text)) return stats(m);
   if (/^\/invite\b/.test(text)) return uid === db.owner ? invite(m) : reply(m, "Only the bot's owner can invite people.");
   if (/^\/users\b/.test(text)) return uid === db.owner ? usersList(m.chat.id) : reply(m, "Only the bot's owner can see that.");
-  if (!audioOf(m)) { if (text && !text.startsWith("/")) await reply(m, "Send or forward audio files here and they appear in your player."); return; }
+  if (!audioOf(m)) {
+    if (m.via_bot) return;                                                // a music bot's "here comes your song" placeholder: not for us
+    if (text && !text.startsWith("/")) await reply(m, "Send or forward audio files here and they appear in your player."); return;
+  }
   await addAudio(m, uid);
 }
-async function addAudio(m, uid) {                                         // one audio message -> uid's library; returns the song (null if it can't be taken)
-  const a = audioOf(m);
+async function addAudio(m, uid, album) {                                  // one audio message -> uid's library; returns the song (null if it can't be taken)
+  const a = audioOf(m);                                                   // album: from the player's +, the album the song should go into
   const uniq = a.file_unique_id, id = trackKey(uid, uniq);
-  if (byId(id)) { await react(m, "👌"); return byId(id); }                 // already in this person's library
+  const old = byId(id);
+  if (old) {                                                              // already in this person's library (a + again moves it to that album)
+    if (album && old.album !== album) { old.album = old.forceAlbum = album; old.rev++; bump(); }
+    await react(m, "👌"); return old;
+  }
   if (a.file_size && a.file_size > MAX_DOWNLOAD) {
     await react(m, "🤷");
     await reply(m, `That file is ${Math.round(a.file_size / 1048576)} MB. ${LOCAL ? "The limit is 2000 MB." : "Bots can only download files up to 20 MB from Telegram, so send an MP3 or M4A version of it."}`);
@@ -454,7 +461,8 @@ async function addAudio(m, uid) {                                         // one
     num: 0, disc: 0, year: 0, isrc: "", duration: a.duration || 0, size: a.file_size || 0, mime, ext,
     thumbId: (a.thumbnail || a.thumb || {}).file_id || null, cover: null, added: Date.now(), used: Date.now(), rev: 1 };
   const twin = db.tracks.find(x => x.uniq === uniq && x.rev > 1);         // someone already has this exact song: reuse what we know, nothing to download
-  if (twin) { for (const k of META) t[k] = twin[k]; t.rev = 2; db.tracks.push(t); bump(); await react(m, "👌"); return t; }
+  if (album) t.album = t.forceAlbum = album;                              // the music bot's edition may be named differently ("Static & Silence")
+  if (twin) { for (const k of META) t[k] = twin[k]; if (album) t.album = album; t.rev = 2; db.tracks.push(t); bump(); await react(m, "👌"); return t; }
   db.tracks.push(t); bump();
   await react(m, "✍");                                                     // ✍ = reading it, 👌 = in your library
   enqueue(async () => {
@@ -480,7 +488,7 @@ function findSong(uid, q) {
     if (!FINDER) return { code: 501, body: { error: "song search is off on the server", manual: true } };
     let st; try { st = (await finder("/status?uid=" + uid)).body; } catch { return { code: 503, body: { error: "song search isn't running", manual: true } }; }
     if (!st.ready) return { code: 409, body: { error: "log in under Settings > Song search", manual: true } };
-    const got = new Promise(res => waitBy.set(st.id, { uid, res }));
+    const got = new Promise(res => waitBy.set(st.id, { uid, res, album: q.album }));
     let r; try { r = await finder("/find", { ...q, uid, target: BOT_NAME }); } catch { waitBy.delete(st.id); return { code: 502, body: { error: "song search didn't answer" } }; }
     if (r.code !== 200) { waitBy.delete(st.id); return r; }
     const t = await Promise.race([got, sleep(30000).then(() => null)]);   // the bot hears about the song a moment after it's sent

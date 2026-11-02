@@ -1092,11 +1092,11 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v51";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v52";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
-const SOURCE_BOT = "@deezload2bot";
+const SOURCE_BOT = "@mybot";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
 const NAT = (() => { try { return window.MACAW_APP && window.webkit && window.webkit.messageHandlers.macaw ? window.MACAW_APP : null; } catch (e) { return null; } })();
@@ -2276,13 +2276,14 @@ async function getSong(ctx, title) {
   const st = await searchStatus(!(SRCH.st && SRCH.st.ready));       // a failed or "not logged in" answer is never reused
   if (!st.ready) return manualGet(ctx, title, k, st);
   try {
-    const j = await apiCall("/api/fetch", { bot: SOURCE_BOT, artist: ctx.artist, title, album: ctx.album }, 150000);   // the music bot can take a while
+    const j = await apiCall("/api/fetch", { bot: SOURCE_BOT, artist: ctx.artist, title, album: ctx.album }, 240000);   // the music bot can take a few minutes
     getShow(k, "done", "Added: " + (j.artist ? j.artist + " – " : "") + (j.title || title));
     haptic("medium");
-    if (botMode) { syncLibrary(); setTimeout(syncLibrary, 4000); } else tgSync();   // tags (album, cover) are read a moment later
+    if (botMode) { syncLibrary(); [4000, 12000, 30000].forEach(ms => setTimeout(syncLibrary, ms)); } else tgSync();   // its album and cover are read from the file a bit later
   } catch (e) {
     if (e.j && e.j.manual) { SRCH.st = null; return manualGet(ctx, title, k, await searchStatus()); }   // logged out meanwhile
-    const why = e && e.name === "AbortError" ? "no answer from your server" : (e && e.message) || "no connection";
+    if (botMode) { setTimeout(syncLibrary, 5000); setTimeout(syncLibrary, 30000); } else tgSync();   // it may still arrive late
+    const why = e && e.name === "AbortError" ? "it took too long (it may still arrive)" : (e && e.message) || "no connection";
     getShow(k, "fail", "Didn't work: " + why + ". Tap + to try again");
     toast("Couldn't get “" + title + "”");
   }
