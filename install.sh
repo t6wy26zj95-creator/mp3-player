@@ -463,7 +463,8 @@ async function onInline(q) {
     }
     hits = hits.sort((a, b) => a[1] - b[1] || a[0].title.localeCompare(b[0].title)).map(x => x[0]);
   }
-  const page = hits.slice(off, off + 50), host = (process.env.DOMAIN || "").trim(), tok = makeToken(uid);
+  const page = hits.slice(off, off + 50), tok = makeToken(uid);
+  const host = (process.env.PUBLIC_URL || (process.env.DOMAIN ? "https://" + process.env.DOMAIN.trim() : "")).trim().replace(/\/+$/, "");   // where Telegram fetches covers from
   const now = Date.now(); for (const [k, v] of picked) if (v.exp < now) picked.delete(k);
   const results = page.map(t => {
     const who = t.artist || "Unknown artist", label = `${t.title} — ${who}`;
@@ -471,7 +472,7 @@ async function onInline(q) {
     picked.set(uid + "|" + label, { id: t.id, exp: now + 10 * 60e3 });
     const r = { type: "article", id: t.id.slice(0, 64), title: t.title, description: `Artist: ${who}\nAlbum: ${t.album || "—"}`,
       input_message_content: { message_text: label } };
-    if (host && t.cover) Object.assign(r, { thumbnail_url: `https://${host}/api/cover/${t.id}?t=${tok}`, thumbnail_width: 160, thumbnail_height: 160 });
+    if (host && t.cover) Object.assign(r, { thumbnail_url: `${host}/api/cover/${t.id}?t=${tok}`, thumbnail_width: 160, thumbnail_height: 160 });
     return r;
   });
   await tg("answerInlineQuery", { inline_query_id: q.id, results, cache_time: 5, is_personal: true,
