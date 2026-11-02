@@ -762,6 +762,7 @@ API_ID = int(os.environ.get("TG_API_ID") or 0)
 API_HASH = os.environ.get("TG_API_HASH") or ""
 DIR = "/session"
 DEVICE = "Macaw song search"
+GAP = 4                              # seconds between two searches in the music bot (faster gets "Too many requests")
 WAIT_AUDIO = 75                      # seconds to wait when the music bot sends a placeholder first and the song later
 
 clients, pending, locks = {}, {}, {}  # uid -> logged-in client; uid -> login in progress; uid -> one search at a time
@@ -988,18 +989,26 @@ async def find(req):
         if len(clean) > 6: queries.append(f"{artist} {clean[:-3]}".lower())
         queries = [q.strip() for q in dict.fromkeys(queries) if q.strip()][:5]
         pool, seen, problem, answered, limited = [], set(), None, False, ""
+        # Pace like a person typing: the bot needs several seconds per search, and a new search while it's still busy
+        # gets "Too many requests". After a timeout, wait and ask the same text again: by then its answer is usually ready.
+        t0 = asyncio.get_running_loop().time()
         for n, q in enumerate(queries):
-            if n: await asyncio.sleep(1.5)
+            if asyncio.get_running_loop().time() - t0 > 100: break     # the player waits ~2.5 min in all
+            if n: await asyncio.sleep(GAP)
             got = None
-            for i in range(4):                                 # music bots are often slow to answer the first time: ask again
-                try: got = await client.inline_query(bot, q, entity=target); problem = None; break
+            for i in range(3):
+                try: got = await client.inline_query(bot, q, entity=target); problem = None
                 except errors.FloodWaitError as e:
                     problem = e
                     if e.seconds > 30: break
-                    await asyncio.sleep(e.seconds + 1)
+                    await asyncio.sleep(e.seconds + 1); continue
                 except Exception as e:
                     problem = e; print(f"[{uid}] @{bot} '{q}' try {i + 1}: {type(e).__name__}: {e}", flush=True)
-                    await asyncio.sleep(2 + 2 * i)
+                    await asyncio.sleep(6 + 4 * i); continue
+                pm0 = getattr(getattr(got, "switch_pm", None), "text", "") or ""
+                if got or not pm0 or i == 2: break
+                print(f"[{uid}] @{bot} '{q}' try {i + 1}: busy ('{pm0}'), waiting", flush=True)
+                await asyncio.sleep(8 + 4 * i)                 # "Too many requests": let it finish, then the same text again
             if got is None: continue
             answered = True
             pm = getattr(getattr(got, "switch_pm", None), "text", "") or ""
