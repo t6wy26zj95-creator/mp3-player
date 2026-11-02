@@ -1076,7 +1076,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v48";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v49";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org:8443";
 /* NAT: the iOS app (the AltStore build in ios/) sets window.MACAW_APP before the page loads. There the songs live inside
    the app and stay between launches (see IOS APP LIBRARY); everywhere else NAT is null and nothing changes. */
@@ -1618,8 +1618,10 @@ function albumEntries(name) { return fillMissing(name, albumEntriesRaw(name)); }
    that reach the bot later. The + on a grey row looks harder (ignores "Remastered", "feat.", accents, small spelling
    differences) and links the closest song; hold the row and pick "Not this song" to undo. If nothing fits, the + offers
    to copy the name and open the bot below. */
-const MISSING_BOT_URL = "";                              // the bot the + opens when a song isn't in your library ("" = our own bot)
-const MISSING_BOT_TEXT = "{artist} {title}";             // the text copied for you to paste there; {artist} and {title} are filled in
+/* ▼ YOUR BOT: the + on a grey song opens this link (when the song isn't already in your library), with the text below
+   copied so you can paste it. Put any bot here, e.g. "https://t.me/yourbot". Leave it "" to use our own bot. */
+const MISSING_BOT_URL = "";
+const MISSING_BOT_TEXT = "{artist} {title}";             // {artist} and {title} are filled in
 let slotLinks = {}; try { slotLinks = JSON.parse(store.get("slotLinks") || "{}") || {}; } catch (e) {}
 const saveSlots = () => store.set("slotLinks", JSON.stringify(slotLinks));
 const slotKey = (album, e) => [norm(album), e.disc || 1, e.num || 0, norm(e.title)].join("|");
@@ -1681,13 +1683,10 @@ function missingAdd(e, btn) {                                        // the + on
     toast(`Found “${t.title}”${t.album !== currentAlbum ? " on " + t.album : ""}`); return;
   }
   const text = MISSING_BOT_TEXT.replace(/\{artist\}/g, e.artist || "").replace(/\{title\}/g, e.title).replace(/\s+/g, " ").trim();
+  try { navigator.clipboard.writeText(text).catch(() => {}); } catch (x) {}
   const bot = MISSING_BOT_URL || (store.get("tgBot") ? "https://t.me/" + store.get("tgBot") : "");
-  plMenu(btn, ({ el, item }) => {
-    const h = document.createElement("div"); h.className = "pl-h"; h.textContent = "Not in your library yet"; el.appendChild(h);
-    const copy = () => { try { navigator.clipboard.writeText(text).catch(() => {}); } catch (x) {} };
-    item("Copy the name", ICON_COPY, () => { plPopClose(); copy(); toast("Copied"); });
-    if (bot) item("Copy and open the bot", ICON_ADD, () => { plPopClose(); copy(); openExternal(bot); });
-  });
+  if (bot) { toast(`Copied “${text}”`); openExternal(bot); }
+  else toast(`Not in your library yet · copied “${text}”`);
 }
 function openExternal(url) {
   if (NAT) natSend({ cmd: "open", url });
@@ -2304,7 +2303,6 @@ const ICON_LAST = `<svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h1
 const ICON_REMOVE = `<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
 const ICON_CHECK = `<svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>`;
 const ICON_MORE = `<svg viewBox="0 0 24 24"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>`;
-const ICON_COPY = `<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
 const ICON_ADD = `<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
 const ICON_PHOTO = `<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>`;
 const ICON_EDIT = `<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
