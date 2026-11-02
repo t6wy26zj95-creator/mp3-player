@@ -914,16 +914,19 @@ JUNK = re.compile(r"\b(remix|live|cover|karaoke|instrumental|sped ?up|slowed|nig
 
 def norm(s):
     s = unicodedata.normalize("NFKC", str(s or "")).casefold()
-    s = re.sub(r"\(.*?\)|\[.*?\]", " ", s)
+    s = re.sub(r"\(.*?\)|\[.*?\]", " ", s)                                      # (Live), [Remastered 2004]...
+    s = re.sub(r"\s[-–—]\s.*\b(remaster\w*|version|mono|stereo|edit|mix|bonus|deluxe|single)\b.*$", " ", s)   # " - 2004 Remaster"
     s = re.sub(r"\b(feat|ft|featuring)\b.*$", " ", s)
     return re.sub(r"[^\w]+", " ", s).strip()
 
-def sim(a, b):
+def sim(a, b, artist=False):
     a, b = norm(a), norm(b)
+    if artist: a, b = re.sub(r"^the ", "", a), re.sub(r"^the ", "", b)       # "The Sundays" = "Sundays"
     if not a or not b: return 0.0
     if a == b: return 1.0
     r = difflib.SequenceMatcher(None, a, b).ratio()
-    if a in b or b in a: r = max(r, 0.85)
+    short, long_ = sorted((a, b), key=len)
+    if short in long_ and len(short) / len(long_) >= 0.75: r = max(r, 0.9)      # only when almost the whole title matches
     return r
 
 def describe(r):
@@ -948,11 +951,14 @@ def describe(r):
     return title, artist, album, is_audio, is_album
 
 def score(r, want_artist, want_title, want_album):
+    """0 = not this song. Title must match almost exactly, and the artist too when both are known."""
     title, artist, album, is_audio, is_album = describe(r)
-    s = 60 * sim(title, want_title) + 35 * max(sim(artist, want_artist), sim(r.description or "", want_artist) * 0.9)
+    ts = sim(title, want_title)
+    ars = sim(artist, want_artist, artist=True) if artist and want_artist else 0.5
+    if is_album or ts < 0.85 or (artist and want_artist and ars < 0.8): return 0, title, artist
+    s = 60 * ts + 35 * ars
     if want_album and album and sim(album, want_album) > 0.8: s += 5
     if is_audio: s += 3
-    if is_album: s -= 60
     for w in set(x.lower() for x in JUNK.findall(title + " " + (r.title or ""))):
         if w not in want_title.lower(): s -= 15
     return s, title, artist
@@ -970,17 +976,26 @@ async def find(req):
     if not client: return err("log in under Settings > Song search", 409, manual=True)
     clean = re.sub(r"\s*[\(\[].*?[\)\]]", "", title).strip() or title
     async with locks.setdefault(uid, asyncio.Lock()):
-        found = []
+        found, problem = [], None
         for q in dict.fromkeys([f"{artist} {clean}".strip(), clean]):    # artist + title first; the title alone if that finds nothing
-            try: found = await client.inline_query(bot, q, entity=target)
-            except Exception as e: return err(f"@{bot} didn't answer: {e}", 502)
+            for i in range(4):                                 # music bots are often slow to answer the first time: ask again
+                try: found = await client.inline_query(bot, q, entity=target); problem = None; break
+                except errors.FloodWaitError as e:
+                    problem = e
+                    if e.seconds > 30: break
+                    await asyncio.sleep(e.seconds + 1)
+                except Exception as e:
+                    problem = e; print(f"[{uid}] @{bot} '{q}' try {i + 1}: {type(e).__name__}: {e}", flush=True)
+                    await asyncio.sleep(2 + 2 * i)
             if found: break
-        if not found: return err(f"@{bot} found nothing", 404)
+        if not found:
+            if problem: return err(f"@{bot} didn't answer ({type(problem).__name__}). Try again in a minute", 502)
+            return err(f"@{bot} found nothing", 404)
         ranked = sorted(((score(r, artist, title, album), r) for r in found), key=lambda x: -x[0][0])
         (best, got_title, got_artist), r = ranked[0]
         top = [{"title": t, "artist": a, "score": round(s)} for (s, t, a), _ in ranked[:5]]
         print(f"[{uid}] {artist} - {title}: best {got_artist} - {got_title} ({best:.0f})", flush=True)
-        if best < 55: return err("nothing close enough", 404, candidates=top)
+        if best < 55: return err("no exact match" + (f" (closest: {top[0]['artist']} – {top[0]['title']})" if top and top[0]['title'] else ""), 404, candidates=top)
         try: msg = await r.click(target)
         except Exception as e: return err(f"couldn't send the result: {e}", 502)
         if not is_audio_msg(msg):                          # some music bots send a placeholder first and put the song in later
