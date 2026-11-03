@@ -252,6 +252,10 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .alb-play{width:36px;height:36px}
 .alb-play svg{width:15px;height:15px;margin-left:2px}
 .alb-play[disabled]{opacity:.35;pointer-events:none}
+.ed-sw{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 12px 8px;margin:0 -2px}.ed-sw::-webkit-scrollbar{display:none}
+.ed-c{flex:0 0 auto;white-space:nowrap;font:600 12px -apple-system,system-ui,sans-serif;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:rgba(255,255,255,.75);cursor:pointer}
+.ed-c.on{background:rgba(255,255,255,.88);color:#111;border-color:transparent}
+.ed-more{display:block;width:calc(100% - 24px);margin:6px 12px 2px;padding:10px 12px;border-radius:12px;border:1px dashed rgba(255,255,255,.18);background:transparent;color:rgba(255,255,255,.7);font:600 13px -apple-system,system-ui,sans-serif;text-align:left;cursor:pointer}
 .disc-h{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);padding:12px 12px 4px}
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);transform:translateX(-50%) translateY(10px);background:rgba(15,23,30,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);padding:10px 16px;border-radius:14px;font-size:13px;opacity:0;pointer-events:none;transition:opacity var(--t-n) var(--ease),transform var(--t-n) var(--ease);z-index:30;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%)}
@@ -1138,7 +1142,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v60";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v61";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -1206,6 +1210,56 @@ const PERF = (() => {
 const LASTFM_API_KEY = "dbe9aea2d4e59436f4b2015d1f0e027a";
 const albumMeta = {};
 let tracks = [], queue = [], curId = null, uid = 0;
+/* ---------- ONE ALBUM, MANY EDITIONS ----------
+   A song keeps the album its file (or your server) names: its edition, kept in t._ed. Everywhere else the player uses
+   t.album, which is the album as a whole: editions of the same album by the same artist ("Kiss Me Kiss Me Kiss Me" and
+   its "(Deluxe Edition)", "Static & Silence" and "Static And Silence") share one name, so they are one tile in Library
+   and one album page (see EDITIONS further down). Every song is made with trk(), which sets this up. */
+function trk(o) {
+  let ed = o.album; delete o.album;
+  Object.defineProperty(o, "_ed", { get() { return ed; }, set(v) { ed = v; ALB.dirty = true; }, enumerable: false, configurable: true });
+  Object.defineProperty(o, "album", { get() { return albumOf(this); }, set(v) { this._ed = v; }, enumerable: true, configurable: true });
+  ALB.dirty = true;
+  return o;
+}
+const ALB = { dirty: true, arr: null, n: -1, of: new Map(), members: new Map() };
+const edKey = n => albumSig(String(n).replace(/&/g, " and "));      // "Static & Silence" = "Static And Silence"; "(Deluxe Edition)" etc. ignored
+const edClean = n => String(n).replace(/\s*[\(\[][^\)\]]*[\)\]]/g, m => EDITION_RE.test(m) && !LIVE_RE.test(m) ? "" : m)
+  .replace(/\s[-–:]\s*[^-–:]*\b(deluxe|remaster(?:ed)?|edition|expanded|anniversary)\b.*$/i, "").trim() || String(n);
+const albGroups = () => { if (ALB.dirty || ALB.arr !== tracks || ALB.n !== tracks.length) albumGroups(); return ALB; };
+function albumOf(t) {
+  albGroups();
+  return ALB.of.get(t._ed + "\u0001" + albumArtistKey(t)) || ALB.of.get(t._ed) || t._ed;
+}
+const albumArtistKey = t => norm(mainArtist(t.albumArtist || t.artist));
+function albumGroups() {
+  ALB.dirty = false; ALB.arr = tracks; ALB.n = tracks.length; ALB.of = new Map(); ALB.members = new Map();
+  const eds = new Map();                                             // edition -> { n: songs, by: artist -> songs }
+  for (const t of tracks) {
+    const e = t._ed; let x = eds.get(e); if (!x) eds.set(e, x = { n: 0, by: new Map() });
+    const a = albumArtistKey(t); x.n++; x.by.set(a, (x.by.get(a) || 0) + 1);
+  }
+  const groups = new Map();
+  for (const [e, x] of eds) {
+    const a = [...x.by].sort((p, q) => q[1] - p[1])[0][0], sig = e === "Unknown Album" ? "" : edKey(e);
+    const g = sig && a ? sig + "|" + a : "\u0002" + e;
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push({ e, n: x.n, artists: [...x.by.keys()] });
+  }
+  let order = []; try { order = albumOrder; } catch (e) {}
+  for (const list of groups.values()) {
+    let name = list[0].e;
+    if (list.length > 1) {                                           // the plain edition's name if you have it, else the name without "(Deluxe Edition)"
+      const by = (p, q) => q.n - p.n || p.e.localeCompare(q.e);
+      const plain = list.filter(m => edClean(m.e) === m.e.trim()).sort(by)[0];
+      const kept = list.find(m => order.includes(m.e) && !plain);
+      name = plain ? plain.e : kept ? edClean(kept.e) : edClean(list.slice().sort(by)[0].e);
+    }
+    ALB.members.set(name, list.map(m => m.e));
+    for (const m of list) for (const a of m.artists) ALB.of.set(m.e + "\u0001" + a, name);
+  }
+}
+const editionsOf = name => albGroups().members.get(name) || [name];   // the editions (as your files name them) in one album
 let currentAlbum = "All Tracks";
 /* your own playlists: [{ id, name, keys: [track keys (tkey), in the order they were added] }]. In Library a playlist is
    opened like an album, under the name "pl:" + id (see plOf). */
@@ -1440,7 +1494,7 @@ async function addFile(f) {
   const fk = `${f.name}|${f.size}|${f.lastModified}`;
   if (fileKeys.has(fk)) { dupCount++; return; }                       // same file picked again
   const t = await readTags(f);
-  const tr = { id: ++uid, ...tagFields(f.name, t), file: f, art: null };
+  const tr = trk({ id: ++uid, ...tagFields(f.name, t), file: f, art: null });
   const tk = [tr.artist, tr.album, tr.disc, tr.num, tr.title].map(x => String(x).trim().toLowerCase()).join("|");
   fileKeys.add(fk);
   if (tagKeys.has(tk)) { dupCount++; return; }                        // identical track already in this album
@@ -1559,7 +1613,7 @@ async function relTrackList(id) {
       out = out.concat(r.data); if (!r.next || r.data.length < 100) break;
     }
     if (!out.length) return null;
-    return relTracks[id] = out.map((t, i) => ({ title: t.title, num: t.track_position || i + 1, disc: t.disk_number || 1 }));
+    return relTracks[id] = out.map((t, i) => ({ title: t.title, num: t.track_position || i + 1, disc: t.disk_number || 1, isrc: t.isrc || "", dur: +t.duration || 0 }));
   } catch (e) { return null; }
 }
 const tokSet = s => new Set(String(s).toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 1));
@@ -1581,10 +1635,10 @@ function scoreRelease(L, name, year, cand, ctr) {
   const cov = m / L.length; if (cov < .6 || !m) return -1;      // most of what you own must really be on that release
   return cov * 100 + (sn(name) === sn(cand.title) ? 25 : 0) + (year && cand.year && +cand.year === year ? 10 : 0) + (m / ctr.length) * 20;
 }
+function topArtist(L) { const cnt = {}; L.forEach(t => { const a = mainArtist(t.albumArtist || t.artist); cnt[a] = (cnt[a] || 0) + 1; }); return Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0]; }
 async function resolveAlbum(name) {
   const L = tracks.filter(t => t.album === name); if (!L.length) return;
-  const cnt = {}; L.forEach(t => { const a = mainArtist(t.albumArtist || t.artist); cnt[a] = (cnt[a] || 0) + 1; });
-  const artist = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
+  const artist = topArtist(L);
   if (name === "Unknown Album" || !artist || artist === "Unknown Artist") { albumRelease[name] = 0; return; }
   const key = norm(artist) + "|" + sn(name), c = relStore[key];
   if (c && c.n === L.length && (c.id || Date.now() - (c.at || 0) < 7 * 864e5)) {   // a "no match" is checked again after a week
@@ -1637,7 +1691,8 @@ async function runResolve() {
 }
 function ownedAlbumKey(a) {
   if (!a || !a.id) return null;
-  return [...new Set([...Object.keys(albumRelease), ...Object.keys(relPrev)])].find(n => relOf(n) == a.id && tracks.some(t => t.album === n)) || null;
+  return [...new Set([...Object.keys(albumRelease), ...Object.keys(relPrev)])].find(n => relOf(n) == a.id && tracks.some(t => t.album === n))
+    || Object.keys(EDS).find(n => EDS[n].list && EDS[n].list.some(e => e.id == a.id) && tracks.some(t => t.album === n)) || null;   // another edition of an album you have
 }
 /* Album info arrives one album at a time (dozens of replies right after the library loads). The grid used to be rebuilt
    from scratch on every reply, even while it wasn't on screen. Now replies are gathered for a quarter of a second and
@@ -1655,7 +1710,8 @@ function refreshOwnership() {
 }
 function updateArtistOwnership() {                                   // update cards in place so ownership fades in instead of re-rendering
   document.querySelectorAll("#artist-albums .album-card[data-aid]").forEach(c => {
-    const own = !!ownedAlbumKey(c._a), dot = c.querySelector(".own-dot");
+    const k = ownedAlbumKey(c._a), l = k && relTracks[c._a.id], dot = c.querySelector(".own-dot");
+    const own = !!k && (relOf(k) == c._a.id || !l || editionEntries(k, { title: c._a.title, tracks: l }).some(e => e.track));   // a dot only when songs of that very edition are here
     c.classList.toggle("dim", !own);
     if (own && !dot) { const d = document.createElement("div"); d.className = "own-dot"; c.prepend(d); }
     else if (!own && dot) dot.remove();
@@ -1666,15 +1722,108 @@ let currentCat = null, albumOrigin = null;             // catalog (Deezer) album
 function catEntries(cat) {
   const own = cat.own !== undefined ? cat.own : ownedAlbumKey(cat), local = own ? tracks.filter(t => t.album === own) : [];
   const plain = t => ({ track: t, title: t.title, num: t.num, disc: t.disc || 1 });
-  if (!cat.list || !cat.list.length) return local.map(plain);
-  const used = new Set(), out = [];
-  const take = fn => { const t = local.find(x => !used.has(x.id) && fn(x)); if (t) used.add(t.id); return t || null; };
-  cat.list.forEach(x => {
-    const t = take(l => sn(l.title) === sn(x.title)) || take(l => (l.disc || 1) === x.disc && l.num === x.num && norm(cleanTitle(l.title)) === norm(cleanTitle(x.title)));
-    out.push({ track: t, title: t ? t.title : x.title, want: x.title, num: x.num, disc: x.disc });
-  });
-  local.filter(t => !used.has(t.id)).forEach(t => out.push({ ...plain(t), disc: 99 }));
+  if (!cat.list || !cat.list.length) return cat.own !== undefined ? local.map(plain) : [];
+  if (cat.own === undefined) return editionEntries(own, { title: cat.title, tracks: cat.list });   // an edition opened from an artist page: only its own songs
+  const { got, used } = matchRows(cat.list, local, false, "", pinFor(own));   // your album, before its editions are known: as Mixed
+  const out = cat.list.map((x, i) => ({ track: got[i], title: got[i] ? got[i].title : x.title, want: x.title, num: x.num, disc: x.disc }));
+  local.filter(t => !used.has(t)).forEach(t => out.push({ ...plain(t), disc: 99 }));
   return out;
+}
+/* ---------- EDITIONS ----------
+   An album you have is shown as "Mixed" by default: our own edition with everything. It starts with the original
+   edition (the earliest release), in its order, and adds the songs that only other editions have, under "From <edition>".
+   Each song is there once: the same song on three editions is one row, while a different recording ("Rough Mix",
+   "Live", "Demo") is a song of its own. A song fills its row whichever edition your copy came from.
+   Grey (with +): the original edition's songs you don't have. The other editions' songs you don't have stay folded
+   away behind "Show N more from other editions", so a big deluxe edition doesn't make the album look half empty.
+   The switch at the top shows one real edition instead: its own tracklist, and only songs that truly belong to it
+   (see belongs). A + there only fills the row if the bot sends that edition's song; otherwise the song is kept and
+   shows in Mixed. In Mixed, the song a + brings fills the row you pressed, whatever its file calls it (PINS). */
+const EDS = {};                                                      // album -> { rid, list: [{ id, title, year, date, tracks }] } (earliest first)
+let edPick = {}; try { edPick = JSON.parse(store.get("edPick") || "{}") || {}; } catch (e) {}   // album -> edition id you switched to ("mix" or none: Mixed)
+let PINS = {}; try { PINS = JSON.parse(store.get("rowPins") || "{}") || {}; } catch (e) {}     // "album|song" -> id of the song a + brought for that row
+const edOpen = new Set();                                            // albums showing the songs from other editions you don't have
+const amp = s => String(s || "").replace(/&/g, " and ");
+const songKey = s => {                                               // "The Snakepit" = "Snakepit" = "Snakepit (2006 Remaster)"; "Snakepit (Rough Mix)" is another song
+  const w = String(s).match(/\b(reprise|single|edit|mono|extended|radio|dub|unplugged|orchestral)\b/i);
+  const v = verOf(s) || (w ? w[1] : ""); let x = String(s).replace(/\s*[\(\[][^\)\]]*[\)\]]/g, "").replace(/\s[-–]\s.*$/, "").toLowerCase();
+  x = norm(amp(x).trim().replace(/^(the|a|an)\s+/, "")) || norm(s);
+  return x + (v ? "#" + v.toLowerCase() : "");
+};
+const songId = t => t.remote ? t.remote.sid || t.remote.id : null;
+const pinFor = name => name ? x => PINS[name + "|" + songKey(x.title)] : null;
+/* Is this copy of the song the one on that edition? The song's ID code (ISRC) decides when both have one, else its
+   length (within 2 s; editions' versions often differ by more), else the album name in the file. */
+function belongs(l, x, edTitle) {
+  if (l.isrc && x.isrc) return l.isrc.toUpperCase() === x.isrc.toUpperCase();
+  if (l.dur && x.dur) return Math.abs(l.dur - x.dur) <= 2;
+  return sn(amp(l._ed)) === sn(amp(edTitle));
+}
+function matchRows(rows, local, strict, edTitle, pin) {              // -> { got: the song in each row (or null), used: the songs placed }
+  const used = new Set(), got = rows.map(() => null);
+  const pass = fn => rows.forEach((x, i) => { if (got[i]) return; const t = local.find(l => !used.has(l) && fn(l, x)); if (t) { used.add(t); got[i] = t; } });
+  const ok = strict ? (l, x) => belongs(l, x, edTitle) : () => true;
+  if (pin) pass((l, x) => { const id = pin(x); return !!id && songId(l) === id; });
+  pass((l, x) => l.isrc && x.isrc && l.isrc.toUpperCase() === x.isrc.toUpperCase());
+  pass((l, x) => sn(l.title) === sn(x.title) && ok(l, x));
+  pass((l, x) => songKey(l.title) === songKey(x.title) && ok(l, x));
+  return { got, used };
+}
+function editionEntries(name, ed) {                                  // one real edition: its tracklist, filled only with songs that belong to it
+  const local = name ? tracks.filter(t => t.album === name) : [];
+  const { got } = matchRows(ed.tracks, local, true, ed.title, null);
+  return ed.tracks.map((x, i) => ({ track: got[i], title: got[i] ? got[i].title : x.title, want: x.title, num: x.num, disc: x.disc }));
+}
+function edLabel(ed, i) {                                            // "Deluxe Edition · 2006", "Original · 1987"
+  const t = String(ed.title || ""), m = t.match(/[\(\[]([^\)\]]*)[\)\]]\s*$/), c = edClean(t);
+  const l = m && EDITION_RE.test(m[0]) ? m[1].trim() : c !== t.trim() ? t.slice(c.length).replace(/^[\s\-–:]+/, "") : i ? t : "Original";
+  return l + (ed.year ? " · " + ed.year : "");
+}
+function mixedEntries(name, E) {
+  const local = tracks.filter(t => t.album === name), rows = [], keys = new Set(), ids = new Set();
+  E.list.forEach((ed, j) => ed.tracks.forEach(x => {
+    const k = songKey(x.title), i = String(x.isrc || "").toUpperCase();
+    if (j && (keys.has(k) || (i && ids.has(i)))) return;              // already on an earlier edition
+    keys.add(k); if (i) ids.add(i);
+    rows.push({ x, ed: j ? ed : null, j });
+  }));
+  const { got, used } = matchRows(rows.map(r => r.x), local, false, "", pinFor(name));
+  const out = [], open = edOpen.has(name); let hidden = 0;
+  rows.forEach((r, i) => {
+    const t = got[i], x = r.x;
+    if (!r.ed) { out.push({ track: t, title: t ? t.title : x.title, want: x.title, num: x.num, disc: x.disc }); return; }
+    if (!t && !open) { hidden++; return; }
+    out.push({ track: t, title: t ? t.title : x.title, want: x.title, num: 0, disc: 50 + r.j, head: "From " + edLabel(r.ed, r.j) });
+  });
+  if (hidden || open) {
+    const n = rows.filter((r, i) => r.ed && !got[i]).length;
+    if (n) out.push({ more: open ? -1 : hidden, disc: 98 });
+  }
+  local.filter(t => !used.has(t)).forEach(t => out.push({ track: t, title: t.title, num: t.num, disc: 99 }));
+  return out;
+}
+async function loadEditions(name, rid) {
+  if (EDS[name] && EDS[name].rid === rid) return;
+  EDS[name] = { rid, list: null };
+  const artist = topArtist(tracks.filter(t => t.album === name));
+  const cat = artist ? await dzCatalog(artist) : null;
+  const me = cat && cat.albums.find(a => a.id == rid), sig = albumSig(me ? me.title : name), live = LIVE_RE.test(me ? me.title : name);
+  let eds = cat ? cat.albums.filter(a => a.id == rid || (albumSig(a.title) === sig && LIVE_RE.test(a.title) === live)) : [];
+  if (!eds.some(a => a.id == rid)) eds.unshift({ id: rid, title: name, year: "", date: "" });
+  if (eds.length > 6) eds = eds.filter(a => a.id == rid).concat(eds.filter(a => a.id != rid).slice(0, 5)).sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"));
+  const list = [];
+  for (const a of eds) { const l = await relTrackList(a.id); if (l) list.push({ ...a, tracks: l }); }
+  if (!list.length) { delete EDS[name]; return; }
+  EDS[name] = { rid, list };
+  libRenderSoon();
+}
+function edView(name) {                                              // the edition shown for an album: null = Mixed
+  const E = EDS[name], p = edPick[name];
+  return E && E.list && p && p !== "mix" ? E.list.find(e => e.id == p) || null : null;
+}
+function pickEdition(name, id) {
+  if (id === "mix") delete edPick[name]; else edPick[name] = id;
+  store.set("edPick", JSON.stringify(edPick)); haptic("light"); renderPlaylist();
 }
 const verOf = s => { const m = String(s).match(/\b(live|demo|rough(?: mix| vocal)?|instrumental|acoustic|remix|alternate|session)\b/i); return m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : ""; };
 function albumCover(name) {
@@ -1685,6 +1834,9 @@ function albumEntries(name) {
   const pl = plOf(name); if (pl) return plTracks(pl).map(t => ({ track: t, title: t.title, num: 0, disc: 1 }));
   if (currentCat && name === currentCat.key) return catEntries(currentCat);
   const rid = relOf(name);
+  if (rid) loadEditions(name, rid);
+  const E = EDS[name];
+  if (E && E.list) { const ed = edView(name); return ed ? editionEntries(name, ed) : mixedEntries(name, E); }
   if (rid && relTracks[rid]) return catEntries({ id: rid, own: name, list: relTracks[rid] });
   const local = tracks.filter(t => t.album === name);              // already ordered disc -> track number
   const plain = () => local.map(t => ({ track: t, title: t.title, num: t.num, disc: t.disc || 1 }));
@@ -1716,7 +1868,7 @@ function saveOrder(keys) {
 }
 function gridKeys() {                                                // All Tracks, playlists and albums, in your order (new ones: All Tracks, then playlists, first)
   const items = [ALL, ...playlists.map(p => PL + p.id), ...new Set(tracks.map(t => t.album).filter(isRealAlbum))];
-  const rank = k => { const i = albumOrder.indexOf(k); return i >= 0 ? i : k === ALL ? -3 : plOf(k) ? -2 : 1e6; };
+  const rank = k => { let i = albumOrder.indexOf(k); if (i < 0) i = Math.min(...editionsOf(k).map(e => albumOrder.indexOf(e)).filter(x => x >= 0), 1e9); return i < 1e9 ? i : k === ALL ? -3 : plOf(k) ? -2 : 1e6; };   // an album now grouped with its other editions keeps its place
   return items.map((k, i) => [k, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
 }
 function renderAlbums() {
@@ -2252,7 +2404,8 @@ function albumHead(all, pl, entries) {
   const name = all ? "All Tracks" : currentCat ? currentCat.title : albumLabel(currentAlbum);
   const arts = [...new Set(own.map(t => mainArtist(t.albumArtist || t.artist)).filter(a => a && a !== "Unknown Artist"))];
   const who = all || pl ? "" : currentCat ? currentCat.artist : arts.length === 1 ? arts[0] : arts.length ? "Various artists" : "";
-  const year = all || pl ? 0 : Math.max(0, ...own.map(t => t.year || 0));
+  const E = !all && !pl && !currentCat && EDS[currentAlbum], ed = E && E.list && (edView(currentAlbum) || E.list[0]);   // an album with editions: the year of the one shown (Mixed: the original)
+  const year = all || pl ? 0 : ed && +ed.year ? +ed.year : Math.max(0, ...own.map(t => t.year || 0));
   const n = own.length, cnt = n === 1 ? "1 song" : n + " songs";
   const sub = [pl ? "Playlist" : "", who, year ? String(year) : "", cnt].filter(Boolean).join(" · ");
   const art = all ? null : albumCover(currentAlbum);
@@ -2262,6 +2415,17 @@ function albumHead(all, pl, entries) {
   h.querySelector(".alb-n").textContent = name; h.querySelector(".alb-s").textContent = sub;
   h.querySelector(".alb-play").addEventListener("click", () => { if (own.length) { haptic("light"); startContext(shuffle ? own[Math.floor(Math.random() * own.length)].id : own[0].id); } });
   return h;
+}
+function edSwitch(name, E, view) {                                   // the edition switch under an album's name
+  const w = document.createElement("div"); w.className = "ed-sw"; w.setAttribute("role", "tablist");
+  [{ id: "mix", l: "Mixed" }, ...E.list.map((e, i) => ({ id: e.id, l: edLabel(e, i) }))].forEach(o => {
+    const b = document.createElement("button"), on = view ? o.id == view.id : o.id === "mix";
+    b.className = "chip ed-c" + (on ? " on" : ""); b.textContent = o.l; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", on ? "true" : "false");
+    b.addEventListener("click", () => { if (!on) pickEdition(name, o.id); });
+    w.appendChild(b);
+  });
+  requestAnimationFrame(() => { const on = w.querySelector(".on"); if (on && on.offsetLeft > w.clientWidth - 40) w.scrollLeft = on.offsetLeft - 16; });
+  return w;
 }
 function renderPlaylist() {
   if (swActive) { swLater.add(renderPlaylist); return; }             // a finger is on a row: rebuild once it lets go
@@ -2276,15 +2440,29 @@ function renderPlaylist() {
   if (currentCat && !resolving() && !albumEntries(currentAlbum).some(e => e.track)) { const ds = Object.keys(relDebug).filter(n => norm(relDebug[n].split(" · ")[0]) === norm(currentCat.artist)).map(n => n + " → " + relDebug[n].split(" · ").slice(1).join(" · ")); if (ds.length) { const n = document.createElement("div"); n.className = "artist-note"; n.style.fontSize = "10px"; n.textContent = "Matching: " + ds.join(" | "); ui.appendChild(n); } }
   if (currentCat && resolving() && !entries.some(e => e.track)) { const n = document.createElement("div"); n.className = "artist-note"; n.textContent = "Checking your library…"; ui.appendChild(n); }
   ui.prepend(albumHead(all, pl, entries));
-  const multi = !all && entries.some(e => e.disc > 1); let lastDisc = null;
+  const E = !all && !pl && !currentCat && EDS[currentAlbum], view = E && E.list ? edView(currentAlbum) : null;
+  if (E && E.list && E.list.length > 1) ui.children[0].after(edSwitch(currentAlbum, E, view));   // Mixed · Original · Deluxe Edition…
+  const multi = !all && new Set(entries.filter(e => e.disc < 50).map(e => e.disc || 1)).size > 1; let lastHead = null;
+  const headOf = e => e.head || (e.disc >= 99 ? "Also in your files" : e.disc >= 50 ? "" : multi ? "Disc " + (e.disc || 1) + (e.track && e.track.discName ? " · " + e.track.discName : "") : "");
   const gctx = !all && !pl && canGet() && (getting.size || entries.some(e => !e.track)) ? albumCtx() : null;   // grey songs get a + (see + ON A GREY SONG)
   entries.forEach(e => {
-    if (multi && e.disc !== lastDisc) { lastDisc = e.disc; const h = document.createElement("div"); h.className = "disc-h"; h.textContent = e.disc >= 99 ? "Also in your files" : "Disc " + e.disc + (e.track && e.track.discName ? " · " + e.track.discName : ""); ui.appendChild(h); }
+    const hd = headOf(e);
+    if (hd && hd !== lastHead) { const h = document.createElement("div"); h.className = "disc-h"; h.textContent = hd; ui.appendChild(h); }
+    if (!e.more) lastHead = hd;
+    if (e.more) {                                                    // the other editions' songs you don't have: folded away
+      const m = document.createElement("button"); m.className = "ed-more";
+      m.textContent = e.more < 0 ? "Hide the songs you don't have" : `Show ${e.more} more from other editions`;
+      m.addEventListener("click", () => { haptic("light"); if (edOpen.has(currentAlbum)) edOpen.delete(currentAlbum); else edOpen.add(currentAlbum); renderPlaylist(); });
+      ui.appendChild(m); return;
+    }
     const t = e.track, item = document.createElement("div");
     item.className = "playlist-item" + (t ? "" : " missing") + (t && t.id === curId ? " active" : "");
     const label = (e.num && !all ? e.num + ". " : "") + e.title;    // All Tracks mixes albums: their track numbers would read as a broken list
     if (!t) {
-      const g = gctx && getting.get(gkey(gctx, e.title));
+      let g = gctx && getting.get(gkey(gctx, e.title));
+      if (g && (view || currentCat) && g.id && g.st === "busy" && tracks.some(x => songId(x) === g.id && !held(x))) {   // it came, but it's another edition's song
+        getShow(gkey(gctx, e.title), "fail", "The bot only had another version. It's in Mixed"); g = getting.get(gkey(gctx, e.title));
+      }
       item.innerHTML = itemHTML(albumCover(currentAlbum), label, g ? g.msg : "🔒 Not in your library");
       if (gctx) { item.dataset.get = gkey(gctx, e.title); item.appendChild(getButton(gctx, e.title)); }
       ui.appendChild(item); return;
@@ -2320,7 +2498,7 @@ const gkey = (ctx, title) => gk(ctx.artist) + "|" + gk(title);
 const PLUS_SVG = '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/></svg>';
 const TICK_SVG = '<svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>';
 function albumCtx() {                                                // who and which album the grey songs belong to
-  if (currentCat) return { artist: currentCat.artist || "", album: currentCat.title || "" };
+  if (currentCat) return { artist: currentCat.artist || "", album: ownedAlbumKey(currentCat) || currentCat.title || "" };
   const own = tracks.filter(t => t.album === currentAlbum);
   const arts = [...new Set(own.map(t => mainArtist(t.albumArtist || t.artist)).filter(a => a && a !== "Unknown Artist"))];
   return { artist: arts[0] || "", album: albumLabel(currentAlbum) };
@@ -2430,6 +2608,7 @@ async function getSong(ctx, title) {
   try {
     const j = await apiCall("/api/fetch", { bot: SOURCE_BOT, artist: ctx.artist, title, album: ctx.album }, 240000);   // the music bot can take a few minutes
     const name = (j.artist ? j.artist + " – " : "") + (j.title || title);
+    if (j.id && !currentCat && !edView(currentAlbum)) { PINS[ctx.album + "|" + songKey(title)] = j.id; store.set("rowPins", JSON.stringify(PINS)); }   // Mixed: it fills this row, whatever it's called
     if (j.id && GW.ok !== false) {                                   // found: the ring now follows the file into your library (see getWatch)
       if (botMode) GW.hold.add(j.id);                                  // not in the list until its tags are read, so it doesn't show up half-named and move
       getShow(k, "busy", "Found it. Getting the file…", .15, { id: j.id, name, at: Date.now() });
@@ -2881,7 +3060,7 @@ function beginDrag(r, from, group, e, el, opt = {}) {
    are saved on this device (and inside Telegram also in its DeviceStorage), and come back the next time the player
    opens. Songs are matched by a stable key: the server's id for bot songs, the tags for songs picked from the phone.
    The whole-library context is saved as "library", not as a list. */
-const tkey = t => t.remote ? "r:" + (t.remote.sid || t.remote.id) : "l:" + [t.artist, t.album, t.disc, t.num, t.title].join("|").toLowerCase();
+const tkey = t => t.remote ? "r:" + (t.remote.sid || t.remote.id) : "l:" + [t.artist, t._ed || t.album, t.disc, t.num, t.title].join("|").toLowerCase();   // its own edition: stays the same when albums are grouped
 let pendingSeek = null, restored = false, lastSave = 0, stateDirty = true;
 /* Resuming where you were. On iPhone a jump (setting currentTime) made while the song is still loading, before it really
    plays, can be dropped silently: the music starts from 0:00 while the player keeps reporting the jump's target as its
@@ -3263,7 +3442,7 @@ function jsonp(url) {
     const t = setTimeout(() => { done(); rej(); }, 8000);
     window[cb] = d => { done(); res(d); };
     sc.onerror = () => { done(); rej(); };
-    sc.src = url + "&output=jsonp&callback=" + cb; document.head.appendChild(sc);
+    sc.src = url + (url.includes("?") ? "&" : "?") + "output=jsonp&callback=" + cb; document.head.appendChild(sc);   // "track/isrc:…" has no "?" of its own
   });
 }
 
@@ -5491,7 +5670,7 @@ function applyLibrary(j, first, quiet, relink) {
     seen.add(x.id);
     const t = lib.byRid.get(x.id);
     if (!t) {
-      const tr = { id: ++uid, file: null, remote: { id: x.id, rev: x.rev }, ...libFields(x) };
+      const tr = trk({ id: ++uid, file: null, remote: { id: x.id, rev: x.rev }, ...libFields(x) });
       lib.byRid.set(x.id, tr); tracks.push(tr); added.push(tr); scheduleAlbumWork(tr); unrel(tr.album);
     } else if (t.remote.rev !== x.rev || relink) {                     // tags read since (album, cover...), or a fresh link token after an old saved copy
       unrel(t.album); Object.assign(t, libFields(x)); t.remote.rev = x.rev; scheduleAlbumWork(t); unrel(t.album);
@@ -5593,6 +5772,12 @@ async function natRead(x) {                                          // x = { n:
    the server files the found song into the album you pressed + in, but the music bot's copy may be a different edition
    ("Static And Silence" instead of "Static & Silence"). Reading the file's own tags here made a second album. */
 let tgAlbums = {}; try { tgAlbums = JSON.parse(store.get("tgAlbums") || "{}") || {}; } catch (e) {}   // bot song id -> album on the server
+let tgDur = {}; try { tgDur = JSON.parse(store.get("tgDur") || "{}") || {}; } catch (e) {}   // bot song id -> length in seconds
+function natBotId(n) {
+  if (!n.startsWith("Telegram/") || typeof TGL === "undefined") return "";
+  for (const [id, rel] of Object.entries(TGL.done)) if (rel === n) return id;
+  return "";
+}
 function natBotAlbum(n) {
   if (!n.startsWith("Telegram/") || typeof TGL === "undefined") return "";
   for (const [id, rel] of Object.entries(TGL.done)) if (rel === n) return tgAlbums[id] || "";
@@ -5601,6 +5786,7 @@ function natBotAlbum(n) {
 const natFields = (f, x) => {
   const o = { ...f, art: f.pic ? natURL("art", x.n) + "?r=" + x.m : null }; delete o.pic;
   const a = natBotAlbum(x.n); if (a) o.album = a;
+  const id = natBotId(x.n); if (id && tgDur[id]) o.dur = tgDur[id];   // its length, so an album's editions can tell which one it is
   return o;
 };
 function natUI() {
@@ -5630,7 +5816,8 @@ async function natSync() {
       if (old && old.remote.rev === k && natTags[k]) {
         keep[k] = natTags[k];
         const a = natBotAlbum(x.n) || natTags[k].album;                  // the server moved this bot song to another album
-        if (old.album !== a) { unrel(old.album); old.album = a; scheduleAlbumWork(old); unrel(a); moved++; }
+        if (old._ed !== a) { unrel(old.album); old.album = a; scheduleAlbumWork(old); unrel(old.album); moved++; }
+        const bid = natBotId(x.n); if (bid && tgDur[bid]) old.dur = tgDur[bid];
         continue;
       }
       let f = natTags[k];
@@ -5644,7 +5831,7 @@ async function natSync() {
         unrel(old.album); Object.assign(old, natFields(f, x)); old.remote.rev = k; old.file = null; scheduleAlbumWork(old); unrel(old.album);
         continue;
       }
-      const tr = { id: ++uid, file: null, remote: { id: rid, rev: k, nat: x.n, sid: sidOf.get(x.n) || undefined }, ...natFields(f, x) };
+      const tr = trk({ id: ++uid, file: null, remote: { id: rid, rev: k, nat: x.n, sid: sidOf.get(x.n) || undefined }, ...natFields(f, x) });
       lib.byRid.set(rid, tr); tracks.push(tr); added.push(tr); scheduleAlbumWork(tr); unrel(tr.album);
     }
     for (const [rid, t] of lib.byRid) if (!seen.has(rid)) { lib.byRid.delete(rid); tracks = tracks.filter(x => x !== t); queue = queue.filter(e => e.id !== t.id); history = history.filter(h => h.id !== t.id); }
@@ -5745,7 +5932,8 @@ async function tgSync() {
       tgQueue({ id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name, title: x.title });
     }
     for (const id of Object.keys(TGL.done)) if (!seen.has(id)) { if (TGL.done[id].startsWith("Telegram/")) natSend({ cmd: "delete", n: TGL.done[id] }); delete TGL.done[id]; gone++; }
-    const albums = {}; for (const x of j.tracks) if (x.album) albums[x.id] = x.album;
+    const albums = {}, durs = {}; for (const x of j.tracks) { if (x.album) albums[x.id] = x.album; if (x.duration) durs[x.id] = x.duration; }
+    if (JSON.stringify(durs) !== JSON.stringify(tgDur)) { tgDur = durs; store.set("tgDur", JSON.stringify(durs)); }
     if (JSON.stringify(albums) !== JSON.stringify(tgAlbums)) { tgAlbums = albums; store.set("tgAlbums", JSON.stringify(albums)); setTimeout(natSync, 300); }
     if (found) store.set("tgDone", JSON.stringify(TGL.done));
     if (gone) { store.set("tgDone", JSON.stringify(TGL.done)); setTimeout(natSync, 300); }
