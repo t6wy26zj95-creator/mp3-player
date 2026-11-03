@@ -306,22 +306,22 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .albums-grid-container.flow.efade{-webkit-mask-image:none;mask-image:none}
 /* ===== album light (Library, Artists): one light for the whole panel, glass edges on the covers =====
    No glow behind each cover any more (it read as a coloured smudge and lingered when switching tabs). Instead:
-   - the panel takes a soft tint from the cover that's playing (--lc / --lc2, picked from the artwork; none for a muted
+   - a small soft light of the playing cover's colour behind it (--lc / --lc2, picked from the artwork; none for a muted
      cover). Registered colours, so a new song's tint fades in instead of jumping.
    - every cover in a grid gets the same glass edge as the player's cover: a crisp rim that catches the light top-left
      (tinted by the playing cover), a soft highlight and a little thickness. It sits on the card, so it moves, fades
      and leaves with the cover. */
 @property --tint1{syntax:'<color>';inherits:false;initial-value:rgba(0,0,0,0)}
-@property --tint2{syntax:'<color>';inherits:false;initial-value:rgba(0,0,0,0)}
 .player-wrapper::after{content:'';display:block;position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
-  --tint1:rgba(var(--lc,200,215,225),calc(max(0,var(--lk,.55) - .55) * .72));--tint2:rgba(var(--lc2,200,215,225),calc(max(0,var(--lk,.55) - .55) * .42));
-  background:radial-gradient(120% 55% at 25% 0%,var(--tint1),transparent 72%),radial-gradient(90% 50% at 95% 62%,var(--tint2),transparent 72%);
-  transition:--tint1 .9s var(--ease),--tint2 .9s var(--ease)}
+  --tint1:rgba(var(--lc,200,215,225),calc(max(0,var(--lk,.55) - .55) * .38));
+  background:radial-gradient(240px 190px at 80px 70px,var(--tint1),transparent 70%);   /* fixed size, behind the cover: it stays put when the panel grows */
+  transition:--tint1 .9s var(--ease),opacity var(--t-s) var(--ease)}
+html.light-min .player-wrapper::after{opacity:0}                    /* Settings > Minimal light */
 .album-card::after{content:'';position:absolute;left:0;top:0;width:100%;aspect-ratio:1/1;border-radius:12px;pointer-events:none;z-index:1;box-sizing:border-box;
-  background:radial-gradient(70% 60% at 25% 12%,rgba(255,255,255,.2),rgba(255,255,255,0) 60%),linear-gradient(168deg,rgba(255,255,255,.08),rgba(255,255,255,0) 45%);
+  background:radial-gradient(70% 60% at 25% 12%,rgba(255,255,255,.1),rgba(255,255,255,0) 60%),linear-gradient(168deg,rgba(255,255,255,.05),rgba(255,255,255,0) 45%);
   box-shadow:inset 0 -12px 16px -14px rgba(0,0,0,.5),inset 0 11px 14px -14px rgba(255,255,255,.35);transition:transform var(--t-n) var(--ease)}
 .album-card::before{content:'';position:absolute;left:0;top:0;width:100%;aspect-ratio:1/1;border-radius:12px;pointer-events:none;z-index:1;box-sizing:border-box;padding:1px;
-  background:conic-gradient(from -40deg,rgba(255,255,255,.8),rgba(var(--lc,200,215,225),.55) 35deg,rgba(255,255,255,.16) 90deg,rgba(255,255,255,.1) 180deg,rgba(var(--lc2,200,215,225),.4) 200deg,rgba(255,255,255,.12) 260deg,rgba(var(--lc,200,215,225),.55) 325deg,rgba(255,255,255,.8));
+  background:conic-gradient(from -40deg,rgba(255,255,255,.42),rgba(var(--lc,200,215,225),.22) 35deg,rgba(255,255,255,.1) 90deg,rgba(255,255,255,.06) 180deg,rgba(var(--lc2,200,215,225),.14) 200deg,rgba(255,255,255,.08) 260deg,rgba(var(--lc,200,215,225),.22) 325deg,rgba(255,255,255,.42));
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;
   transition:transform var(--t-n) var(--ease)}
 .artist-card::before,.artist-card::after{border-radius:50%}
@@ -1096,6 +1096,7 @@ html.cf-land .cf-s{font-size:13px}
     <div class="set-h no-float">Appearance</div>
     <div class="set-group no-float">
       <div class="set-row"><span class="set-l">Classic panel<small>Plain frosted glass instead of Liquid Glass</small></span><button class="switch" id="old-panel-switch" role="switch" aria-checked="false" aria-label="Classic panel"><i></i></button></div>
+      <div class="set-row"><span class="set-l">Minimal light<small>No coloured light behind the player, only the cover's own glow</small></span><button class="switch" id="light-min-switch" role="switch" aria-checked="false" aria-label="Minimal light"><i></i></button></div>
       <div class="set-row" id="motion-btn" style="display:none"><span class="set-l">Tilt effect<small>The light on the cover follows your phone</small></span><button class="set-pill">Turn on</button></div>
       <button class="set-row set-link" id="home-btn" style="display:none">Add to Home Screen</button>
     </div>
@@ -1125,7 +1126,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v57";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v58";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -1148,7 +1149,7 @@ const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
 /* Each write to Telegram's storage is a round trip through the app, so a key is sent at most once per its delay (the
    latest value wins), and whatever is still waiting is sent straight away when the app is hidden or closed. The play
    position changes every few seconds while you listen: it goes at most every 30 s (and on pause / hide). */
-const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName", "libView"], mirrorT = {}, mirrorV = {};
+const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName", "libView", "lightMin"], mirrorT = {}, mirrorV = {};
 const MIRROR_DELAY = { playState: 3000, playPos: 30000, artistCache: 5000, releaseMap2: 5000 };
 function mirrorSend(k) { clearTimeout(mirrorT[k]); delete mirrorT[k]; if (!(k in mirrorV)) return; const v = mirrorV[k]; delete mirrorV[k]; try { tgStore.setItem(k, v); } catch (e) {} }
 function mirrorFlush() { Object.keys(mirrorV).forEach(mirrorSend); }
@@ -4027,6 +4028,10 @@ $("flow-switch").addEventListener("click", () => {                  // Settings 
   store.set("libView", flowOn() ? "grid" : "flow"); $("flow-switch").setAttribute("aria-checked", String(flowOn())); haptic("light");
   setEdit(false); if (albumsGridWrapper.style.display === "block") { renderAlbums(); showOnly(albumsGridWrapper); }
 });
+/* Minimal light: no panel tint from the playing cover (Settings > Appearance) */
+const lightMin = v => { document.documentElement.classList.toggle("light-min", v); $("light-min-switch").setAttribute("aria-checked", String(v)); };
+$("light-min-switch").addEventListener("click", () => { const v = store.get("lightMin") !== "1"; store.set("lightMin", v ? "1" : "0"); lightMin(v); haptic("light"); });
+lightMin(store.get("lightMin") === "1");
 $("old-panel-switch").addEventListener("click", () => { const old = bubble.on; store.set("oldPanel", old ? "1" : "0"); bubble.set(!old, true); haptic("light"); });
 bubble.set(FLOAT || store.get("oldPanel") !== "1", false);         // Floating glass is always the Liquid Glass panel
 
