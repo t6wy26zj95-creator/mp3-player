@@ -500,8 +500,9 @@ function findSong(uid, q) {
   const p = (findChains.get(uid) || Promise.resolve()).then(run, run);
   findChains.set(uid, p.catch(() => {})); return p;
 }
-const readBody = req => new Promise((ok, no) => {
-  let b = ""; req.on("data", c => { b += c; if (b.length > 1e4) { no(new Error("too big")); req.destroy(); } }); req.on("end", () => ok(b)); req.on("error", no);
+const STATE_KEYS = ["playlists", "hiddenAlbums", "albumOrder", "releaseMap2", "tileCovers", "allName"];   // see /api/state
+const readBody = (req, max = 1e4) => new Promise((ok, no) => {
+  let b = ""; req.on("data", c => { b += c; if (b.length > max) { no(new Error("too big")); req.destroy(); } }); req.on("end", () => ok(b)); req.on("error", no);
 });
 /* ---------- the iOS app (MacawP3) ----------
    The app can't sign in through Telegram like the Mini App does, so it links once: Settings > Link Telegram asks the
@@ -720,6 +721,21 @@ http.createServer(async (req, res) => {
         if (p === "/api/search/logout") { const r = await finder("/logout", { uid }); return json(res, r.code, r.body); }
       } catch { return json(res, 503, { error: "song search isn't running" }); }
       return json(res, 404, { error: "not found" });
+    }
+    if (p === "/api/state") {                                            // library layout shared by all your devices (playlists, hidden albums, album matches...)
+      const uid = member(req, res); if (uid == null) return;
+      const mine = (db.state || (db.state = {}))[uid] || (db.state[uid] = {});
+      if (req.method === "GET") return json(res, 200, { state: mine });
+      if (req.method !== "POST") return json(res, 404, { error: "not found" });
+      let q; try { q = JSON.parse(await readBody(req, 4e6) || "{}"); } catch { return json(res, 400, { error: "bad request" }); }
+      let n = 0;
+      for (const [k, e] of Object.entries(q || {})) {
+        if (!STATE_KEYS.includes(k) || !e || typeof e.v !== "string" || !(e.at > 0)) continue;
+        const at = Math.min(+e.at, Date.now());                         // newer wins; a clock in the future can't win forever
+        if (!mine[k] || at >= mine[k].at) { mine[k] = { v: e.v, at }; n++; }
+      }
+      if (n) save();
+      return json(res, 200, { ok: true });
     }
     m = /^\/api\/track\/([\w-]+)$/.exec(p);
     if (m && req.method === "DELETE") {

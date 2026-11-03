@@ -1126,7 +1126,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v58";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v59";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -1150,10 +1150,22 @@ const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
    latest value wins), and whatever is still waiting is sent straight away when the app is hidden or closed. The play
    position changes every few seconds while you listen: it goes at most every 30 s (and on pause / hide). */
 const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName", "libView", "lightMin"], mirrorT = {}, mirrorV = {};
+/* Your library layout is shared by all your devices through your music server (see SHARED LIBRARY LAYOUT): playlists,
+   hidden albums, tile order and covers, the All Tracks name, and which release each album was matched to, so an album
+   lists the same songs (grey ones too) in Telegram, in the iOS app and in the Windows app. syncAt = when each key last
+   changed on this device; the newer copy wins. */
+const SYNC_KEYS = ["playlists", "hiddenAlbums", "albumOrder", "releaseMap2", "tileCovers", "allName"];
+const SY = { at: {}, quiet: false, t: 0, dirty: new Set() };
+try { SY.at = JSON.parse(localStorage.getItem("syncAt") || "{}") || {}; } catch (e) {}
+function syMark(k) {
+  if (SY.quiet || !SYNC_KEYS.includes(k)) return;
+  SY.at[k] = Date.now(); SY.dirty.add(k); try { localStorage.setItem("syncAt", JSON.stringify(SY.at)); } catch (e) {}
+  clearTimeout(SY.t); SY.t = setTimeout(() => stPush(), 1500);
+}
 const MIRROR_DELAY = { playState: 3000, playPos: 30000, artistCache: 5000, releaseMap2: 5000 };
 function mirrorSend(k) { clearTimeout(mirrorT[k]); delete mirrorT[k]; if (!(k in mirrorV)) return; const v = mirrorV[k]; delete mirrorV[k]; try { tgStore.setItem(k, v); } catch (e) {} }
 function mirrorFlush() { Object.keys(mirrorV).forEach(mirrorSend); }
-const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}
+const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){} syMark(k);
   if (tgStore && MIRROR.includes(k)) { mirrorV[k] = String(v); if (!mirrorT[k]) mirrorT[k] = setTimeout(() => mirrorSend(k), MIRROR_DELAY[k] || 800); }}};
 if (tgStore && !store.get("tgMark")) (function () {
   let left = MIRROR.length, got = 0;
@@ -1563,7 +1575,13 @@ async function resolveAlbum(name) {
   const artist = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
   if (name === "Unknown Album" || !artist || artist === "Unknown Artist") { albumRelease[name] = 0; return; }
   const key = norm(artist) + "|" + sn(name), c = relStore[key];
-  if (c && c.n === L.length) { albumRelease[name] = c.id; return; }
+  if (c && c.n === L.length && (c.id || Date.now() - (c.at || 0) < 7 * 864e5)) {   // a "no match" is checked again after a week
+    albumRelease[name] = c.id;
+    /* The tracklist itself isn't saved, only which release it is. Without fetching it again here, an album matched on an
+       earlier launch showed only the songs you have: no grey songs, and a deluxe album's tracks scattered over discs. */
+    if (c.id && !relTracks[c.id]) relTrackList(c.id).then(l => { if (l) libRenderSoon(); });
+    return;
+  }
   const cat = await dzCatalog(artist); if (!cat) return "retry";
   const year = L.map(t => t.year).find(y => y) || 0; let best = null, ok = true; const tried = [], seen = new Set(), cands = [];
   const add = c => { if (c && !seen.has(c.id)) { seen.add(c.id); cands.push(c); } };
@@ -1583,7 +1601,7 @@ async function resolveAlbum(name) {
   relDebug[name] = artist + " · " + cat.albums.length + " releases · " + (tried.join(", ") || "none checked") + (isrc ? " · ISRC " + isrc : "");
   if (!best && !ok) return "retry";
   albumRelease[name] = best ? best.id : 0;
-  if (ok) { relStore[key] = { id: albumRelease[name], n: L.length }; store.set("releaseMap2", JSON.stringify(relStore)); }
+  if (ok) { relStore[key] = { id: albumRelease[name], n: L.length, at: Date.now() }; store.set("releaseMap2", JSON.stringify(relStore)); }
 }
 let relTimer, relBusy = false; const relTries = {};
 const resolving = () => tracks.some(t => albumRelease[t.album] === undefined);
@@ -1897,7 +1915,18 @@ const flow = (() => {
    playlists (tick one to put the song in it, tap again to take it out) and New playlist. Inside one of your playlists,
    hold a song and move your finger to reorder (or drag the handle); hold and let go without moving for the menu.
    New playlists show up in Library right after All Tracks; see gridKeys / tileMenu for the tiles. */
-function plTracks(p) { const byKey = new Map(tracks.map(t => [tkey(t), t])); return p.keys.map(k => byKey.get(k)).filter(Boolean); }
+/* A playlist made in Telegram names bot songs by the server's id. In the app the same song may be your own copy of it
+   (not downloaded again), so each song also remembers its artist and title (p.sig) and is found by those as well. */
+const plSig = t => (String(t.artist || "") + "|" + String(t.title || "")).toLowerCase().replace(/\(.*?\)|\[.*?\]|feat\..*$|[^\p{L}\p{N}|]+/gu, "");
+function plRows(p) {                                                 // [{ k: the key as saved in the playlist, t: the song }]
+  const byKey = new Map(), bySig = new Map();
+  tracks.forEach(t => { if (t.remote) byKey.set("r:" + t.remote.id, t); });
+  tracks.forEach(t => { byKey.set(tkey(t), t); const g = plSig(t); if (!bySig.has(g)) bySig.set(g, t); });
+  if (!p.sig || typeof p.sig !== "object") p.sig = {};
+  return p.keys.map(k => { const t = byKey.get(k) || (p.sig[k] && bySig.get(p.sig[k])); if (t && !p.sig[k]) p.sig[k] = plSig(t); return { k, t }; }).filter(x => x.t);
+}
+function plTracks(p) { return plRows(p).map(x => x.t); }
+function plKey(p, t) { const r = plRows(p).find(x => x.t === t); return r ? r.k : null; }   // t's key in p (null: not in it)
 function savePl() {
   store.set("playlists", JSON.stringify(playlists));
   if (gridShown()) renderAlbums();
@@ -1975,9 +2004,9 @@ function songMenu(t, row) {
       el.insertAdjacentHTML("beforeend", '<div class="pl-h">Add to playlist</div>');
       playlists.forEach(p => {
         const r = item(p.name, "", r => {
-          const i = p.keys.indexOf(k); if (i < 0) p.keys.push(k); else p.keys.splice(i, 1);
-          r.classList.toggle("in", i < 0); haptic("select"); savePl();
-        }, p.keys.includes(k) ? "in" : "");
+          const pk = plKey(p, t); if (pk == null) { p.keys.push(k); (p.sig || (p.sig = {}))[k] = plSig(t); } else { p.keys = p.keys.filter(x => x !== pk); delete p.sig[pk]; }
+          r.classList.toggle("in", pk == null); haptic("select"); savePl();
+        }, plKey(p, t) != null ? "in" : "");
         r.insertAdjacentHTML("beforeend", `<span class="ck">${ICON_CHECK}</span>`);
       });
     }
@@ -1985,8 +2014,9 @@ function songMenu(t, row) {
       nw.remove(); if (rm) rm.remove();
       ask("Playlist name", "", "Create", name => { const p = newPlaylist(name, [k]); haptic("light"); plPopClose(); toast(`Added to ${p.name}`); });
     }, "add");
-    const rm = here && here.keys.includes(k) ? item(`Remove from ${here.name}`, ICON_REMOVE, () => {
-      plPopClose(); here.keys = here.keys.filter(x => x !== k); haptic("light"); savePl(); toast(`Removed from ${here.name}`);
+    const hk = here ? plKey(here, t) : null;
+    const rm = hk != null ? item(`Remove from ${here.name}`, ICON_REMOVE, () => {
+      plPopClose(); here.keys = here.keys.filter(x => x !== hk); delete here.sig[hk]; haptic("light"); savePl(); toast(`Removed from ${here.name}`);
     }, "danger") : null;
   });
 }
@@ -2067,7 +2097,7 @@ function cropImage(file, done) {
 }
 function plReorder(from, to) {                                       // rows from -> to (indexes among the songs on screen)
   const p = plOf(currentAlbum); if (!p) return;
-  const vis = plTracks(p).map(tkey), k = vis[from], target = vis[to];
+  const vis = plRows(p).map(x => x.k), k = vis[from], target = vis[to];
   if (k !== target) { p.keys.splice(p.keys.indexOf(k), 1); let j = p.keys.indexOf(target); if (to > from) j++; p.keys.splice(j, 0, k); }
   savePl();
 }
@@ -2757,7 +2787,7 @@ function beginDrag(r, from, group, e, el, opt = {}) {
    are saved on this device (and inside Telegram also in its DeviceStorage), and come back the next time the player
    opens. Songs are matched by a stable key: the server's id for bot songs, the tags for songs picked from the phone.
    The whole-library context is saved as "library", not as a list. */
-const tkey = t => t.remote ? "r:" + t.remote.id : "l:" + [t.artist, t.album, t.disc, t.num, t.title].join("|").toLowerCase();
+const tkey = t => t.remote ? "r:" + (t.remote.sid || t.remote.id) : "l:" + [t.artist, t.album, t.disc, t.num, t.title].join("|").toLowerCase();
 let pendingSeek = null, restored = false, lastSave = 0, stateDirty = true;
 /* Resuming where you were. On iPhone a jump (setting currentTime) made while the song is still loading, before it really
    plays, can be dropped silently: the music starts from 0:00 while the player keeps reporting the jump's target as its
@@ -2791,7 +2821,8 @@ function restoreState() {                                             // once, w
   if (restored) return; restored = true;
   let s = null; try { s = JSON.parse(store.get("playState") || "null"); } catch (e) {}
   try { const pp = JSON.parse(store.get("playPos") || "null"); if (s && pp && pp.cur === s.cur) { s.pos = pp.pos; s.dur = pp.dur || s.dur; } } catch (e) {}   // the newer position
-  const map = new Map(tracks.map(t => [tkey(t), t.id])), cur = s && map.get(s.cur);
+  const map = new Map(tracks.filter(t => t.remote).map(t => ["r:" + t.remote.id, t.id]));   // keys saved before bot songs in the app used the server's id
+  tracks.forEach(t => map.set(tkey(t), t.id)); const cur = s && map.get(s.cur);
   if (!s || cur == null || ![1, 2, 3].includes(s.v)) { ensureContext(); return; }
   const I = a => (a || []).map(k => map.get(k)).filter(x => x != null);
   if (s.v === 3) {
@@ -5397,7 +5428,7 @@ async function syncLibrary() {
     }
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
-    lib.offline = false;
+    lib.offline = false; stPull();
     if (j.same) return;
     const relink = lib.full; lib.full = false;
     applyLibrary(j, first, false, relink);
@@ -5495,10 +5526,12 @@ async function natSync() {
     natSync.files = new Map(list.map(x => [x.n, x.s]));                // name -> size: lets a bot song that's already here be skipped
     const key = x => x.n + "|" + x.s + "|" + x.m, todo = list.filter(x => !natTags[key(x)]).length;
     const seen = new Set(), added = [], keep = {}; let read = 0, moved = 0;
+    const sidOf = new Map(typeof TGL === "undefined" ? [] : Object.entries(TGL.done).map(([id, rel]) => [rel, id]));   // a bot song: its id on the server, so it has the same key as in Telegram (playlists)
     if (todo > 3 && !(first && !tracks.length)) toast(`Adding ${todo} songs…`);
     for (const x of list) {
       const rid = "n:" + x.n, k = key(x), old = lib.byRid.get(rid);
       seen.add(rid);
+      if (old) old.remote.sid = sidOf.get(x.n) || undefined;
       if (old && old.remote.rev === k && natTags[k]) {
         keep[k] = natTags[k];
         const a = natBotAlbum(x.n) || natTags[k].album;                  // the server moved this bot song to another album
@@ -5516,7 +5549,7 @@ async function natSync() {
         delete albumRelease[old.album]; Object.assign(old, natFields(f, x)); old.remote.rev = k; old.file = null; scheduleAlbumWork(old); delete albumRelease[old.album];
         continue;
       }
-      const tr = { id: ++uid, file: null, remote: { id: rid, rev: k, nat: x.n }, ...natFields(f, x) };
+      const tr = { id: ++uid, file: null, remote: { id: rid, rev: k, nat: x.n, sid: sidOf.get(x.n) || undefined }, ...natFields(f, x) };
       lib.byRid.set(rid, tr); tracks.push(tr); added.push(tr); scheduleAlbumWork(tr); delete albumRelease[tr.album];
     }
     for (const [rid, t] of lib.byRid) if (!seen.has(rid)) { lib.byRid.delete(rid); tracks = tracks.filter(x => x !== t); queue = queue.filter(e => e.id !== t.id); history = history.filter(h => h.id !== t.id); }
@@ -5597,6 +5630,7 @@ async function tgSync() {
     }
     if (!r.ok) { TGL.err = "the server said " + (j.error || "HTTP " + r.status); tgLinkUI(); return; }
     if (TGL.err && !TGL.waiting.size) { TGL.err = ""; tgLinkUI(); }
+    stPull();
     if (j.same || !j.tracks) return;
     const seen = new Set(), mine = tgMine(); let gone = tgDedupe(), found = 0;
     for (const x of j.tracks) {
@@ -5624,6 +5658,67 @@ async function tgSync() {
   } catch (e) { TGL.err = "couldn't reach your music server (" + (e && e.name === "AbortError" ? "no answer" : e.message || e) + ")"; tgLinkUI(); }
   finally { TGL.busy = false; }
 }
+/* ---------- SHARED LIBRARY LAYOUT ----------
+   Playlists, hidden albums, tile order and covers, the All Tracks name and the album matches (SYNC_KEYS) are kept on your
+   music server too (/api/state), so every device that reaches your bot library shows the same thing: the Mini App, and
+   the iOS and Windows apps once linked to Telegram. Pulled whenever the library is checked (at most every 10 s), pushed
+   1.5 s after a change and when the player is hidden. The newer copy of a key wins. The first time a device syncs,
+   what it already had is merged in instead (playlists, hidden albums and tile order are combined, nothing is lost).
+   Album matches are always combined, album by album. */
+function stHeaders() {
+  if (botMode && TG && TG.initData) return { "X-Init-Data": TG.initData };
+  if (NAT && TGL.key) return { "X-App-Key": TGL.key };
+  return null;
+}
+async function stPush() {
+  clearTimeout(SY.t);
+  const h = stHeaders(), ks = [...SY.dirty]; if (!h || !ks.length || !store.get("syncSeen")) return;   // nothing goes up before the first pull
+  SY.dirty.clear();
+  const body = {}; ks.forEach(k => { const v = store.get(k); if (v != null) body[k] = { v, at: SY.at[k] || Date.now() }; });
+  try { const r = await fetchT(API_BASE + "/api/state", { method: "POST", headers: { ...h, "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error(r.status); }
+  catch (e) { ks.forEach(k => SY.dirty.add(k)); }
+}
+const stJ = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; } catch (e) { return d; } };
+function stMerge(k, loc, rem, first, remNewer) {                    // the value to keep when both sides have one
+  if (k === "releaseMap2") { const a = stJ(loc, {}), b = stJ(rem, {}); return JSON.stringify(remNewer ? { ...a, ...b } : { ...b, ...a }); }
+  if (!first) return remNewer ? rem : loc;
+  if (k === "playlists") {
+    const a = stJ(loc, []), b = stJ(rem, []); if (!Array.isArray(a) || !Array.isArray(b)) return rem;
+    return JSON.stringify([...b, ...a.filter(p => !b.some(q => q.id === p.id))]);
+  }
+  if (k === "hiddenAlbums" || k === "albumOrder") { const a = stJ(loc, []), b = stJ(rem, []); return JSON.stringify([...new Set([...(Array.isArray(b) ? b : []), ...(Array.isArray(a) ? a : [])])]); }
+  if (k === "tileCovers") return JSON.stringify({ ...stJ(loc, {}), ...stJ(rem, {}) });
+  return rem || loc;
+}
+function stApply(k, v) {                                             // a key that changed on another device: use it now
+  if (k === "playlists") { const x = stJ(v, []); playlists = Array.isArray(x) ? x : []; }
+  else if (k === "hiddenAlbums") { hiddenSet.clear(); (stJ(v, []) || []).forEach(n => hiddenSet.add(n)); }
+  else if (k === "albumOrder") { const x = stJ(v, []); albumOrder = Array.isArray(x) ? x : []; }
+  else if (k === "tileCovers") tileCovers = stJ(v, {}) || {};
+  else if (k === "releaseMap2") { Object.keys(relStore).forEach(x => delete relStore[x]); Object.assign(relStore, stJ(v, {})); Object.keys(albumRelease).forEach(n => delete albumRelease[n]); scheduleResolve(); }
+}
+async function stPull() {
+  const h = stHeaders(); if (!h || stPull.busy || Date.now() - (stPull.at || 0) < 10000) return;
+  stPull.busy = true; stPull.at = Date.now();
+  try {
+    const r = await fetchT(API_BASE + "/api/state", { headers: h }); if (!r.ok) return;
+    const rs = (await r.json().catch(() => ({}))).state || {}, first = !store.get("syncSeen"); let changed = false;
+    for (const k of SYNC_KEYS) {
+      const rem = rs[k], loc = store.get(k), la = SY.at[k] || 0;
+      if (!rem || typeof rem.v !== "string") { if (loc != null) SY.dirty.add(k); continue; }
+      if (rem.v === loc) { if (!la || la < rem.at) SY.at[k] = rem.at; continue; }
+      const remNewer = loc == null || rem.at > la;
+      const v = loc == null ? rem.v : stMerge(k, loc, rem.v, first, remNewer);
+      if (v !== loc) { SY.quiet = true; store.set(k, v); SY.quiet = false; stApply(k, v); changed = true; }
+      if (v === rem.v) SY.at[k] = rem.at; else { SY.at[k] = Date.now(); SY.dirty.add(k); }
+    }
+    try { localStorage.setItem("syncAt", JSON.stringify(SY.at)); } catch (e) {}
+    if (first) store.set("syncSeen", "1");
+    if (changed) libRenderSoon();
+    stPush();
+  } catch (e) {} finally { stPull.busy = false; }
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) stPush(); });
 /* Songs you added to the app yourself (anything outside the Telegram folder). A bot song that is one of them (same
    artist and title, or exactly the same file size) isn't downloaded again: it's remembered as "skip:" instead. */
 const tgKey = (a, t) => (String(a || "") + "|" + String(t || "")).toLowerCase().replace(/\(.*?\)|\[.*?\]|feat\..*$|[^\p{L}\p{N}|]+/gu, "");
