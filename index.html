@@ -279,7 +279,6 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .art-bloom,.art-light{will-change:transform,opacity}
 /* corner highlight: fixed size (px), so it no longer grows when the drawer opens; no tilt */
 .player-wrapper::before{background:linear-gradient(135deg,rgba(255,255,255,.17) 0,rgba(255,255,255,.04) 90px,rgba(255,255,255,0) 170px)}
-.player-wrapper::after{content:none}
 .track-info-container{position:relative;align-items:center}
 .album-art{width:66px;height:66px;box-sizing:border-box;border-radius:12px;margin-left:var(--art-x);position:relative;z-index:1}
 .art-bloom{position:absolute;left:calc(var(--inset) + var(--art-x));top:2px;width:66px;height:66px;border-radius:12px;background-size:cover;background-position:center;
@@ -298,10 +297,6 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 #artist-ui{margin-top:0;padding-top:2px}
 .albums-grid{padding-bottom:24px}
 
-/* ===== glow layer: glows live outside the scrollers, are positioned by JS, and fade at the scroller's edges ===== */
-#glow-layer{position:absolute;left:0;right:0;top:0;height:0;overflow:hidden;z-index:-1;pointer-events:none;opacity:0;transition:opacity var(--t-n) var(--ease);
-  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}
-#glow-layer.on{opacity:1}
 /* lists that scroll fade out at an edge that has more behind it, instead of ending on a row cut in half (set by edgeFade) */
 @property --fdt{syntax:'<length>';inherits:false;initial-value:0px}
 @property --fdb{syntax:'<length>';inherits:false;initial-value:0px}
@@ -309,12 +304,31 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
   mask-image:linear-gradient(to bottom,transparent 0,#000 var(--fdt),#000 calc(100% - var(--fdb)),transparent 100%);transition:--fdt var(--t-n) var(--ease),--fdb var(--t-n) var(--ease)}
 .efade.ft{--fdt:var(--fts,30px)}.efade.fb{--fdb:var(--fbs,40px)}
 .albums-grid-container.flow.efade{-webkit-mask-image:none;mask-image:none}
-#glow-layer.off .glow{opacity:0!important}
-/* softer than before (was blur 15, saturate 1.5, .4 / .16 / .5 + pulse .35): a wider, calmer light, less of a coloured blob */
-.glow{position:absolute;left:0;top:0;border-radius:14px;background-size:cover;background-position:center;filter:blur(22px) saturate(1.3);opacity:0;transition:opacity var(--t-s) var(--ease);will-change:transform}
-.glow.in{opacity:.3}
-.glow.in.dim{opacity:.12}
-.glow.in.live{opacity:calc(.38 + var(--pulse,0) * .22);transition:none}
+/* ===== album light (Library, Artists): one light for the whole panel, glass edges on the covers =====
+   No glow behind each cover any more (it read as a coloured smudge and lingered when switching tabs). Instead:
+   - the panel takes a soft tint from the cover that's playing (--lc / --lc2, picked from the artwork; none for a muted
+     cover). Registered colours, so a new song's tint fades in instead of jumping.
+   - every cover in a grid gets the same glass edge as the player's cover: a crisp rim that catches the light top-left
+     (tinted by the playing cover), a soft highlight and a little thickness. It sits on the card, so it moves, fades
+     and leaves with the cover. */
+@property --tint1{syntax:'<color>';inherits:false;initial-value:rgba(0,0,0,0)}
+@property --tint2{syntax:'<color>';inherits:false;initial-value:rgba(0,0,0,0)}
+.player-wrapper::after{content:'';display:block;position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
+  --tint1:rgba(var(--lc,200,215,225),calc(max(0,var(--lk,.55) - .55) * .72));--tint2:rgba(var(--lc2,200,215,225),calc(max(0,var(--lk,.55) - .55) * .42));
+  background:radial-gradient(120% 55% at 25% 0%,var(--tint1),transparent 72%),radial-gradient(90% 50% at 95% 62%,var(--tint2),transparent 72%);
+  transition:--tint1 .9s var(--ease),--tint2 .9s var(--ease)}
+.album-card::after{content:'';position:absolute;left:0;top:0;width:100%;aspect-ratio:1/1;border-radius:12px;pointer-events:none;z-index:1;box-sizing:border-box;
+  background:radial-gradient(70% 60% at 25% 12%,rgba(255,255,255,.2),rgba(255,255,255,0) 60%),linear-gradient(168deg,rgba(255,255,255,.08),rgba(255,255,255,0) 45%);
+  box-shadow:inset 0 -12px 16px -14px rgba(0,0,0,.5),inset 0 11px 14px -14px rgba(255,255,255,.35);transition:transform var(--t-n) var(--ease)}
+.album-card::before{content:'';position:absolute;left:0;top:0;width:100%;aspect-ratio:1/1;border-radius:12px;pointer-events:none;z-index:1;box-sizing:border-box;padding:1px;
+  background:conic-gradient(from -40deg,rgba(255,255,255,.8),rgba(var(--lc,200,215,225),.55) 35deg,rgba(255,255,255,.16) 90deg,rgba(255,255,255,.1) 180deg,rgba(var(--lc2,200,215,225),.4) 200deg,rgba(255,255,255,.12) 260deg,rgba(var(--lc,200,215,225),.55) 325deg,rgba(255,255,255,.8));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;
+  transition:transform var(--t-n) var(--ease)}
+.artist-card::before,.artist-card::after{border-radius:50%}
+.sk-card::before,.sk-card::after{content:none}                    /* loading placeholders stay plain */
+.album-card img,.album-card .all-tracks-icon{border-color:transparent}   /* the rim replaces the plain 1 px border */
+.album-card:active::before,.album-card:active::after{transform:scale(.96)}    /* pressed with the cover */
+.albums-grid.editing .album-card[data-key]:not(.lifted)::before,.albums-grid.editing .album-card[data-key]:not(.lifted)::after{animation:jig .34s ease-in-out infinite alternate;animation-delay:calc(var(--j,0) * -.13s)}
 
 /* long titles: the drawer column may never grow past the panel; titles wrap to 2 lines instead of running off */
 .collapsible-content{grid-template-columns:minmax(0,1fr)}
@@ -906,7 +920,6 @@ html.cf-land .cf-s{font-size:13px}
 <div class="bg-vignette"></div>
 
 <div class="player-wrapper">
-  <div id="glow-layer" aria-hidden="true"></div>
 
   <div class="drop-zone" id="drop-zone">
     Tap to choose your songs<br>
@@ -2806,7 +2819,6 @@ let curUrl = null;
 const timeHold = { on: false, t: 0, stale: "" };                   // see paintTimes
 function loadTrack(id, autoplay, o = {}) {
   const t = trackById(id); if (!t) return;
-  glowKick();                                                        // the album glowing as "now playing" may change
   const dir = songDir; songDir = 0;
   const anim = !!autoplay && curId !== null && curId !== id && songOut(dir);   // the old title leaves before the new one is written
   if (curId !== null && curId !== id && curPlayed && !o.back && !o.noHist) pushHistory(curId, nowFrom);
@@ -6217,7 +6229,7 @@ let pEls = null;
 function pulseLoop(now) {
   pRaf = 0;
   if (document.hidden) { PERF.gap(); pulseLoop.t = 0; return; }       // restarted by visibilitychange
-  if (!pEls) pEls = { pm: $("player-main"), glow: $("glow-layer"), thumb: $("progress-slider").querySelector(".slider-thumb"), xpPlay: $("xp-play"), xp: $("xp"), xa: $("xp-art"), wrap: $("xp-art").closest(".player-wrapper"), xThumb: $("xp-progress").querySelector(".slider-thumb") };
+  if (!pEls) pEls = { pm: $("player-main"), thumb: $("progress-slider").querySelector(".slider-thumb"), xpPlay: $("xp-play"), xp: $("xp"), xa: $("xp-art"), wrap: $("xp-art").closest(".player-wrapper"), xThumb: $("xp-progress").querySelector(".slider-thumb") };
   const playing = !audio.paused, pmOn = pEls.pm.style.display !== "none";
   const idle = !playing && energy < .02 && flare === 0 && pulse < .003 && now - tiltAt > 600;
   if (!idle) {
@@ -6235,7 +6247,6 @@ function pulseLoop(now) {
   const pv = pulse.toFixed(2), xpOn = pEls.xp.classList.contains("show"), moving = xpOn && pEls.wrap.classList.contains("xp-anim");
   const big = !!(XP && XP.expanded) && !moving;                      // while it moves, both covers stay live: the one left at the end then shows the same light, not where it was before
   if (!big) { pset(pEls.pm, "--pulse", pv); pset(pEls.thumb, "--pulse", pv); }
-  if (drawerBox.classList.contains("expanded")) pset(pEls.glow, "--pulse", pv);
   if (xpOn) { pset(pEls.xa, "--pulse", pv); pset(pEls.xThumb, "--pulse", pv); }
   sparkTick(playing, dt);
   if (flare > .003) { flare *= Math.exp(-dt / .45); rimA += flare * 260 * dt; } else flare = 0;   // song change: the cover light swings round quickly, then settles
@@ -6374,73 +6385,6 @@ function sparkFire(b) {                                               // b: brig
   setTimeout(() => ringFire(b), D * .38);                            // the light carries on round the Play button
 }
 
-/* ---------- glow layer ----------
-   One layer behind the drawer content, not inside any scroller. Each cover's glow is positioned from the
-   cover's on-screen rect every frame (only while the drawer is open), so it can spill past the scroller's edge
-   and is faded there by the layer's mask, while the covers themselves stay clipped by their scroller.
-   It only runs while something can move a cover (scrolling, the drawer opening, cards appearing, a drag, a resize) and
-   stops ~half a second after; before, it measured every cover on every frame for as long as the Library was open. */
-var glowKick = () => {};
-(function () {
-  const layer = $("glow-layer"), inner = document.querySelector(".drawer-inner"), wrap = document.querySelector(".player-wrapper"), M = 22;
-  const map = new Map(); let raf = 0, stopAt = 0;
-  function frame() {
-    raf = 0;
-    const open = drawerBox.classList.contains("expanded");
-    const done = performance.now() > stopAt;
-    if (!open && done) { layer.classList.remove("on"); map.forEach(g => g.remove()); map.clear(); return; }
-    // reads
-    const wr = wrap.getBoundingClientRect(), di = inner.getBoundingClientRect();
-    const cs = [...viewHost.querySelectorAll('.album-card[style*="--art"]')].filter(c => c.offsetParent);
-    const rects = cs.map(c => c.getBoundingClientRect());
-    const sc = cs.length && cs[0].closest(".albums-grid-container,.artist-scroll"), sr = sc ? sc.getBoundingClientRect() : di;
-    const fb = !!(sc && sc.classList.contains("fb"));                 // the list fades out at its bottom: so do the glows, inside it
-    const rt = Math.max(sr.top, di.top), rb = Math.max(rt, Math.min(sr.bottom, di.bottom)), H = rb - rt + (fb ? M * .3 : 2 * M);
-    const cur = trackById(curId), curAlbum = cur && cur.album;
-    // writes
-    layer.classList.toggle("on", open); layer.classList.toggle("off", editing);
-    layer.style.top = (rt - wr.top - 1 - M) + "px"; layer.style.height = H + "px";
-    const seen = new Set();
-    cs.forEach((c, i) => {
-      let g = map.get(c);
-      if (!g) {
-        const m = /url\("(.*)"\)/.exec(c.style.getPropertyValue("--art")); if (!m) return;
-        g = document.createElement("div"); g.className = "glow in"; g.style.backgroundImage = `url("${m[1]}")`;
-        layer.appendChild(g); map.set(c, g);
-        if (!RM) g.animate([{ opacity: 0, offset: 0 }], { duration: MOTION.s, easing: MOTION.ease });   // fades in to whatever it should be (a playing album's glow too, which has no transition of its own)
-      }
-      seen.add(c);
-      /* a cover in the view that is fading out (switching tabs, opening an album): its glow fades out with it, in step */
-      if (viewFade && viewFade.el.contains(c)) {
-        if (!g._out) { g._out = 1; if (!RM) g.animate([{ opacity: 0 }], { duration: MOTION.n, delay: -(viewFade.a && viewFade.a.currentTime || 0), easing: MOTION.ease, fill: "forwards" }); else g.style.visibility = "hidden"; }
-      } else if (g._out) {                                            // switched straight back to that view: the glow comes back with it
-        g._out = 0; g.getAnimations().forEach(a => a.cancel()); g.style.visibility = "";
-        if (!RM) g.animate([{ opacity: 0, offset: 0 }], { duration: MOTION.s, easing: MOTION.ease });
-      }
-      const r = rects[i], y = r.top - rt + M, vis = y + r.width > -50 && y < H + 50;
-      g.style.display = vis ? "" : "none";
-      if (vis) { g.style.width = g.style.height = r.width + "px"; g.style.transform = `translate3d(${r.left - wr.left - 1}px,${y}px,0) scale(1.12)`; }
-      g.classList.toggle("dim", c.classList.contains("dim"));
-      g.classList.toggle("live", !!curAlbum && c.dataset.key === curAlbum);
-    });
-    map.forEach((g, c) => {                                           // its cover is gone: fade out quickly (already out if it left with its view)
-      if (seen.has(c)) return;
-      map.delete(c);
-      if (g._out || RM) g.remove();
-      else { g._out = 1; g.animate([{ opacity: 0 }], { duration: MOTION.q, easing: MOTION.ease, fill: "forwards" }).onfinish = () => g.remove(); }
-    });
-    if (!done) raf = requestAnimationFrame(frame);
-  }
-  const kick = ms => { stopAt = Math.max(stopAt, performance.now() + ms); if (!raf) raf = requestAnimationFrame(frame); };
-  glowKick = () => kick(100);
-  new MutationObserver(() => kick(900)).observe(drawerBox, { attributes: true, attributeFilter: ["class"] });
-  new MutationObserver(() => { if (drawerBox.classList.contains("expanded")) kick(500); })
-    .observe(viewHost, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class"] });
-  viewHost.addEventListener("scroll", () => kick(150), { capture: true, passive: true });
-  new ResizeObserver(() => kick(300)).observe(wrap);
-  addEventListener("resize", () => kick(300));
-  document.addEventListener("visibilitychange", () => kick(900));
-})();
 /* landscape Cover Flow: a phone turned on its side with the Library open as Cover Flow shows just the row of covers, big,
    across the whole screen (the tabs stay on top to leave it); turning the phone back brings the player back */
 (function landFlow() {
@@ -6514,7 +6458,7 @@ var glowKick = () => {};
     const src = img.style.display !== "none" && img.getAttribute("src"); if (!src) return;
     pal(src).then(o => { if (img.getAttribute("src") !== src) return;
       pm.style.setProperty("--lc", o.c1); pm.style.setProperty("--lc2", o.c2); pm.style.setProperty("--lk", o.k); coverGlow.light(o.c1, o.c2);
-      const wr = document.querySelector(".player-wrapper").style; wr.setProperty("--lc", o.c1); wr.setProperty("--lc2", o.c2);
+      const wr = document.querySelector(".player-wrapper").style; wr.setProperty("--lc", o.c1); wr.setProperty("--lc2", o.c2); wr.setProperty("--lk", o.k);   // --lk: the panel tint (none for a muted cover)
       pm.style.setProperty("--gl", (1.25 - .6 * (o.lum != null ? o.lum : .5)).toFixed(2)); });   // dark covers get a clearer reflection, bright ones a softer one
   }
   new MutationObserver(sync).observe(img, { attributes: true, attributeFilter: ["src", "style"] }); sync();
