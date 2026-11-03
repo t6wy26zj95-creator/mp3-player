@@ -582,6 +582,12 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 /* while it moves, the small title and artist travel with the big ones: their box must not clip them (that cut them off,
    the name seemed to vanish for a moment). min-width keeps the layout exactly as it is */
 .player-wrapper.xp-anim .track-text{overflow:visible;min-width:0}
+/* Speed (iPhone): while the big player opens or closes, everything that moves is a layer of its own (from the touch that
+   may start it until it settles). A PC browser moves and fades plain elements without repainting anything; Safari
+   repaints whatever they sit on, here the whole panel (which also changes height every frame), with all its text,
+   buttons and the queue, 60 times a second at 3x. As layers, they are drawn once and only moved and faded. */
+.player-wrapper.xp-lay :is(#player-main .title-box,#player-main .artist-row,#xp-title,.xp-sub,#prev-btn,#play-btn,#skip-btn,#progress-slider,
+  #current-time,#total-duration,#xp-prev,#xp-play,#xp-next,#xp-progress,#xp-cur,#xp-left,#xp-shuffle,#xp-repeat,#footer-main,#xp-bottom,#xp-handle,#xp-bow){will-change:transform,opacity}
 .xp-top{position:absolute;left:0;right:0;top:0;padding:6px 22px 0;display:flex;flex-direction:column}
 .xp-handle{align-self:center;width:72px;height:20px;background:none;border:0;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .xp-handle i{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.38)}
@@ -589,13 +595,10 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-art{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0;border-radius:18px;will-change:transform;cursor:grab}
 .xp-clip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;background:rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center;isolation:isolate}
 /* Speed (iPhone): Safari repaints a layer whenever anything in it changes, at the phone's 3x pixels, and it can't draw a
-   shadow or a blur on the graphics chip the way a PC browser does. So while the cover grows:
-   - the picture and each glass layer are layers of their own: the corner and glass details that follow the size every
-     frame repaint only those thin layers, never the picture again, and the glass light changing repaints only its layer;
-   - the shadow no longer changes every frame (its blur was drawn again, up to ~300 px wide, 60 times a second): the small
-     cover's shadow (enlarged) and the big one's are drawn once each and cross-fade as it grows (.xp-sh). */
-.xp-clip>img,.xp-clip>.g{will-change:transform}
-.xp-clip>.g-refr,.xp-clip>.g-spec,.xp-clip>.g-streak,.xp-clip>.g-glow{border-radius:0}   /* the box's own rounded clip cuts them the same; without a corner of their own they don't repaint when it changes */
+   shadow or a blur on the graphics chip the way a PC browser does. The cover's shadow no longer changes every frame (its
+   blur was drawn again, up to ~300 px wide, 60 times a second): the small cover's shadow (enlarged) and the big one's are
+   drawn once each and cross-fade as it grows (.xp-sh). (The picture is NOT a layer of its own: Safari then ignores the
+   rounded corner and shows it square.) */
 .xp-sh{position:absolute;inset:0;pointer-events:none;will-change:opacity}
 .xp-sh.big{border-radius:18px;box-shadow:0 18px 40px rgba(0,0,0,.34),0 4px 12px rgba(0,0,0,.2)}
 .xp-sh.small{opacity:0}
@@ -1116,7 +1119,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v55";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v56";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -3877,7 +3880,10 @@ const bubble = (() => {
       const cv = G.cv, lite = PERF.lite, dpr = lite ? 1 : Math.min(2, devicePixelRatio || 1);
       /* the canvas's height grows in 128 px steps: while the big player opens, the panel grows every frame, and resizing a
          canvas throws its whole buffer away. The rows below the panel are simply left transparent. */
-      const Hb = Math.ceil(H / 128) * 128, bw = Math.round((W + 2) * dpr), bh = Math.round((Hb + 2) * dpr);   // 1:1 with its css box, which is 2 px larger than the panel
+      /* (Speed, iPhone: each new size threw away and re-made the canvas's buffer, several times while the big player
+         opened. It now reaches down to the bottom of the screen once, so the panel grows inside it.) */
+      const room = Math.floor((window.visualViewport ? visualViewport.height : innerHeight) - (wrap.offsetTop - scrollY) - 2);
+      const Hb = H > room ? Math.ceil(H / 128) * 128 : Math.max(H, room), bw = Math.round((W + 2) * dpr), bh = Math.round((Hb + 2) * dpr);   // 1:1 with its css box, which is 2 px larger than the panel
       if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; cv.style.height = (Hb + 2) + "px"; }
       /* where the wallpaper sits: .bg-container is fixed, background-size cover at applyBg's position, moved by the tilt
          parallax and scaled 1.04 about its centre. uv = ((pc - c - t) / 1.04 + c - off) / size */
@@ -4357,6 +4363,7 @@ XP = (() => {
     clearTimeout(st.shT); wrap.style.transition = "";
     xp.classList.add("show"); xp.setAttribute("aria-hidden", "false");
     st.warm = !!warm;                                                 // warm: shown but not yet moving, the compact row still takes taps
+    wrap.classList.add("xp-lay");                                    // the moving parts become layers now, during the touch, not on the first frame
     if (!warm) { wrap.classList.add("xp-anim"); wrap.classList.remove("xp-on"); }   // moving: the compact copies fade in/out along the way (render below places them first)
     /* a song change's own slide-in on the small title / artist would override the motion's placement (a faded copy left
        standing beside the cover): finish it now */
@@ -4514,7 +4521,7 @@ XP = (() => {
     gear.style.opacity = ((1 - fade(P, 0, .25)) * .75).toFixed(3); gear.style.pointerEvents = P > .1 ? "none" : "";
   }
   function settle(t) {
-    st.raf = 0; st.p = t; st.v = 0; st.over = 0;
+    st.raf = 0; st.p = t; st.v = 0; st.over = 0; wrap.classList.remove("xp-lay");
     if (st.m) art.style.transform = artPose(t); dropLooks();
     if (t === 1) {
       render(1); st.expanded = true; LYR.song(); svRender();
