@@ -310,10 +310,11 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 .efade.ft{--fdt:var(--fts,30px)}.efade.fb{--fdb:var(--fbs,40px)}
 .albums-grid-container.flow.efade{-webkit-mask-image:none;mask-image:none}
 #glow-layer.off .glow{opacity:0!important}
-.glow{position:absolute;left:0;top:0;border-radius:14px;background-size:cover;background-position:center;filter:blur(15px) saturate(1.5);opacity:0;transition:opacity var(--t-s) var(--ease);will-change:transform}
-.glow.in{opacity:.4}
-.glow.in.dim{opacity:.16}
-.glow.in.live{opacity:calc(.5 + var(--pulse,0) * .35);transition:none}
+/* softer than before (was blur 15, saturate 1.5, .4 / .16 / .5 + pulse .35): a wider, calmer light, less of a coloured blob */
+.glow{position:absolute;left:0;top:0;border-radius:14px;background-size:cover;background-position:center;filter:blur(22px) saturate(1.3);opacity:0;transition:opacity var(--t-s) var(--ease);will-change:transform}
+.glow.in{opacity:.3}
+.glow.in.dim{opacity:.12}
+.glow.in.live{opacity:calc(.38 + var(--pulse,0) * .22);transition:none}
 
 /* long titles: the drawer column may never grow past the panel; titles wrap to 2 lines instead of running off */
 .collapsible-content{grid-template-columns:minmax(0,1fr)}
@@ -1092,7 +1093,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v53";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v54";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -6404,17 +6405,30 @@ var glowKick = () => {};
       let g = map.get(c);
       if (!g) {
         const m = /url\("(.*)"\)/.exec(c.style.getPropertyValue("--art")); if (!m) return;
-        g = document.createElement("div"); g.className = "glow"; g.style.backgroundImage = `url("${m[1]}")`;
-        layer.appendChild(g); map.set(c, g); requestAnimationFrame(() => g.classList.add("in"));
+        g = document.createElement("div"); g.className = "glow in"; g.style.backgroundImage = `url("${m[1]}")`;
+        layer.appendChild(g); map.set(c, g);
+        if (!RM) g.animate([{ opacity: 0, offset: 0 }], { duration: MOTION.s, easing: MOTION.ease });   // fades in to whatever it should be (a playing album's glow too, which has no transition of its own)
       }
       seen.add(c);
+      /* a cover in the view that is fading out (switching tabs, opening an album): its glow fades out with it, in step */
+      if (viewFade && viewFade.el.contains(c)) {
+        if (!g._out) { g._out = 1; if (!RM) g.animate([{ opacity: 0 }], { duration: MOTION.n, delay: -(viewFade.a && viewFade.a.currentTime || 0), easing: MOTION.ease, fill: "forwards" }); else g.style.visibility = "hidden"; }
+      } else if (g._out) {                                            // switched straight back to that view: the glow comes back with it
+        g._out = 0; g.getAnimations().forEach(a => a.cancel()); g.style.visibility = "";
+        if (!RM) g.animate([{ opacity: 0, offset: 0 }], { duration: MOTION.s, easing: MOTION.ease });
+      }
       const r = rects[i], y = r.top - rt + M, vis = y + r.width > -50 && y < H + 50;
       g.style.display = vis ? "" : "none";
-      if (vis) { g.style.width = g.style.height = r.width + "px"; g.style.transform = `translate3d(${r.left - wr.left - 1}px,${y}px,0) scale(1.1)`; }
+      if (vis) { g.style.width = g.style.height = r.width + "px"; g.style.transform = `translate3d(${r.left - wr.left - 1}px,${y}px,0) scale(1.12)`; }
       g.classList.toggle("dim", c.classList.contains("dim"));
       g.classList.toggle("live", !!curAlbum && c.dataset.key === curAlbum);
     });
-    map.forEach((g, c) => { if (!seen.has(c)) { g.remove(); map.delete(c); } });
+    map.forEach((g, c) => {                                           // its cover is gone: fade out quickly (already out if it left with its view)
+      if (seen.has(c)) return;
+      map.delete(c);
+      if (g._out || RM) g.remove();
+      else { g._out = 1; g.animate([{ opacity: 0 }], { duration: MOTION.q, easing: MOTION.ease, fill: "forwards" }).onfinish = () => g.remove(); }
+    });
     if (!done) raf = requestAnimationFrame(frame);
   }
   const kick = ms => { stopAt = Math.max(stopAt, performance.now() + ms); if (!raf) raf = requestAnimationFrame(frame); };
