@@ -1092,7 +1092,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v52";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v53";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -5389,7 +5389,20 @@ async function natRead(x) {                                          // x = { n:
   if (t.picture && t.picture.data) { try { natSend({ cmd: "art", n: x.n, b64: natB64(new Uint8Array(t.picture.data)) }); f.pic = 1; } catch (e) {} }
   return f;
 }
-const natFields = (f, x) => { const o = { ...f, art: f.pic ? natURL("art", x.n) + "?r=" + x.m : null }; delete o.pic; return o; };
+/* A bot song keeps the album the server gives it, not the one in its file's tags. That matters after + on a grey song:
+   the server files the found song into the album you pressed + in, but the music bot's copy may be a different edition
+   ("Static And Silence" instead of "Static & Silence"). Reading the file's own tags here made a second album. */
+let tgAlbums = {}; try { tgAlbums = JSON.parse(store.get("tgAlbums") || "{}") || {}; } catch (e) {}   // bot song id -> album on the server
+function natBotAlbum(n) {
+  if (!n.startsWith("Telegram/") || typeof TGL === "undefined") return "";
+  for (const [id, rel] of Object.entries(TGL.done)) if (rel === n) return tgAlbums[id] || "";
+  return "";
+}
+const natFields = (f, x) => {
+  const o = { ...f, art: f.pic ? natURL("art", x.n) + "?r=" + x.m : null }; delete o.pic;
+  const a = natBotAlbum(x.n); if (a) o.album = a;
+  return o;
+};
 function natUI() {
   if (tracks.length) { libUI(""); return; }
   const dz = $("drop-zone");
@@ -5407,12 +5420,17 @@ async function natSync() {
     const list = await (await fetch(NAT_BASE + "list", { cache: "no-store" })).json();
     natSync.files = new Map(list.map(x => [x.n, x.s]));                // name -> size: lets a bot song that's already here be skipped
     const key = x => x.n + "|" + x.s + "|" + x.m, todo = list.filter(x => !natTags[key(x)]).length;
-    const seen = new Set(), added = [], keep = {}; let read = 0;
+    const seen = new Set(), added = [], keep = {}; let read = 0, moved = 0;
     if (todo > 3 && !(first && !tracks.length)) toast(`Adding ${todo} songs…`);
     for (const x of list) {
       const rid = "n:" + x.n, k = key(x), old = lib.byRid.get(rid);
       seen.add(rid);
-      if (old && old.remote.rev === k && natTags[k]) { keep[k] = natTags[k]; continue; }
+      if (old && old.remote.rev === k && natTags[k]) {
+        keep[k] = natTags[k];
+        const a = natBotAlbum(x.n) || natTags[k].album;                  // the server moved this bot song to another album
+        if (old.album !== a) { delete albumRelease[old.album]; old.album = a; scheduleAlbumWork(old); delete albumRelease[a]; moved++; }
+        continue;
+      }
       let f = natTags[k];
       if (!f) {
         if (first && !tracks.length) $("drop-zone").innerHTML = `Reading your songs… ${read + 1} of ${todo}`;
@@ -5430,6 +5448,7 @@ async function natSync() {
     for (const [rid, t] of lib.byRid) if (!seen.has(rid)) { lib.byRid.delete(rid); tracks = tracks.filter(x => x !== t); queue = queue.filter(e => e.id !== t.id); history = history.filter(h => h.id !== t.id); }
     natTags = keep; store.set("natTags", JSON.stringify(natTags));
     tracks.sort(cmpTracks); scheduleResolve();
+    if (moved) libRenderSoon();
     if (!first && added.length) toast(added.length === 1 ? `Added “${added[0].title}”` : `Added ${added.length} songs`);
     if (first && tracks.length) { showPlayerUI(); restoreState(); }
     natUI();
@@ -5523,6 +5542,8 @@ async function tgSync() {
       tgQueue({ id: x.id, url: `${API_BASE}/api/audio/${x.id}?t=${j.token}`, name: "Telegram/" + name, title: x.title });
     }
     for (const id of Object.keys(TGL.done)) if (!seen.has(id)) { if (TGL.done[id].startsWith("Telegram/")) natSend({ cmd: "delete", n: TGL.done[id] }); delete TGL.done[id]; gone++; }
+    const albums = {}; for (const x of j.tracks) if (x.album) albums[x.id] = x.album;
+    if (JSON.stringify(albums) !== JSON.stringify(tgAlbums)) { tgAlbums = albums; store.set("tgAlbums", JSON.stringify(albums)); setTimeout(natSync, 300); }
     if (found) store.set("tgDone", JSON.stringify(TGL.done));
     if (gone) { store.set("tgDone", JSON.stringify(TGL.done)); setTimeout(natSync, 300); }
     TGL.version = j.version; tgLinkUI();
