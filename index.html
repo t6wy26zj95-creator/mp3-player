@@ -1142,7 +1142,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v61";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v62";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -1711,7 +1711,7 @@ function refreshOwnership() {
 function updateArtistOwnership() {                                   // update cards in place so ownership fades in instead of re-rendering
   document.querySelectorAll("#artist-albums .album-card[data-aid]").forEach(c => {
     const k = ownedAlbumKey(c._a), l = k && relTracks[c._a.id], dot = c.querySelector(".own-dot");
-    const own = !!k && (relOf(k) == c._a.id || !l || editionEntries(k, { title: c._a.title, tracks: l }).some(e => e.track));   // a dot only when songs of that very edition are here
+    const own = !!k && (relOf(k) == c._a.id || !l || editionEntries(k, { id: c._a.id, title: c._a.title, tracks: l }).some(e => e.track));   // a dot only when songs of that very edition are here
     c.classList.toggle("dim", !own);
     if (own && !dot) { const d = document.createElement("div"); d.className = "own-dot"; c.prepend(d); }
     else if (!own && dot) dot.remove();
@@ -1769,18 +1769,35 @@ function matchRows(rows, local, strict, edTitle, pin) {              // -> { got
   pass((l, x) => songKey(l.title) === songKey(x.title) && ok(l, x));
   return { got, used };
 }
-function editionEntries(name, ed) {                                  // one real edition: its tracklist, filled only with songs that belong to it
-  const local = name ? tracks.filter(t => t.album === name) : [];
-  const { got } = matchRows(ed.tracks, local, true, ed.title, null);
+/* Each song you have shows in the real editions that have its ID code (ISRC). A song whose code no edition has (or that has
+   none) lives in exactly ONE edition: the one whose version
+   is closest in length (under 3 s apart); else the one your file names as its album; else the earliest edition that has
+   the song. So the editions add up: every song shows in one of them, never in none. -1: no edition has it. */
+function edHome(t, E) {
+  const k = songKey(t.title), id = String(t.isrc || "").toUpperCase(), IS = x => String(x.isrc || "").toUpperCase();
+  if (id) { const i = E.list.findIndex(ed => ed.tracks.some(x => IS(x) === id)); if (i >= 0) return i; }
+  const row = E.list.map(ed => ed.tracks.find(x => songKey(x.title) === k) || null);
+  if (t.dur) { let best = -1, bd = 3; row.forEach((x, i) => { if (x && x.dur && Math.abs(x.dur - t.dur) < bd) { bd = Math.abs(x.dur - t.dur); best = i; } }); if (best >= 0) return best; }
+  const byName = row.findIndex((x, i) => x && sn(amp(E.list[i].title)) === sn(amp(t._ed))); if (byName >= 0) return byName;
+  return row.findIndex(x => x);
+}
+function editionEntries(name, ed) {                                  // one real edition: its tracklist, with only the songs that live in it
+  const all = name ? tracks.filter(t => t.album === name) : [], E = name && EDS[name], j = E && E.list ? E.list.findIndex(e => e.id == ed.id) : -1;
+  const IS = x => String(x.isrc || "").toUpperCase(), here = new Set(ed.tracks.map(IS).filter(Boolean));
+  const inIt = t => { const id = IS(t); return id && E.list.some(e => e.tracks.some(x => IS(x) === id)) ? here.has(id) : edHome(t, E) === j; };   // the very same recording is on several editions: it shows on each
+  const { got } = j >= 0 ? matchRows(ed.tracks, all.filter(inIt), false, "", null)
+                         : matchRows(ed.tracks, all, true, ed.title, null);   // its other editions aren't known (yet): check song by song
   return ed.tracks.map((x, i) => ({ track: got[i], title: got[i] ? got[i].title : x.title, want: x.title, num: x.num, disc: x.disc }));
 }
 function edLabel(ed, i) {                                            // "Deluxe Edition · 2006", "Original · 1987"
   const t = String(ed.title || ""), m = t.match(/[\(\[]([^\)\]]*)[\)\]]\s*$/), c = edClean(t);
-  const l = m && EDITION_RE.test(m[0]) ? m[1].trim() : c !== t.trim() ? t.slice(c.length).replace(/^[\s\-–:]+/, "") : i ? t : "Original";
+  const l = m && EDITION_RE.test(m[0]) ? m[1].trim() : c !== t.trim() ? t.slice(c.length).replace(/^[\s\-–:]+/, "") : "Original";
   return l + (ed.year ? " · " + ed.year : "");
 }
 function mixedEntries(name, E) {
-  const local = tracks.filter(t => t.album === name), rows = [], keys = new Set(), ids = new Set();
+  const home = new Map(tracks.filter(t => t.album === name).map(t => [t, edHome(t, E)]));
+  const local = [...home.keys()].sort((a, b) => (home.get(a) < 0 ? 99 : home.get(a)) - (home.get(b) < 0 ? 99 : home.get(b)));   // the original's own copy fills its row first
+  const rows = [], keys = new Set(), ids = new Set();
   E.list.forEach((ed, j) => ed.tracks.forEach(x => {
     const k = songKey(x.title), i = String(x.isrc || "").toUpperCase();
     if (j && (keys.has(k) || (i && ids.has(i)))) return;              // already on an earlier edition
@@ -1797,10 +1814,10 @@ function mixedEntries(name, E) {
   });
   if (hidden || open) {
     const n = rows.filter((r, i) => r.ed && !got[i]).length;
-    if (n) out.push({ more: open ? -1 : hidden, disc: 98 });
+    if (n) out.push({ more: open ? -1 : hidden, disc: 96 });
   }
-  local.filter(t => !used.has(t)).forEach(t => out.push({ track: t, title: t.title, num: t.num, disc: 99 }));
-  return out;
+  local.filter(t => !used.has(t)).forEach(t => out.push({ track: t, title: t.title, num: t.num, disc: keys.has(songKey(t.title)) ? 97 : 99 }));   // 97: a second copy of a song above
+  return out.sort((a, b) => (a.disc >= 96 ? a.disc : 0) - (b.disc >= 96 ? b.disc : 0));   // then: Show more, Extra copies, Also in your files
 }
 async function loadEditions(name, rid) {
   if (EDS[name] && EDS[name].rid === rid) return;
@@ -1810,7 +1827,9 @@ async function loadEditions(name, rid) {
   const me = cat && cat.albums.find(a => a.id == rid), sig = albumSig(me ? me.title : name), live = LIVE_RE.test(me ? me.title : name);
   let eds = cat ? cat.albums.filter(a => a.id == rid || (albumSig(a.title) === sig && LIVE_RE.test(a.title) === live)) : [];
   if (!eds.some(a => a.id == rid)) eds.unshift({ id: rid, title: name, year: "", date: "" });
-  if (eds.length > 6) eds = eds.filter(a => a.id == rid).concat(eds.filter(a => a.id != rid).slice(0, 5)).sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"));
+  const plain = a => edClean(a.title) === String(a.title).trim() ? 0 : 1;
+  eds.sort((a, b) => (a.year || "9999").localeCompare(b.year || "9999") || plain(a) - plain(b) || (a.date || "9999").localeCompare(b.date || "9999"));   // the original first: earliest year, plain title before "(Remastered)"
+  if (eds.length > 6) eds = eds.filter((a, i) => i < 5 || a.id == rid).slice(0, 6);
   const list = [];
   for (const a of eds) { const l = await relTrackList(a.id); if (l) list.push({ ...a, tracks: l }); }
   if (!list.length) { delete EDS[name]; return; }
@@ -2443,7 +2462,7 @@ function renderPlaylist() {
   const E = !all && !pl && !currentCat && EDS[currentAlbum], view = E && E.list ? edView(currentAlbum) : null;
   if (E && E.list && E.list.length > 1) ui.children[0].after(edSwitch(currentAlbum, E, view));   // Mixed · Original · Deluxe Edition…
   const multi = !all && new Set(entries.filter(e => e.disc < 50).map(e => e.disc || 1)).size > 1; let lastHead = null;
-  const headOf = e => e.head || (e.disc >= 99 ? "Also in your files" : e.disc >= 50 ? "" : multi ? "Disc " + (e.disc || 1) + (e.track && e.track.discName ? " · " + e.track.discName : "") : "");
+  const headOf = e => e.head || (e.disc >= 99 ? "Also in your files" : e.disc === 97 ? "Extra copies" : e.disc >= 50 ? "" : multi ? "Disc " + (e.disc || 1) + (e.track && e.track.discName ? " · " + e.track.discName : "") : "");
   const gctx = !all && !pl && canGet() && (getting.size || entries.some(e => !e.track)) ? albumCtx() : null;   // grey songs get a + (see + ON A GREY SONG)
   entries.forEach(e => {
     const hd = headOf(e);
