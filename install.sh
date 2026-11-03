@@ -479,6 +479,7 @@ async function addAudio(m, uid, album) {                                  // one
    that isn't a member). One search at a time per person. Without a login the player opens the chat with the search typed in. */
 const FINDER = (process.env.FINDER_URL || "").trim();
 const waitBy = new Map(), findChains = new Map();                          // Telegram account id -> { uid, res } ; uid -> its searches in a row
+const findNow = new Map();                                                // uid -> the search running now, for the player's progress ring (see /api/fetch/progress)
 async function finder(p, body) {
   const r = await fetch(FINDER + p, body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {});
   return { code: r.status, body: await r.json().catch(() => ({ error: "song search: HTTP " + r.status })) };
@@ -489,16 +490,28 @@ function findSong(uid, q) {
     let st; try { st = (await finder("/status?uid=" + uid)).body; } catch { return { code: 503, body: { error: "song search isn't running", manual: true } }; }
     if (!st.ready) return { code: 409, body: { error: "log in under Settings > Song search", manual: true } };
     const got = new Promise(res => waitBy.set(st.id, { uid, res, album: q.album }));
+    findNow.set(uid, { artist: q.artist, title: q.title, stage: "search" });
     let r; try { r = await finder("/find", { ...q, uid, target: BOT_NAME }); } catch { waitBy.delete(st.id); return { code: 502, body: { error: "song search didn't answer" } }; }
     if (r.code !== 200) { waitBy.delete(st.id); return r; }
+    findNow.set(uid, { artist: q.artist, title: q.title, stage: "arrive" });   // found and sent: on its way to this bot
     const t = await Promise.race([got, sleep(30000).then(() => null)]);   // the bot hears about the song a moment after it's sent
     waitBy.delete(st.id);
     if (!t) return { code: 504, body: { error: "the song was sent, but it didn't reach the bot" } };
     console.log("search", uid, q.artist, "-", q.title, "->", r.body.artist, "-", r.body.title);
     return { code: 200, body: { ok: true, id: t.id, title: t.title, artist: t.artist } };
   };
-  const p = (findChains.get(uid) || Promise.resolve()).then(run, run);
+  const run1 = () => run().finally(() => findNow.delete(uid));
+  const p = (findChains.get(uid) || Promise.resolve()).then(run1, run1);
   findChains.set(uid, p.catch(() => {})); return p;
+}
+function songProgress(uid, id) {                                          // a song a + brought in: where it is on its way into the library
+  const t = byId(id);
+  if (!t || t.uid !== uid) return { stage: "gone" };
+  if (t.rev >= 2) return { stage: "ready" };                              // tags read: album, number, cover
+  const f = audioFile(t);
+  if (fs.existsSync(f)) return { stage: "tags" };
+  let got = 0; try { got = fs.statSync(f + ".part").size; } catch {}
+  return got ? { stage: "download", got, size: t.size || 0 } : { stage: "queued" };
 }
 const STATE_KEYS = ["playlists", "hiddenAlbums", "albumOrder", "releaseMap2", "tileCovers", "allName"];   // see /api/state
 const readBody = (req, max = 1e4) => new Promise((ok, no) => {
@@ -704,8 +717,13 @@ http.createServer(async (req, res) => {
       db.appKeys[key] = { uid: l.uid, created: Date.now() }; save(true);
       return json(res, 200, { key });
     }
-    if (p.startsWith("/api/search") || p === "/api/fetch") {          // song search (see above)
+    if (p.startsWith("/api/search") || p.startsWith("/api/fetch")) {  // song search (see above)
       const uid = member(req, res); if (uid == null) return;
+      if (p === "/api/fetch/progress" && req.method === "GET") {        // the player's progress ring: the search running now, and how far each found song is
+        const ids = String(url.searchParams.get("ids") || "").split(",").filter(Boolean).slice(0, 20), songs = {};
+        for (const id of ids) songs[id] = songProgress(uid, id);
+        return json(res, 200, { find: findNow.get(uid) || null, songs });
+      }
       if (p === "/api/search" && req.method === "GET") {
         if (!FINDER) return json(res, 200, { available: false, bot: BOT_NAME });
         try { const s = (await finder("/status?uid=" + uid)).body; return json(res, 200, { available: true, ready: !!s.ready, name: s.name || "", bot: BOT_NAME }); }
