@@ -1142,7 +1142,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v62";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v63";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -1789,9 +1789,10 @@ function editionEntries(name, ed) {                                  // one real
                          : matchRows(ed.tracks, all, true, ed.title, null);   // its other editions aren't known (yet): check song by song
   return ed.tracks.map((x, i) => ({ track: got[i], title: got[i] ? got[i].title : x.title, want: x.title, num: x.num, disc: x.disc }));
 }
-function edLabel(ed, i) {                                            // "Deluxe Edition · 2006", "Original · 1987"
+function edLabel(ed, i, list) {                                      // "Deluxe Edition · 2006", "Original · 1987", "Reissue · 2005"
   const t = String(ed.title || ""), m = t.match(/[\(\[]([^\)\]]*)[\)\]]\s*$/), c = edClean(t);
-  const l = m && EDITION_RE.test(m[0]) ? m[1].trim() : c !== t.trim() ? t.slice(c.length).replace(/^[\s\-–:]+/, "") : "Original";
+  const l = m && EDITION_RE.test(m[0]) ? m[1].trim() : c !== t.trim() ? t.slice(c.length).replace(/^[\s\-–:]+/, "")
+    : !i ? "Original" : list && list[0] && ed.tracks.length > list[0].tracks.length ? "Expanded" : "Reissue";   // a later release under the plain name
   return l + (ed.year ? " · " + ed.year : "");
 }
 function mixedEntries(name, E) {
@@ -1810,7 +1811,7 @@ function mixedEntries(name, E) {
     const t = got[i], x = r.x;
     if (!r.ed) { out.push({ track: t, title: t ? t.title : x.title, want: x.title, num: x.num, disc: x.disc }); return; }
     if (!t && !open) { hidden++; return; }
-    out.push({ track: t, title: t ? t.title : x.title, want: x.title, num: 0, disc: 50 + r.j, head: "From " + edLabel(r.ed, r.j) });
+    out.push({ track: t, title: t ? t.title : x.title, want: x.title, num: 0, disc: 50 + r.j, head: "From " + edLabel(r.ed, r.j, E.list) });
   });
   if (hidden || open) {
     const n = rows.filter((r, i) => r.ed && !got[i]).length;
@@ -1829,9 +1830,15 @@ async function loadEditions(name, rid) {
   if (!eds.some(a => a.id == rid)) eds.unshift({ id: rid, title: name, year: "", date: "" });
   const plain = a => edClean(a.title) === String(a.title).trim() ? 0 : 1;
   eds.sort((a, b) => (a.year || "9999").localeCompare(b.year || "9999") || plain(a) - plain(b) || (a.date || "9999").localeCompare(b.date || "9999"));   // the original first: earliest year, plain title before "(Remastered)"
-  if (eds.length > 6) eds = eds.filter((a, i) => i < 5 || a.id == rid).slice(0, 6);
+  if (eds.length > 6) { const r = eds.find(a => a.id == rid); eds = eds.slice(0, 6); if (r && !eds.includes(r)) eds[5] = r; }   // 6 at most, always with the one your songs matched
   const list = [];
-  for (const a of eds) { const l = await relTrackList(a.id); if (l) list.push({ ...a, tracks: l }); }
+  const seen = new Set();
+  for (const a of eds) {
+    const l = await relTrackList(a.id); if (!l) continue;
+    const k = l.map(x => (x.disc || 1) + ":" + sn(x.title)).join("|");   // exact titles: a remaster ("… (Remastered)") stays its own edition
+    if (seen.has(k)) continue;                                       // the same tracklist listed again (Deezer often has 2-3 of these): shown once
+    seen.add(k); list.push({ ...a, tracks: l });
+  }
   if (!list.length) { delete EDS[name]; return; }
   EDS[name] = { rid, list };
   libRenderSoon();
@@ -2437,7 +2444,7 @@ function albumHead(all, pl, entries) {
 }
 function edSwitch(name, E, view) {                                   // the edition switch under an album's name
   const w = document.createElement("div"); w.className = "ed-sw"; w.setAttribute("role", "tablist");
-  [{ id: "mix", l: "Mixed" }, ...E.list.map((e, i) => ({ id: e.id, l: edLabel(e, i) }))].forEach(o => {
+  [{ id: "mix", l: "Mixed" }, ...E.list.map((e, i) => ({ id: e.id, l: edLabel(e, i, E.list) }))].forEach(o => {
     const b = document.createElement("button"), on = view ? o.id == view.id : o.id === "mix";
     b.className = "chip ed-c" + (on ? " on" : ""); b.textContent = o.l; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", on ? "true" : "false");
     b.addEventListener("click", () => { if (!on) pickEdition(name, o.id); });
