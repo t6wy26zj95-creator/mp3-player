@@ -484,10 +484,16 @@ html.tg .toast{bottom:calc(var(--tg-bot) + 84px)}
 .player-btn svg{position:relative;z-index:1}
 /* the three controls breathe with the music (--bp, set per button by the glow loop: Play leads, the sides follow a beat
    later); when paused, Play keeps a slow breath of its own. The glow is tinted with the cover's colour. */
+/* Speed (iPhone): the glow is drawn once, on a layer of its own (::after: the brighter rim, the coloured glow outside and
+   the soft light inside, as they are at the peak), and only its opacity follows the music. Before, the button's blurred
+   shadow was drawn again 30 times a second, which Safari does on the CPU. The button is a layer too, so its breathing
+   size costs no drawing either. */
 .controls-cluster .player-btn,.controls-cluster .player-btn:active,.xp-ctrls .player-btn:not(.xp-tog){
-  transform:scale(calc(1 + var(--bp,0) * var(--bs,.035)));
-  border-color:rgba(255,255,255,calc(.15 + var(--bp,0) * .22));
-  box-shadow:0 2px 5px rgba(0,0,0,.2),0 0 calc(2px + var(--bp,0) * 13px) rgba(var(--lc,200,215,225),calc(var(--bp,0) * .42)),inset 0 0 calc(1px + var(--bp,0) * 5px) rgba(255,255,255,calc(.04 + var(--bp,0) * .2))}
+  transform:scale(calc(1 + var(--bp,0) * var(--bs,.035)));will-change:transform;
+  box-shadow:0 2px 5px rgba(0,0,0,.2),inset 0 0 1px rgba(255,255,255,.04)}
+.controls-cluster .player-btn::after,.xp-ctrls .player-btn:not(.xp-tog)::after{content:'';position:absolute;inset:-1px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.26);box-shadow:0 0 15px rgba(var(--lc,200,215,225),.42),inset 0 0 6px rgba(255,255,255,.2);
+  opacity:var(--bp,0);z-index:-1;pointer-events:none;will-change:opacity}
 #play-btn{--bs:.06}
 /* Play: a comet of light travels round the rim (the whole element rotates; the conic tail + a soft face highlight) */
 .pb-shine{position:absolute;inset:-2px;border-radius:50%;pointer-events:none;opacity:0;
@@ -1119,7 +1125,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v56";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v57";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -6303,8 +6309,12 @@ function pulseLoop(now) {
   breathe(now, dt, big, xpOn);
   energy += ((playing ? 1 : 0) - energy) * (1 - Math.exp(-dt / (playing ? .4 : 1.8)));   // one smooth "how alive" level: quick up, slow settle down
   if (!playing && energy < .005) energy = 0;
-  rimA = (rimA + (4 + energy * (5 + pulse * 14)) * dt) % 360;                              // the light slowly orbits the cover on its own; a little livelier with the music
-  const tx = TILT.x, ty = TILT.y, s = now / 1000;
+  /* while you touch or scroll the player (and just after a tap, while what it opens slides in), the glass light holds
+     still too, so the iPhone spends that time on what you're doing, not on drawing the covers' glass again. Its clock
+     pauses with it, so it carries on from where it stopped, never with a jump. A song change's quick swing still plays. */
+  const glassOn = !moving && (!uiHold && now > uiCalmAt || flare > .05);
+  if (glassOn) { rimA = (rimA + (4 + energy * (5 + pulse * 14)) * dt) % 360; glassT += dt; }   // the light slowly orbits the cover on its own; a little livelier with the music
+  const tx = TILT.x, ty = TILT.y, s = glassT;
   tilt += (Math.min(1, Math.hypot(tx, ty)) - tilt) * (1 - Math.exp(-dt / .35));            // 0 without tilt: the glass then runs on its ambient motion alone
   /* the cover light goes to whichever cover is on screen: the small one, the big one, or both while it expands */
   const covers = []; if (pmOn && !big) covers.push(pEls.pm); if (xpOn) covers.push(pEls.xa);
@@ -6312,7 +6322,6 @@ function pulseLoop(now) {
      repaints the cover's glass layers, and on an iPhone that is what made opening and closing stutter. Both covers were
      given the same light as the move began (XP freezes it), so the hand-over at either end is seamless; it carries on
      from the next tick once the move ends. The glow behind (bitmaps, moved and faded by the GPU) stays live. */
-  const glassOn = !moving;
   if (xpOn) { const xa = pEls.xa, ps = pEls.pm.style; pset(xa, "--lk", ps.getPropertyValue("--lk") || "1");
     pset(xa, "--tx", tx.toFixed(3)); pset(xa, "--ty", ty.toFixed(3)); }
   for (const pm of covers) {
@@ -6335,7 +6344,11 @@ function pulseLoop(now) {
     pTimer = setTimeout(() => { pTimer = 0; if (!pRaf) pRaf = requestAnimationFrame(pulseLoop); }, 100);
   } else pRaf = requestAnimationFrame(pulseLoop);
 }
-let rimA = 0, energy = 0, tilt = 0;
+let rimA = 0, energy = 0, tilt = 0, glassT = 0, uiHold = false, uiCalmAt = 0;
+/* "the person is doing something": a finger (or mouse button) is down, a list scrolls, or a tap has just landed */
+document.addEventListener("pointerdown", ev => { if (ev.isPrimary) uiHold = true; }, true);
+["pointerup", "pointercancel"].forEach(t => document.addEventListener(t, ev => { if (ev.isPrimary) { uiHold = false; uiCalmAt = performance.now() + 450; } }, true));
+document.addEventListener("scroll", () => { uiCalmAt = Math.max(uiCalmAt, performance.now() + 250); }, { capture: true, passive: true });
 /* the controls breathe: Play follows the music directly, prev/next a few frames later (a ripple outwards);
    paused, Play keeps a slow breath of its own */
 const bpHist = [], bpLast = [-1, -1, -1];
