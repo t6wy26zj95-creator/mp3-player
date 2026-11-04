@@ -34,7 +34,7 @@ final class Player {
     private(set) var nowFrom: From = .context
     private(set) var shuffle = false
     private(set) var repeatMode: RepeatMode = .all
-    private(set) var songDirection = 1          // +1 next, -1 previous: which way the title slides
+    private(set) var songDirection = 1          // +1 next, -1 previous, 0 picked from a list: which way the title slides
 
     private let av = AVPlayer()
     private var timeObserver: Any?
@@ -114,7 +114,7 @@ final class Player {
         var c = Context(name: name, ids: wholeLibrary ? nil : list.map(\.key), order: nil, at: t.key)
         if shuffle { c.order = [t.key] + list.map(\.key).filter { $0 != t.key }.shuffled() }
         context = c
-        songDirection = 1
+        songDirection = 0
         playKey(t.key, from: .context)
     }
     /// The Play button on an album or playlist: from its first song (or shuffled, when shuffle is on).
@@ -141,19 +141,19 @@ final class Player {
     /// A song from History played again: the album stays where it was.
     func replay(_ t: Track) {
         if let i = history.lastIndex(where: { $0.key == t.key }) { history.remove(at: i) }
-        songDirection = -1
+        songDirection = 0
         playKey(t.key, from: .other)
     }
     func moveQueue(from: IndexSet, to: Int) { queue.move(fromOffsets: from, toOffset: to); changed() }
     func playFromQueue(index i: Int) {
         guard queue.indices.contains(i) else { return }
         let k = queue.remove(at: i)
-        songDirection = 1
+        songDirection = 0
         playKey(k, from: .queue)
     }
     /// A song further down the album in Up next: the album jumps there.
     func playFromContext(_ key: String) {
-        songDirection = 1
+        songDirection = 0
         context?.at = key
         playKey(key, from: .context)
     }

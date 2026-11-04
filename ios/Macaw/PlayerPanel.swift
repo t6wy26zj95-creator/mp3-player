@@ -129,7 +129,7 @@ struct CompactPlayer: View {
             // now playing: cover (centred over the three buttons), title, artist ›
             HStack(alignment: .center, spacing: 16) {
                 Button(action: open) {
-                    CoverArt(track: player.current, size: 66, radius: 12, glow: !ui.minimalLight)
+                    CoverArt(track: player.current, size: 66, radius: 12, glow: !ui.minimalLight, motion: true, direction: player.songDirection)
                         .matchedGeometryEffect(id: "art", in: ns)
                 }
                 .buttonStyle(PressStyle())
@@ -144,6 +144,7 @@ struct CompactPlayer: View {
                                 .shadow(color: .black.opacity(0.4), radius: 1.5, y: 1)
                         }
                         .buttonStyle(PressStyle())
+                        .songSwap((player.current?.key ?? "") + "|a", direction: player.songDirection, delay: 0.06)
                         if player.shuffle {
                             Image(systemName: "shuffle").font(.system(size: 9, weight: .bold)).foregroundStyle(Theme.teal)
                         }
@@ -180,26 +181,44 @@ struct CompactPlayer: View {
     }
 }
 
-/// The title: slides out and the new one in from the side you skipped to, as in the web player.
+/// Song change, as the web player's songOut / songIn: the old text leaves (150 ms, cubic-bezier(.4,0,1,1)) 22 pt towards
+/// the side you skipped from, blurring out; the new one arrives from the other side once it has gone (400 ms ease),
+/// the artist line 60 ms after the title. Picked from a list (direction 0): out upwards, in from below.
+struct SongSwap: ViewModifier {
+    var dx: CGFloat, dy: CGFloat, fade: Bool
+    func body(content: Content) -> some View {
+        content.offset(x: dx, y: dy).opacity(fade ? 0 : 1).blur(radius: fade ? 4 : 0)
+    }
+}
+
+extension View {
+    func songSwap(_ key: String, direction d: Int, delay: Double = 0, center: Bool = false) -> some View {
+        let dx = CGFloat(d) * 22
+        let inT = AnyTransition.modifier(active: SongSwap(dx: dx, dy: d == 0 ? 10 : 0, fade: true), identity: SongSwap(dx: 0, dy: 0, fade: false))
+            .animation(Theme.ease.delay(0.15 + delay))
+        let outT = AnyTransition.modifier(active: SongSwap(dx: -dx, dy: d == 0 ? -10 : 0, fade: true), identity: SongSwap(dx: 0, dy: 0, fade: false))
+            .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.15))
+        return ZStack(alignment: center ? .center : .leading) {
+            self.id(key).transition(.asymmetric(insertion: inT, removal: outT))
+        }
+        .animation(Theme.ease, value: key)
+    }
+}
+
+/// The title, with the song-change motion.
 struct SlidingTitle: View {
     var text: String
     var size: CGFloat
     var direction: Int
     var center = false
     var body: some View {
-        ZStack(alignment: center ? .center : .leading) {
-            Text(text)
-                .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.5), radius: 2.5, y: 2)        // web: text-shadow 0 2px 5px rgba(0,0,0,.5)
-                .lineLimit(1)
-                .id(text)
-                .transition(.asymmetric(insertion: .move(edge: direction >= 0 ? .trailing : .leading).combined(with: .opacity),
-                                        removal: .move(edge: direction >= 0 ? .leading : .trailing).combined(with: .opacity)))
-        }
-        .frame(maxWidth: .infinity, alignment: center ? .center : .leading)
-        .clipped()
-        .animation(Theme.ease, value: text)
+        Text(text)
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.5), radius: 2.5, y: 2)        // web: text-shadow 0 2px 5px rgba(0,0,0,.5)
+            .lineLimit(1)
+            .songSwap(text, direction: direction, center: center)
+            .frame(maxWidth: .infinity, alignment: center ? .center : .leading)
     }
 }
 
@@ -207,33 +226,154 @@ struct TransportButton: View {
     enum Kind { case prev, play, next }
     var kind: Kind
     var size: CGFloat
-    @State private var held = false
     private var player: Player { .shared }
     var body: some View {
-        Button {
-            if held { held = false; return }                               // that was a hold (shuffle), not a tap
-            Haptics.light()
-            switch kind { case .prev: player.previous(); case .play: player.toggle(); case .next: player.next() }
-        } label: {
-            ZStack {
-                switch kind {
-                case .prev: Image(systemName: "backward.end.fill")
-                case .next: Image(systemName: "forward.end.fill")
-                case .play:
-                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                        .contentTransition(.symbolEffect(.replace))
-                        .offset(x: player.isPlaying ? 0 : size * 0.025)
-                }
-            }
-            .font(.system(size: kind == .play ? size * 0.34 : size * 0.3, weight: .bold))
-            .foregroundStyle(.white)
-        }
-        .buttonStyle(RoundButtonStyle(size: size))
-        .simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in
-            if kind == .play { held = true; player.toggleShuffle() }       // hold Play = shuffle, as in the web player
-        })
+        if kind == .play { PlayButton(size: size) } else { SkipButton(next: kind == .next, size: size) }
     }
 }
+
+/// Prev / Next: the icon nudges the way it points (web: nudge, 400 ms: 4 pt out, 1 pt back, home).
+struct SkipButton: View {
+    var next: Bool
+    var size: CGFloat
+    @State private var taps = 0
+    private var player: Player { .shared }
+    var body: some View {
+        let d: CGFloat = next ? 1 : -1
+        Button {
+            Haptics.light(); taps += 1
+            if next { player.next() } else { player.previous() }
+        } label: {
+            Image(systemName: next ? "forward.end.fill" : "backward.end.fill")
+                .font(.system(size: size * 0.3, weight: .bold))
+                .foregroundStyle(.white)
+                .keyframeAnimator(initialValue: CGFloat(0), trigger: taps) { v, x in v.offset(x: x) } keyframes: { _ in
+                    KeyframeTrack {
+                        CubicKeyframe(d * 4, duration: 0.12)
+                        CubicKeyframe(-d, duration: 0.14)
+                        CubicKeyframe(0, duration: 0.14)
+                    }
+                }
+        }
+        .buttonStyle(RoundButtonStyle(size: size))
+    }
+}
+
+/// Play / pause: one shape whose two pieces glide from the triangle's halves to the two bars (with a little overshoot),
+/// the icon turning in as it changes. Hold it for shuffle: after 140 ms a ring appears and fills; full (560 ms) =
+/// shuffle toggles, the ring bursts outwards and a comet of light runs round the rim. Let go early and it runs back.
+struct PlayButton: View {
+    var size: CGFloat
+    @State private var t: CGFloat = 0                   // 0 = play triangle, 1 = pause bars
+    @State private var turns = 0
+    @State private var hold: CGFloat = 0
+    @State private var ringOn = false
+    @State private var burst = 0
+    @State private var comet = 0
+    @State private var fired = false
+    @State private var holdTask: Task<Void, Never>?
+    private var player: Player { .shared }
+
+    var body: some View {
+        Button {
+            if fired { fired = false; return }
+            Haptics.light(); player.toggle()
+        } label: {
+            PlayPauseShape(t: t)
+                .fill(.white)
+                .frame(width: size * 0.41, height: size * 0.41)
+                .keyframeAnimator(initialValue: PlayTurn(), trigger: turns) { v, k in v.rotationEffect(.degrees(k.angle)).scaleEffect(k.scale) } keyframes: { _ in
+                    KeyframeTrack(\.angle) { LinearKeyframe(player.isPlaying ? -14 : 14, duration: 0.001); SpringKeyframe(0, duration: 0.4, spring: .init(duration: 0.4, bounce: 0.25)) }
+                    KeyframeTrack(\.scale) { LinearKeyframe(0.72, duration: 0.001); SpringKeyframe(1, duration: 0.4, spring: .init(duration: 0.4, bounce: 0.25)) }
+                }
+        }
+        .buttonStyle(RoundButtonStyle(size: size))
+        .overlay {
+            ZStack {
+                Circle().stroke(Color.w(0.16), lineWidth: 2.3)
+                Circle().trim(from: 0, to: hold).stroke(.white, style: StrokeStyle(lineWidth: 2.3, lineCap: .round)).rotationEffect(.degrees(-90))
+            }
+            .padding(-5 + 1.15)
+            .opacity(ringOn ? 1 : 0)
+            .keyframeAnimator(initialValue: CGFloat(0), trigger: burst) { v, k in v.scaleEffect(1 + k * 0.45).opacity(k == 0 ? 1 : 1 - k) } keyframes: { _ in
+                KeyframeTrack { LinearKeyframe(0.001, duration: 0.001); CubicKeyframe(1, duration: 0.4); LinearKeyframe(0, duration: 0.001) }
+            }
+            .allowsHitTesting(false)
+        }
+        .overlay { Comet(trigger: comet).padding(-2).allowsHitTesting(false) }
+        .simultaneousGesture(DragGesture(minimumDistance: 0)
+            .onChanged { _ in if holdTask == nil { startHold() } }
+            .onEnded { _ in stopHold() })
+        .onAppear { t = player.isPlaying ? 1 : 0 }
+        .onChange(of: player.isPlaying) { _, p in
+            withAnimation(.spring(duration: 0.4, bounce: 0.3)) { t = p ? 1 : 0 }
+            turns += 1
+        }
+    }
+
+    private func startHold() {
+        fired = false
+        holdTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 140_000_000)
+            guard !Task.isCancelled else { return }
+            ringOn = true; Haptics.select()
+            withAnimation(.linear(duration: 0.42)) { hold = 1 }
+            try? await Task.sleep(nanoseconds: 420_000_000)
+            guard !Task.isCancelled else { return }
+            fired = true
+            player.toggleShuffle()
+            burst += 1; comet += 1
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            ringOn = false
+            hold = 0
+        }
+    }
+    private func stopHold() {
+        if fired { holdTask = nil; return }              // the burst finishes by itself
+        holdTask?.cancel(); holdTask = nil
+        if ringOn { ringOn = false; withAnimation(.easeOut(duration: 0.2)) { hold = 0 } }
+    }
+}
+
+struct PlayTurn { var angle: Double = 0; var scale: CGFloat = 1 }
+
+/// The web player's play / pause path (24 × 24): two quads that move from the triangle's halves to the two bars.
+struct PlayPauseShape: Shape {
+    var t: CGFloat
+    var animatableData: CGFloat { get { t } set { t = newValue } }
+    private static let play: [[CGFloat]] = [[8, 5, 13.5, 8.5, 13.5, 15.5, 8, 19], [13.5, 8.5, 19, 12, 19, 12, 13.5, 15.5]]
+    private static let pause: [[CGFloat]] = [[6, 5, 10, 5, 10, 19, 6, 19], [14, 5, 18, 5, 18, 19, 14, 19]]
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        let k = r.width / 24
+        for i in 0..<2 {
+            let a = Self.play[i], b = Self.pause[i]
+            let v = (0..<8).map { a[$0] + (b[$0] - a[$0]) * t }
+            p.move(to: CGPoint(x: r.minX + v[0] * k, y: r.minY + v[1] * k))
+            for j in stride(from: 2, to: 8, by: 2) { p.addLine(to: CGPoint(x: r.minX + v[j] * k, y: r.minY + v[j + 1] * k)) }
+            p.closeSubpath()
+        }
+        return p
+    }
+}
+
+/// A comet of light that runs once round a round button's rim (web: ringFire).
+struct Comet: View {
+    var trigger: Int
+    var body: some View {
+        Circle()
+            .strokeBorder(AngularGradient(stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 205 / 360),
+                                                  .init(color: Color(red: 0.78, green: 0.84, blue: 0.88).opacity(0.5), location: 285 / 360),
+                                                  .init(color: .white.opacity(0.95), location: 348 / 360), .init(color: .white, location: 355 / 360),
+                                                  .init(color: .clear, location: 1)], center: .center), lineWidth: 2)
+            .shadow(color: .white.opacity(0.9), radius: 1)
+            .keyframeAnimator(initialValue: CometState(), trigger: trigger) { v, k in v.rotationEffect(.degrees(k.angle)).opacity(k.opacity) } keyframes: { _ in
+                KeyframeTrack(\.angle) { LinearKeyframe(-70, duration: 0.001); CubicKeyframe(395, duration: 1.0) }
+                KeyframeTrack(\.opacity) { LinearKeyframe(0, duration: 0.001); LinearKeyframe(1, duration: 0.2); LinearKeyframe(0.9, duration: 0.52); LinearKeyframe(0, duration: 0.28) }
+            }
+    }
+}
+struct CometState { var angle: Double = -70; var opacity: Double = 0 }
 
 /// The progress bar: drag the dot; it only seeks when you let go (seeking while dragging broke streaming on the web).
 struct Scrubber: View {
@@ -324,10 +464,22 @@ struct CoverArt: View {
     var size: CGFloat
     var radius: CGFloat
     var glow = true
+    /// The compact player's song-change motion (web: songOut / coverIn): the cover dips (250 ms) to 88 %, darker, a little
+    /// towards the side you skipped from; the new artwork then comes in from the other side, bright, overshoots to 103.5 %
+    /// and settles (400 ms ease).
+    var motion = false
+    var direction = 1
+    @State private var shown: Track?
+    @State private var dx: CGFloat = 0
+    @State private var scale: CGFloat = 1
+    @State private var bright: Double = 0
+    @State private var job = 0
+
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let t = motion ? shown : track
         ZStack {
-            if glow, let t = track {
+            if glow, let t {
                 CoverImage(path: t.path, px: 120, placeholder: AnyView(Color.clear))
                     .frame(width: size, height: size)
                     .blur(radius: size * 0.28)
@@ -335,16 +487,44 @@ struct CoverArt: View {
                     .scaleEffect(1.18)
                     .allowsHitTesting(false)
             }
-            CoverImage(path: track?.path, px: Int(size * 3), placeholder: AnyView(NotesPlaceholder()))
-                .frame(width: size, height: size)
-                .clipShape(shape)
-                .overlay(shape.strokeBorder(LinearGradient(colors: [.w(0.35), .w(0.05)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
-                .shadow(color: .black.opacity(0.3), radius: size * 0.12, y: size * 0.06)
-                .id(track?.path)
-                .transition(.scale(scale: 0.94).combined(with: .opacity))
+            ZStack {
+                CoverImage(path: t?.path, px: Int(size * 3), placeholder: AnyView(NotesPlaceholder()))
+                    .frame(width: size, height: size)
+                    .clipShape(shape)
+                    .overlay(shape.strokeBorder(LinearGradient(colors: [.w(0.35), .w(0.05)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.3), radius: size * 0.12, y: size * 0.06)
+            }
+            .brightness(bright)
+            .scaleEffect(scale)
+            .offset(x: dx)
         }
         .frame(width: size, height: size)
-        .animation(Theme.ease, value: track?.path)
+        .onAppear { shown = track }
+        .onChange(of: track?.key) { _, _ in
+            guard motion else { return }
+            if shown == nil { shown = track; return }
+            change()
+        }
+    }
+
+    private func change() {
+        job += 1
+        let my = job, d = CGFloat(direction) * 22, same = shown?.path == track?.path
+        withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.25)) { dx = -d * 0.5; scale = 0.88; bright = -0.2 }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 170_000_000)
+            guard my == job else { return }
+            var tr = Transaction(); tr.disablesAnimations = true
+            withTransaction(tr) {
+                shown = track
+                if !same { dx = d * 0.5; scale = 0.86 }
+                bright = 0.22
+            }
+            withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.2)) { dx = 0; scale = 1.035; bright = 0.05 }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            guard my == job else { return }
+            withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.2)) { scale = 1; bright = 0 }
+        }
     }
 }
 
