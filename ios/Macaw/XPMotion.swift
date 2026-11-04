@@ -56,7 +56,7 @@ final class XPMotion {
     }
 
     func close(then: (() -> Void)? = nil) {
-        guard phase == .big || phase == .moving || phase == .measuring else { then?(); return }
+        guard phase == .big || phase == .moving || phase == .measuring else { ui.expanded = false; then?(); return }
         if ui.lyricsOpen || ui.lyricsScroll > 0.5 {                  // lyrics open, or scrolled down: back to the player first
             withAnimation(Theme.ease) { ui.lyricsOpen = false; ui.lyricsScroll = 0 }
             Task { @MainActor in try? await Task.sleep(nanoseconds: 420_000_000); self.close(then: then) }
