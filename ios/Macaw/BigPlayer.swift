@@ -3,8 +3,8 @@ import SwiftUI
 /// The big player: the panel grows, the cover grows in place (one cover, never two), with the title, artist · album ·
 /// year, the bar with elapsed / remaining, Shuffle · Prev · Play · Next · Repeat and the Queue strip.
 struct BigPlayer: View {
-    var ns: Namespace.ID
     var close: () -> Void
+    @Environment(\.xpPoses) private var poses
     private var ui: UIState { .shared }
     private var player: Player { .shared }
 
@@ -18,6 +18,7 @@ struct BigPlayer: View {
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { ui.lyricsMax = $0 + 4 + 18 }
                         .alignmentGuide(.bottom) { d in d[.top] - 4 }
                         .opacity(ui.lyricsScroll > 0.5 ? 1 : 0)
+                        .xp("b.lyr")
                 }
                 .offset(y: -ui.lyricsScroll)
                 .opacity(ui.lyricsOpen ? 0 : 1)
@@ -50,28 +51,27 @@ struct BigPlayer: View {
                     .frame(width: 72, height: 20).contentShape(Rectangle())
             }
             .buttonStyle(PressStyle())
+            .xp("b.handle")
             .padding(.top, 6)
 
-            CoverArt(track: player.current, size: 191, radius: 18, glow: !ui.minimalLight)
-                .matchedGeometryEffect(id: "art", in: ns)
+            CoverArt(track: player.current, size: 191, radius: poses.artRadius ?? 18, glow: !ui.minimalLight)
+                .xp("b.art")
                 .padding(.top, 10)
                 .onTapGesture(perform: close)
 
             VStack(spacing: 5) {
-                SlidingTitle(text: player.current?.title ?? "", size: 20, direction: player.songDirection, center: true)
-                    .matchedGeometryEffect(id: "title", in: ns, properties: .position)
+                SlidingTitle(text: player.current?.title ?? "", size: 20, direction: player.songDirection, center: true, tag: "b.title")
                 subtitle
-                    .matchedGeometryEffect(id: "artist", in: ns, properties: .position)
             }
             .padding(.horizontal, 22)
             .padding(.top, 22)
 
             VStack(spacing: 5) {
-                Scrubber(height: 4).matchedGeometryEffect(id: "bar", in: ns)
+                Scrubber(height: 4).xp("b.bar")
                 HStack {
-                    Text(formatTime(player.scrubbing ?? player.time))
+                    Text(formatTime(player.scrubbing ?? player.time)).xp("b.cur")
                     Spacer()
-                    Text("-" + formatTime(max(0, player.duration - (player.scrubbing ?? player.time))))
+                    Text("-" + formatTime(max(0, player.duration - (player.scrubbing ?? player.time)))).xp("b.left")
                 }
                 .font(.system(size: 11).monospacedDigit()).foregroundStyle(Color.w(0.6))
             }
@@ -79,21 +79,22 @@ struct BigPlayer: View {
             .padding(.top, 22)
 
             HStack(spacing: 0) {
-                ToggleButton(system: "shuffle", on: player.shuffle) { player.toggleShuffle() }
+                ToggleButton(system: "shuffle", on: player.shuffle) { player.toggleShuffle() }.xp("b.shuf")
                 Spacer(minLength: 0)
-                TransportButton(kind: .prev, size: 46).matchedGeometryEffect(id: "prev", in: ns)
+                TransportButton(kind: .prev, size: 46).xp("b.prev")
                 Spacer(minLength: 0)
-                TransportButton(kind: .play, size: 60).matchedGeometryEffect(id: "play", in: ns)
+                TransportButton(kind: .play, size: 60).xp("b.play")
                 Spacer(minLength: 0)
-                TransportButton(kind: .next, size: 46).matchedGeometryEffect(id: "next", in: ns)
+                TransportButton(kind: .next, size: 46).xp("b.next")
                 Spacer(minLength: 0)
-                ToggleButton(system: player.repeatMode == .one ? "repeat.1" : "repeat", on: player.repeatMode != .off) { player.cycleRepeat() }
+                ToggleButton(system: player.repeatMode == .one ? "repeat.1" : "repeat", on: player.repeatMode != .off) { player.cycleRepeat() }.xp("b.rep")
             }
             .padding(.horizontal, 26)
             .frame(height: 60)
             .padding(.top, 12)
 
             UpNextStrip()
+                .xp("b.strip")
                 .padding(.top, 34)
                 .padding(.bottom, 12)
                 .transition(.opacity)
@@ -104,16 +105,34 @@ struct BigPlayer: View {
     private var subtitle: some View {
         let t = player.current
         let rest = [t?.album ?? "", t?.year ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        // while it opens, album · year (and the sound effect) write themselves in letter by letter (web: letters()),
+        // the artist starts as dim as the small line, and the small line's " ›" rides along and fades
+        let tail = rest.isEmpty ? "" : " · " + rest, fx = Retro.shared.mode != "off" ? " · " + Retro.shared.label : ""
+        let n = tail.count + fx.count, K = 3.0, e = poses.extra
+        func op(_ i: Int) -> Double { max(0, min(1, (e * Double(n) + e * K - Double(i)) / K)) }
+        func letters(_ s: String, from i0: Int, _ color: Color) -> Text {
+            if e >= 1 { return Text(s).foregroundColor(color) }
+            return s.enumerated().reduce(Text("")) { acc, x in acc + Text(String(x.element)).foregroundColor(color.opacity(op(i0 + x.offset))) }
+        }
+        let gold = Color(red: 232 / 255, green: 196 / 255, blue: 140 / 255)
         return HStack(spacing: 0) {
             Button { if let a = t?.shownArtist { ui.showArtist(a) } } label: {
-                Text(t?.shownArtist ?? "").foregroundStyle(Color.w(0.85))
+                Text(t?.shownArtist ?? "").foregroundStyle(Color.w(e >= 1 ? 0.85 : 0.6 + 0.25 * e))
+                    .overlay(alignment: .trailing) {
+                        if poses.chev > 0.001 {
+                            Text(" ›").foregroundStyle(Color.w(0.85)).fixedSize()
+                                .alignmentGuide(.trailing) { d in d[.leading] }
+                                .opacity(poses.chev * 0.5)
+                        }
+                    }
             }
             .buttonStyle(PressStyle())
-            if !rest.isEmpty { Text(" · " + rest).foregroundStyle(Color.w(0.55)) }
-            if Retro.shared.mode != "off" { Text(" · " + Retro.shared.label).foregroundStyle(Color(red: 232 / 255, green: 196 / 255, blue: 140 / 255)) }
+            .xp("b.artistName")
+            if !tail.isEmpty || !fx.isEmpty { letters(tail, from: 0, Color.w(0.55)) + letters(fx, from: tail.count, gold) }
         }
         .font(.system(size: 13.5))
         .lineLimit(1)
+        .xp("b.artist")
         .frame(maxWidth: .infinity)
     }
 }
@@ -169,7 +188,7 @@ struct UpNextStrip: View {
                 Text("QUEUE").font(.system(size: 11, weight: .semibold)).tracking(0.6).foregroundStyle(Color.w(0.5))
                 Spacer()
                 Button("See all") {
-                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { ui.expanded = false; ui.tab = .queue }
+                    XPMotion.shared.close { ui.open(.queue) }
                 }
                 .font(.system(size: 11, weight: .semibold)).tracking(0.6).foregroundStyle(Color.w(0.7))
                 .buttonStyle(PopStyle())

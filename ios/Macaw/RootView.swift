@@ -144,9 +144,9 @@ enum TestScreens {
         case "queue": ui.open(.queue)
         case "library": ui.open(.library)
         case "artists": ui.open(.artists)
-        case "big": ui.expanded = true
+        case "big": XPMotion.shared.open()
         case "lyrics":
-            ui.expanded = true
+            XPMotion.shared.open()
             try? await Task.sleep(nanoseconds: 800_000_000)
             ui.lyricsScroll = ui.lyricsMax
         case "settings": ui.settingsOpen = true
@@ -160,9 +160,11 @@ enum TestScreens {
             await wait(2); ui.open(.queue)
             await wait(2); ui.open(.artists)
             await wait(2); ui.open(.artists)
-            await wait(2); withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { ui.expanded = true; ui.tab = nil }
+            await wait(2); XPMotion.shared.open()
             await wait(2.5); player.next()
-            await wait(2); withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { ui.expanded = false }
+            await wait(2); XPMotion.shared.close()
+            await wait(2); XPMotion.shared.open()
+            await wait(2); XPMotion.shared.close()
         default: break
         }
     }

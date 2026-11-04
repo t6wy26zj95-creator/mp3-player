@@ -40,9 +40,9 @@ final class UIState {
     }
 
     func open(_ t: DrawerTab) {
+        if expanded { XPMotion.shared.close { self.open(t) }; return }   // the big player folds back first
         navDir = 0
         withAnimation(Theme.ease) {
-            if expanded { expanded = false }
             tab = tab == t ? nil : t
         }
         Haptics.select()
@@ -62,8 +62,8 @@ final class UIState {
     }
     /// Opens an artist's page (from the artist name under a song).
     func showArtist(_ name: String) {
+        if expanded { XPMotion.shared.close { self.showArtist(name) }; return }
         withAnimation(Theme.ease) {
-            expanded = false
             tab = .artists
             if artistsPath.last != .artist(name) { artistsPath = [.artist(name)] }
         }

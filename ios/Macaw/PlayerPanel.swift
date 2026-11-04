@@ -4,7 +4,6 @@ import SwiftUI
 /// under it. Tapping the cover (or pulling the row down) grows the same panel into the big player.
 struct PlayerPanel: View {
     var room: CGFloat
-    @Namespace private var ns
     @State private var pull: CGFloat = 0
     @State private var lean: CGSize = .zero                 // the web player's pull: the panel leans after your finger...
     @State private var sx: CGFloat = 1                      // ...stretches a little along the drag, gives a hair across it,
@@ -19,28 +18,38 @@ struct PlayerPanel: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Theme.panelRadius, style: .continuous)
-        VStack(spacing: 0) {
-            if ui.expanded {
-                BigPlayer(ns: ns, close: close)
-            } else {
-                CompactPlayer(ns: ns, open: open)
-                    .padding(.horizontal, Theme.panelPad)
-                    .padding(.top, Theme.panelPad)
-                    .padding(.bottom, 16)
-                if let tab = ui.tab {
-                    // web: the drawer's height grows with the panel (400 ms ease) while it fades in (250 ms)
-                    VStack(spacing: 0) {
-                        Rectangle().fill(Color.w(0.1)).frame(height: 1)
-                            .padding(.horizontal, Theme.panelPad)
-                        DrawerView(tab: tab, room: room)
-                            .padding(.bottom, Theme.panelPad - 6)
+        let motion = XPMotion.shared
+        // both layouts while the big player opens or closes (see XPMotion): the compact one under, the big one over it
+        ZStack(alignment: .top) {
+            XPLayer(big: false) {
+                VStack(spacing: 0) {
+                    CompactPlayer(open: open)
+                        .padding(.horizontal, Theme.panelPad)
+                        .padding(.top, Theme.panelPad)
+                        .padding(.bottom, 16)
+                    if let tab = ui.tab {
+                        // web: the drawer's height grows with the panel (400 ms ease) while it fades in (250 ms)
+                        VStack(spacing: 0) {
+                            Rectangle().fill(Color.w(0.1)).frame(height: 1)
+                                .padding(.horizontal, Theme.panelPad)
+                            DrawerView(tab: tab, room: room)
+                                .padding(.bottom, Theme.panelPad - 6)
+                        }
+                        .transition(.opacity.animation(Theme.easeN))
+                    } else {
+                        Color.clear.frame(height: Theme.panelPad)
                     }
-                    .transition(.opacity.animation(Theme.easeN))
-                } else {
-                    Color.clear.frame(height: Theme.panelPad)
                 }
+                .xp("c.stack")
+            }
+            if motion.phase != .compact {
+                XPLayer(big: true) { BigPlayer(close: close).xp("b.stack") }
+                    .transition(.identity)
             }
         }
+        .coordinateSpace(name: "xp")
+        .fixedSize(horizontal: false, vertical: motion.phase == .measuring || motion.phase == .moving)
+        .modifier(XPDriver(p: motion.p, phase: motion.phase))
         .frame(maxWidth: .infinity)
         .background(alignment: .topLeading) { if !ui.minimalLight { PanelTint() } }
         .clipShape(shape)
@@ -110,20 +119,13 @@ struct PlayerPanel: View {
         withAnimation(.spring(response: 0.51, dampingFraction: 0.86)) { lean = .zero; sx = 1; sy = 1 }
     }
 
-    private func open() {
-        Haptics.light()
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { ui.expanded = true; ui.tab = nil }
-    }
-    private func close() {
-        Haptics.light()
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { ui.expanded = false; ui.lyricsScroll = 0; ui.lyricsOpen = false }
-    }
+    private func open() { XPMotion.shared.open() }
+    private func close() { XPMotion.shared.close() }
 }
 
 // MARK: compact
 
 struct CompactPlayer: View {
-    var ns: Namespace.ID
     var open: () -> Void
     private var ui: UIState { .shared }
     private var player: Player { .shared }
@@ -134,13 +136,12 @@ struct CompactPlayer: View {
             HStack(alignment: .center, spacing: 16) {
                 Button(action: open) {
                     CoverArt(track: player.current, size: 66, radius: 12, glow: !ui.minimalLight, motion: true, direction: player.songDirection)
-                        .matchedGeometryEffect(id: "art", in: ns)
+                        .xp("c.art")
                 }
                 .buttonStyle(PressStyle())
                 .padding(.leading, 34)
                 VStack(alignment: .leading, spacing: 2) {
-                    SlidingTitle(text: player.current?.title ?? "", size: 17, direction: player.songDirection)
-                        .matchedGeometryEffect(id: "title", in: ns, properties: .position)
+                    SlidingTitle(text: player.current?.title ?? "", size: 17, direction: player.songDirection, tag: "c.title")
                     HStack(spacing: 6) {
                         Button { if let a = player.current?.shownArtist { ui.showArtist(a) } } label: {
                             Text((player.current?.shownArtist ?? "") + " ›")
@@ -153,7 +154,7 @@ struct CompactPlayer: View {
                             Image(systemName: "shuffle").font(.system(size: 9, weight: .bold)).foregroundStyle(Theme.teal)
                         }
                     }
-                    .matchedGeometryEffect(id: "artist", in: ns, properties: .position)
+                    .xp("c.artist")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -163,17 +164,19 @@ struct CompactPlayer: View {
             // controls: prev / play / next, time, bar, length
             HStack(spacing: 10) {
                 HStack(spacing: 6) {
-                    TransportButton(kind: .prev, size: 34).matchedGeometryEffect(id: "prev", in: ns)
-                    TransportButton(kind: .play, size: 34).matchedGeometryEffect(id: "play", in: ns)
-                    TransportButton(kind: .next, size: 34).matchedGeometryEffect(id: "next", in: ns)
+                    TransportButton(kind: .prev, size: 34).xp("c.prev")
+                    TransportButton(kind: .play, size: 34).xp("c.play")
+                    TransportButton(kind: .next, size: 34).xp("c.next")
                 }
                 Text(formatTime(player.scrubbing ?? player.time))
                     .font(.system(size: 11).monospacedDigit()).foregroundStyle(Color.w(0.7))
+                    .xp("c.cur")
                     .frame(minWidth: 24, alignment: .leading)
                 Scrubber(height: 4)
-                    .matchedGeometryEffect(id: "bar", in: ns)
+                    .xp("c.bar")
                 Text(formatTime(player.duration))
                     .font(.system(size: 11).monospacedDigit()).foregroundStyle(Color.w(0.7))
+                    .xp("c.dur")
                     .frame(minWidth: 24, alignment: .trailing)
             }
             .padding(.horizontal, 10)
@@ -181,6 +184,7 @@ struct CompactPlayer: View {
 
             Footer()
                 .frame(height: 34)
+                .xp("c.foot")
         }
     }
 }
@@ -216,6 +220,7 @@ struct SlidingTitle: View {
     var size: CGFloat
     var direction: Int
     var center = false
+    var tag = ""
     var body: some View {
         Text(text)
             .font(.system(size: size, weight: .semibold))
@@ -223,6 +228,7 @@ struct SlidingTitle: View {
             .shadow(color: .black.opacity(0.5), radius: 2.5, y: 2)        // web: text-shadow 0 2px 5px rgba(0,0,0,.5)
             .lineLimit(1)
             .songSwap(text, direction: direction, center: center)
+            .xp(tag)
             .frame(maxWidth: .infinity, alignment: center ? .center : .leading)
     }
 }
@@ -631,5 +637,18 @@ struct TabPill: View {
             .background(Capsule().fill(Color.w(glow * 0.07)))
             .shadow(color: .black.opacity(0.22), radius: 7, y: 4)
             .shadow(color: Color(red: 200 / 255, green: 215 / 255, blue: 225 / 255).opacity(glow * 0.5), radius: glow * 8)
+    }
+}
+
+/// One of the two layouts of the panel: hidden (and untouchable) when the motion says so.
+struct XPLayer<C: View>: View {
+    var big: Bool
+    @ViewBuilder var content: C
+    @Environment(\.xpPoses) private var poses
+    var body: some View {
+        let on = big ? poses.bigOn : poses.compactOn
+        content
+            .opacity(on ? 1 : 0)
+            .allowsHitTesting(on && !poses.moving)
     }
 }
