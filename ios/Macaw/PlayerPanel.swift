@@ -42,6 +42,7 @@ struct PlayerPanel: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .background(alignment: .topLeading) { if !ui.minimalLight { PanelTint() } }
         .clipShape(shape)
         .contentShape(shape)
         .panelGlass(shape, classic: ui.classic)
@@ -260,6 +261,7 @@ struct SkipButton: View {
                 }
         }
         .buttonStyle(RoundButtonStyle(size: size))
+        .modifier(Breath(index: next ? 2 : 0, amount: 0.035))
     }
 }
 
@@ -292,6 +294,7 @@ struct PlayButton: View {
                 }
         }
         .buttonStyle(RoundButtonStyle(size: size))
+        .modifier(Breath(index: 1, amount: 0.06))
         .overlay {
             ZStack {
                 Circle().stroke(Color.w(0.16), lineWidth: 2.3)
@@ -557,21 +560,18 @@ struct CoverArt: View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         let t = motion ? shown : track
         ZStack {
-            if glow, let t {
-                CoverImage(path: t.path, px: 120, placeholder: AnyView(Color.clear))
-                    .frame(width: size, height: size)
-                    .blur(radius: size * 0.28)
-                    .opacity(0.75)
-                    .scaleEffect(1.18)
-                    .allowsHitTesting(false)
-            }
+            if glow, t != nil { CoverGlowBack(size: size) }
             ZStack {
+                Color.black.opacity(0.22)
                 CoverImage(path: t?.path, px: Int(size * 3), placeholder: AnyView(NotesPlaceholder()))
                     .frame(width: size, height: size)
-                    .clipShape(shape)
-                    .overlay(shape.strokeBorder(LinearGradient(colors: [.w(0.35), .w(0.05)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.3), radius: size * 0.12, y: size * 0.06)
+                if glow { CoverGlass(path: t?.path, size: size, radius: radius) }
             }
+            .frame(width: size, height: size)
+            .clipShape(shape)
+            .overlay(shape.stroke(.black.opacity(0.45), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.18), radius: 2.5 * size / 66, y: 2 * size / 66)
+            .shadow(color: .black.opacity(0.32), radius: 9 * size / 66, y: 7 * size / 66)
             .brightness(bright)
             .scaleEffect(scale)
             .offset(x: dx)

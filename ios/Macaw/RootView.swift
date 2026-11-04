@@ -104,6 +104,7 @@ enum Boot {
         UIState.shared.blur = Double(Store.shared["wallpaperBlur"] ?? "") ?? 0
         UIState.shared.reloadWallpaper()
         _ = Player.shared
+        Glow.shared.start()
         mark("settings")
         await AppModel.shared.scan()
         mark("scan")

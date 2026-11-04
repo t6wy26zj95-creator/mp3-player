@@ -35,6 +35,8 @@ final class Player {
     private(set) var shuffle = false
     private(set) var repeatMode: RepeatMode = .all
     private(set) var songDirection = 1          // +1 next, -1 previous, 0 picked from a list: which way the title slides
+    /// Where playback is right now, read straight from the player (the glow needs it 30 times a second).
+    var preciseTime: Double { let s = av.currentTime().seconds; return s.isFinite ? s : time }
 
     private let av = AVPlayer()
     private var timeObserver: Any?
@@ -275,7 +277,9 @@ final class Player {
 
     private func load(_ key: String, autoplay: Bool, at start: Double = 0) {
         guard let t = model.byKey[key] else { return }
+        let first = currentKey == nil
         currentKey = key
+        Glow.shared.songChanged(t, first: first)
         time = start
         duration = t.duration
         pendingSeek = start > 0 ? start : nil
