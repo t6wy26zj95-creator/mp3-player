@@ -70,8 +70,8 @@ struct CoverFlow: View {
                             let P = Double(W) * 4, k = P / (P - z)                      // CSS perspective: 4 × the cover size
                             cover(it, W: W, shade: min(0.5, t * 0.26 + far * 0.05))
                                 .rotation3DEffect(.degrees(r), axis: (0, 1, 0), anchor: .center, perspective: 0.25)
-                                .scaleEffect(k)
-                                .offset(x: x * k, y: W * ft + (W * 0.45 - W / 2) * (1 - k) * 0)
+                                .scaleEffect(CGFloat(k))
+                                .offset(x: CGFloat(x * k), y: W * ft)
                                 .zIndex(1000 - (a * 10).rounded())
                                 .onTapGesture { tap(i, it) }
                                 .onLongPressGesture(minimumDuration: 0.45) {
@@ -112,7 +112,7 @@ struct CoverFlow: View {
 
     private func startIndex(_ list: [Item]) -> Double {
         if let k = sim.atKey, let i = list.firstIndex(where: { $0.id == k }) { return Double(i) }
-        if let cur = Player.shared.current, let i = list.firstIndex(where: { if case .album(let a) = $0.tile { return a.name == cur.album } else { return false } }) { return Double(i) }
+        if let cur = Player.shared.current, let i = list.firstIndex(where: { if case .album(let a) = $0.tile { return a.name == cur.albumName } else { return false } }) { return Double(i) }
         return Double(list.firstIndex { if case .album = $0.tile { return true } else { return false } } ?? 0)
     }
 
