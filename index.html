@@ -18,9 +18,17 @@
   if (inTg) { document.documentElement.classList.add("tg"); document.write('<script src="https://telegram.org/js/telegram-web-app.js?63"><\/script>'); }
   /* the desktop app (desktop/): "desk-float" = the panel floats on the Windows desktop, "desk-win" = a normal window */
   var D = window.MACAW_APP; if (D && D.desktop) document.documentElement.classList.add("desk", D.float ? "desk-float" : "desk-win", "desk-" + D.platform);
+  else document.documentElement.classList.add("boot");              // the start-up curtain (see OPENING THE APP)
+  /* The tag reader. It used to be a plain <script> here, so the page waited for cdnjs before drawing anything, on every
+     launch. The iOS app already has its own copy (put in before the page loads); everywhere else it now loads alongside,
+     and reading a song's tags waits for it (see readTags). */
+  if (!window.jsmediatags) {
+    var s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"; s.async = true;
+    window.__tagsReady = new Promise(function (r) { s.onload = s.onerror = r; });
+    document.head.appendChild(s);
+  }
 })();
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 <style>
 :root{
   color-scheme:dark;
@@ -30,6 +38,11 @@
   --glass-shadow:0 20px 50px rgba(0,0,0,.3),0 4px 15px rgba(0,0,0,.15),inset 0 0 2px rgba(255,255,255,.2);
 }
 *{-webkit-tap-highlight-color:transparent}
+/* OPENING THE APP: a plain sheet in the launch screen's colour covers the page until it is ready, then fades away once */
+#boot-cover{display:none}
+html.boot #boot-cover{display:block;position:fixed;left:0;right:0;top:-120px;bottom:-120px;z-index:2147483647;background:#0b1d24;transition:opacity .38s cubic-bezier(.22,1,.36,1)}
+html.boot #boot-cover.gone{opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){html.boot #boot-cover{transition-duration:.2s}}
 html{height:calc(100% + 120px);background-color:#0b1d24;background-repeat:no-repeat}
 body{height:100%}
 body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
@@ -950,6 +963,7 @@ html.cf-land .cf-s{font-size:13px}
 </style>
 </head>
 <body>
+<div id="boot-cover" aria-hidden="true"></div>
 
 <div class="bg-container" id="main-bg"></div>
 <div class="bg-vignette"></div>
@@ -1142,7 +1156,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v63";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v64";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -1392,6 +1406,49 @@ new MutationObserver(() => {
   if (on) settingsPanel.querySelector(".set-body").scrollTop = 0;
 }).observe(settingsPanel, { attributes: true, attributeFilter: ["class"] });
 settingsPanel.setAttribute("aria-hidden", "true"); settingsPanel.inert = true;
+/* ---------- OPENING THE APP ----------
+   The page used to appear piece by piece: the empty "Tap to choose your songs" panel on the plain gradient, then the
+   wallpaper popped in, then the song panel with a blank note, then its cover, then the Liquid Glass edge: five jumps in
+   a quarter of a second. Now a sheet in the launch screen's colour (#boot-cover) stays on until the wallpaper is decoded,
+   your songs are listed, the current cover is decoded and the glass edge has drawn its first frame, and then fades away
+   once. Each part says when it is ready (BOOT.ok); a part that is slow or broken never keeps it on longer than CAP.
+   Not in the desktop app (its window is shown by the app, and Floating glass needs to see the desktop). */
+const BOOT = (() => {
+  const cover = $("boot-cover"), need = new Set(), CAP = 1600, GLASS_WAIT = 350;
+  let done = !cover || !document.documentElement.classList.contains("boot"), glassT = 0, mo = null;
+  function reveal() {
+    if (done) return; done = true; clearTimeout(cap); clearTimeout(glassT); if (mo) mo.disconnect();
+    requestAnimationFrame(() => requestAnimationFrame(() => {        // two frames: the finished page is painted under the sheet first
+      cover.classList.add("gone");
+      setTimeout(() => cover.remove(), 600);
+    }));
+  }
+  function check() {
+    if (done || need.size) return;
+    const h = document.documentElement.classList;
+    if (!h.contains("bubble") || h.contains("gl-glass")) { reveal(); return; }
+    if (!glassT) {                                                   // the glass edge fades in on its own: give it a moment to start, not more
+      glassT = setTimeout(reveal, GLASS_WAIT);
+      mo = new MutationObserver(() => { if (h.contains("gl-glass")) reveal(); });
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    }
+  }
+  const cap = done ? 0 : setTimeout(reveal, CAP);
+  const B = {
+    hold(k) { if (!done) need.add(k); },
+    ok(k) { if (need.delete(k)) setTimeout(check, 0); },
+    get done() { return done; }
+  };
+  if (!done) {
+    B.hold("wall");
+    const im = new Image(), fin = () => B.ok("wall");
+    im.src = store.get("photoData") || DEFAULT_WALL;
+    if (im.decode) im.decode().then(fin, fin); else { im.onload = im.onerror = fin; }
+    let uid = ""; try { uid = TG.initDataUnsafe.user.id; } catch (e) {}
+    if (NAT || (botMode && store.get("libCache1:" + uid))) B.hold("lib");   // your songs come a moment after the page (same key as libKey)
+  }
+  return B;
+})();
 applyBg();
 
 /* ---------- SLIDER (mouse + touch) ---------- */
@@ -1460,7 +1517,8 @@ $("file-input").addEventListener("change", async e => {
   if (queueShown()) renderQueue();
   if (dupCount) toast(`Skipped ${dupCount} duplicate${dupCount > 1 ? "s" : ""}`);
 });
-function readTags(f) {
+async function readTags(f) {
+  if (!window.jsmediatags && window.__tagsReady) await Promise.race([window.__tagsReady, sleep(8000)]);   // still loading (see the top of the page)
   return new Promise(res => {
     if (!window.jsmediatags) return res({});
     try { jsmediatags.read(f, { onSuccess: t => res(t.tags || {}), onError: () => res({}) }); } catch (e) { res({}); }
@@ -1541,11 +1599,13 @@ function refreshNowPlaying() {
 let artReq = 0;
 function setCover(art) {
   const img = $("track-art-img"), req = ++artReq;
+  BOOT.ok("art");
   if (!art) { img.style.display = "none"; $("fallback-art").style.display = "block"; coverArrived(false); return; }
   if (img.getAttribute("src") === art && img.style.display !== "none") { coverArrived(true); return; }
+  BOOT.hold("art");                                                   // opening the app: the panel appears with its cover, not a blank note first
   const pre = new Image(); pre.src = art;
-  const show = () => { if (req !== artReq) return; img.style.opacity = ""; img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; coverArrived(false); };
-  const fail = () => { if (req !== artReq) return; img.style.display = "none"; $("fallback-art").style.display = "block"; coverArrived(false); };   // broken cover: show the note icon, not an empty box
+  const show = () => { if (req !== artReq) return; img.style.opacity = ""; img.src = art; img.style.display = "block"; $("fallback-art").style.display = "none"; coverArrived(false); BOOT.ok("art"); };
+  const fail = () => { if (req !== artReq) return; img.style.display = "none"; $("fallback-art").style.display = "block"; coverArrived(false); BOOT.ok("art"); };   // broken cover: show the note icon, not an empty box
   if (pre.decode) pre.decode().then(show, fail); else { pre.onload = show; pre.onerror = fail; }
 }
 /* --- deleted albums (Trash), persisted ---- */
@@ -5761,7 +5821,7 @@ if (botMode) {
   let saved = null; try { saved = JSON.parse(store.get(libKey()) || "null"); } catch (e) {}
   if (saved && saved.tracks && saved.tracks.length) {                  // open with the saved library at once (once the whole script has set up), then ask the server
     lib.cached = true; lib.version = saved.version; lib.full = Date.now() - (saved.at || 0) > 6 * 864e5;
-    setTimeout(() => { try { lib.version = -1; applyLibrary(saved, true, true); } catch (e) { console.error(e); $("player-main").style.display = "none"; bootError(e); } syncLibrary(); }, 0);
+    setTimeout(() => { try { lib.version = -1; applyLibrary(saved, true, true); } catch (e) { console.error(e); $("player-main").style.display = "none"; bootError(e); } BOOT.ok("lib"); syncLibrary(); }, 0);
   } else { libUI("loading"); syncLibrary(); }
   setInterval(() => { if (!document.hidden) syncLibrary(); }, 15000);     // songs you send while the player is open appear within seconds
   document.addEventListener("visibilitychange", () => { if (!document.hidden) syncLibrary(); });
@@ -5870,7 +5930,7 @@ async function natSync() {
     if (queueShown()) renderQueue();
     if (XP) XP.sync();
   } catch (e) { console.error(e); if (first) bootError(e); }
-  finally { natSync.busy = false; natSync.done = true; if (natSync.again) { natSync.again = false; natSync(); } }
+  finally { natSync.busy = false; natSync.done = true; if (first) BOOT.ok("lib"); if (natSync.again) { natSync.again = false; natSync(); } }
 }
 /* Telegram link (iOS app only): Settings > Library > Telegram. The app gets a key for your bot library through the bot
    (see "the iOS app" in install.sh). Then songs you send the bot download into the app's Telegram folder by themselves
