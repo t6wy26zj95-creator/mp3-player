@@ -247,26 +247,21 @@ struct TransportButton: View {
 struct SkipButton: View {
     var next: Bool
     var size: CGFloat
-    @State private var taps = 0
+    @State private var nudge: Double = 1                // rest = 1
     private var player: Player { .shared }
     var body: some View {
-        let d: CGFloat = next ? 1 : -1
+        let d: Double = next ? 1 : -1
         Button {
-            Haptics.light(); taps += 1
+            Haptics.light(); replay($nudge, duration: 0.4)
             if next { player.next() } else { player.previous() }
         } label: {
             Image(systemName: next ? "forward.end.fill" : "backward.end.fill")
                 .font(.system(size: size * 0.3, weight: .bold))
                 .foregroundStyle(.white)
-                .keyframeAnimator(initialValue: CGFloat(0), trigger: taps) { v, x in v.offset(x: x) } keyframes: { _ in
-                    KeyframeTrack {
-                        CubicKeyframe(d * 4, duration: 0.12)
-                        CubicKeyframe(-d, duration: 0.14)
-                        CubicKeyframe(0, duration: 0.14)
-                    }
-                }
+                // web nudge: 0 → 4 px the way it points (30 %) → 1 px back (65 %) → 0, 400 ms ease
+                .modifier(KFEffect(p: nudge, dx: KF(stops: [(0, 0), (0.3, d * 4), (0.65, -d), (1, 0)], whole: .ease)))
         }
-        .buttonStyle(RoundButtonStyle(size: size))
+        .buttonStyle(RoundButtonStyle(size: size, touchPoint: true))
         .modifier(Breath(index: next ? 2 : 0, amount: 0.035))
     }
 }
@@ -277,12 +272,12 @@ struct SkipButton: View {
 struct PlayButton: View {
     var size: CGFloat
     @State private var t: CGFloat = 0                   // 0 = play triangle, 1 = pause bars
-    @State private var turnAngle: Double = 0
-    @State private var turnScale: CGFloat = 1
+    @State private var turn: Double = 1                  // the little turn as it flips (rest = 1)
+    @State private var turnFrom: Double = 14
     @State private var hold: CGFloat = 0
     @State private var ringOn = false
-    @State private var burst = 0
-    @State private var comet = 0
+    @State private var burst: Double = 1                 // the ring bursting outwards (rest = 1)
+    @State private var comet: Double = 1                 // the comet round the rim (rest = 1)
     @State private var fired = false
     @State private var holdTask: Task<Void, Never>?
     private var player: Player { .shared }
@@ -295,12 +290,11 @@ struct PlayButton: View {
             PlayPauseShape(t: t)
                 .fill(.white)
                 .frame(width: size * 0.41, height: size * 0.41)
-                // the little turn when it flips (web: a spring from ±14° and 72 %). Its resting value is always 0° / 100 %,
-                // so if iOS drops the animation (app in the background, lock screen) the icon still ends up straight.
-                .rotationEffect(.degrees(turnAngle))
-                .scaleEffect(turnScale)
+                // web: rotate(±14deg) scale(.72) → none, 400 ms cubic-bezier(.22,1.35,.36,1)
+                .modifier(KFEffect(p: turn, scale: KF(stops: [(0, 0.72), (1, 1)], whole: Bezier(0.22, 1.35, 0.36, 1)),
+                                   angle: KF(stops: [(0, turnFrom), (1, 0)], whole: Bezier(0.22, 1.35, 0.36, 1))))
         }
-        .buttonStyle(RoundButtonStyle(size: size))
+        .buttonStyle(RoundButtonStyle(size: size, touchPoint: true))
         .modifier(Breath(index: 1, amount: 0.06))
         .overlay {
             ZStack {
@@ -309,23 +303,23 @@ struct PlayButton: View {
             }
             .padding(-5 + 1.15)
             .opacity(ringOn ? 1 : 0)
-            .keyframeAnimator(initialValue: CGFloat(0), trigger: burst) { v, k in v.scaleEffect(1 + k * 0.45).opacity(k == 0 ? 1 : 1 - k) } keyframes: { _ in
-                KeyframeTrack { LinearKeyframe(0.001, duration: 0.001); CubicKeyframe(1, duration: 0.4); LinearKeyframe(0, duration: 0.001) }
-            }
             .allowsHitTesting(false)
         }
-        .overlay { Comet(trigger: comet).padding(-2).allowsHitTesting(false) }
+        .overlay {                                       // web holdBurst: the full ring, scale 1 → 1.45 and fading, 400 ms ease
+            Circle().stroke(.white, lineWidth: 2.3)
+                .padding(-5 + 1.15)
+                .modifier(KFEffect(p: burst, scale: KF(stops: [(0, 1), (1, 1.45)], whole: .ease), opacity: KF(stops: [(0, 1), (1, 0)], whole: .ease)))
+                .allowsHitTesting(false)
+        }
+        .overlay { Comet(p: comet).padding(-2).allowsHitTesting(false) }
         .simultaneousGesture(DragGesture(minimumDistance: 0)
             .onChanged { _ in if holdTask == nil { startHold() } }
             .onEnded { _ in stopHold() })
         .onAppear { t = player.isPlaying ? 1 : 0 }
         .onChange(of: player.isPlaying) { _, p in
-            withAnimation(.spring(duration: 0.4, bounce: 0.3)) { t = p ? 1 : 0 }
-            var jump = Transaction(); jump.disablesAnimations = true
-            withTransaction(jump) { turnAngle = p ? -14 : 14; turnScale = 0.72 }
-            DispatchQueue.main.async {
-                withAnimation(.spring(duration: 0.4, bounce: 0.25)) { turnAngle = 0; turnScale = 1 }
-            }
+            withAnimation(.playMorph) { t = p ? 1 : 0 }
+            turnFrom = p ? -14 : 14
+            replay($turn, duration: 0.4)
         }
     }
 
@@ -340,7 +334,8 @@ struct PlayButton: View {
             guard !Task.isCancelled else { return }
             fired = true
             player.toggleShuffle()
-            burst += 1; comet += 1
+            ringOn = false
+            replay($burst, duration: 0.4); replay($comet, duration: 1.0)
             try? await Task.sleep(nanoseconds: 400_000_000)
             ringOn = false
             hold = 0
@@ -374,23 +369,36 @@ struct PlayPauseShape: Shape {
     }
 }
 
-/// A comet of light that runs once round a round button's rim (web: ringFire).
+/// A comet of light that runs once round a round button's rim (web: ringFire): rotate −70° → 395°, opacity 0 → .2: full
+/// → .72: 90 % → 0, all on cubic-bezier(.45,0,.3,1). p = 1 is at rest (invisible).
 struct Comet: View {
-    var trigger: Int
+    var p: Double
+    var bright: Double = 1                               // web: o = .5 + .5 × brightness
     var body: some View {
-        Circle()
-            .strokeBorder(AngularGradient(stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 205 / 360),
-                                                  .init(color: Color(red: 0.78, green: 0.84, blue: 0.88).opacity(0.5), location: 285 / 360),
-                                                  .init(color: .white.opacity(0.95), location: 348 / 360), .init(color: .white, location: 355 / 360),
-                                                  .init(color: .clear, location: 1)], center: .center), lineWidth: 2)
-            .shadow(color: .white.opacity(0.9), radius: 1)
-            .keyframeAnimator(initialValue: CometState(), trigger: trigger) { v, k in v.rotationEffect(.degrees(k.angle)).opacity(k.opacity) } keyframes: { _ in
-                KeyframeTrack(\.angle) { LinearKeyframe(-70, duration: 0.001); CubicKeyframe(395, duration: 1.0) }
-                KeyframeTrack(\.opacity) { LinearKeyframe(0, duration: 0.001); LinearKeyframe(1, duration: 0.2); LinearKeyframe(0.9, duration: 0.52); LinearKeyframe(0, duration: 0.28) }
+        let o = 0.5 + 0.5 * bright, e = Bezier(0.45, 0, 0.3, 1), lc = Glow.shared.c1.color
+        ZStack {
+            // .pb-comet: the conic tail on a 2 px rim, tinted with the cover's colour
+            Circle()
+                .strokeBorder(AngularGradient(stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 205 / 360),
+                                                      .init(color: lc.opacity(0.5), location: 285 / 360),
+                                                      .init(color: .white.opacity(0.95), location: 348 / 360), .init(color: .white, location: 355 / 360),
+                                                      .init(color: .clear, location: 1)], center: .center), lineWidth: 2)
+            // .pb-face: a soft highlight on the face, near the top
+            GeometryReader { g in
+                EllipticalGradient(colors: [.w(0.26), .w(0)], center: UnitPoint(x: 0.46, y: 0), startRadiusFraction: 0, endRadiusFraction: 0.72)
+                    .frame(width: g.size.width * 1.2, height: g.size.height)
+                    .position(x: g.size.width / 2, y: g.size.height / 2)
+                    .clipShape(Circle())
             }
+            .padding(3)
+        }
+        // web: drop-shadow(0 0 2px white .9) drop-shadow(0 0 6px cover colour .9)
+        .shadow(color: .white.opacity(0.9), radius: 1)
+        .shadow(color: lc.opacity(0.9), radius: 3)
+        .modifier(KFEffect(p: p, angle: KF(stops: [(0, -70), (1, 395)], whole: e),
+                           opacity: KF(stops: [(0, 0), (0.2, o), (0.72, o * 0.9), (1, 0)], whole: e)))
     }
 }
-struct CometState { var angle: Double = -70; var opacity: Double = 0 }
 
 /// The progress bar: drag the dot; it only seeks when you let go (seeking while dragging broke streaming on the web).
 struct Scrubber: View {
@@ -583,9 +591,10 @@ struct CoverArt: View {
     var motion = false
     var direction = 1
     @State private var shown: Track?
-    @State private var dx: CGFloat = 0
-    @State private var scale: CGFloat = 1
-    @State private var bright: Double = 0
+    @State private var dip: Double = 0                  // 0…1: the dip before the new artwork
+    @State private var arrive: Double = 1               // the new artwork coming in (rest = 1)
+    @State private var fromDx: Double = 0
+    @State private var fromScale: Double = 0.88
     @State private var job = 0
 
     var body: some View {
@@ -604,9 +613,7 @@ struct CoverArt: View {
             .overlay(shape.stroke(.black.opacity(0.45), lineWidth: 0.5))
             .shadow(color: .black.opacity(0.18), radius: 2.5 * size / 66, y: 2 * size / 66)
             .shadow(color: .black.opacity(0.32), radius: 9 * size / 66, y: 7 * size / 66)
-            .brightness(bright)
-            .scaleEffect(scale)
-            .offset(x: dx)
+            .modifier(CoverMotion(arrive: arrive, dip: dip, d: Double(direction) * 22, fromDx: fromDx, fromScale: fromScale, shape: shape))
         }
         .frame(width: size, height: size)
         .onAppear { shown = track }
@@ -617,24 +624,50 @@ struct CoverArt: View {
         }
     }
 
+    // web songOut / coverArrived / coverIn
     private func change() {
         job += 1
-        let my = job, d = CGFloat(direction) * 22, same = shown?.path == track?.path
-        withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.25)) { dx = -d * 0.5; scale = 0.88; bright = -0.2 }
+        let my = job, d = Double(direction) * 22, same = shown?.path == track?.path
+        withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.25)) { dip = 1 }           // dips: 250 ms
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 170_000_000)
+            try? await Task.sleep(nanoseconds: 170_000_000)                                 // the web waits ≥ 170 ms for the dip
             guard my == job else { return }
             var tr = Transaction(); tr.disablesAnimations = true
             withTransaction(tr) {
                 shown = track
-                if !same { dx = d * 0.5; scale = 0.86 }
-                bright = 0.22
+                // same artwork: it springs back from where it dipped; new artwork arrives from the other side
+                fromDx = same ? -d * 0.5 : d * 0.5
+                fromScale = same ? 0.88 : 0.86
+                dip = 0
             }
-            withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.2)) { dx = 0; scale = 1.035; bright = 0.05 }
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            guard my == job else { return }
-            withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.2)) { scale = 1; bright = 0 }
+            replay($arrive, duration: 0.4)
+            Glow.shared.flare = 1
         }
+    }
+}
+
+/// The compact cover's song-change pose. Dip (web: translateX(−dx/2) scale(.88) brightness(.72)); arrive (web, 400 ms
+/// ease: from → scale(1.035) brightness(1.08) at 50 % → rest, starting at brightness(1.35)).
+struct CoverMotion<S: Shape>: ViewModifier, Animatable {
+    var arrive: Double
+    var dip: Double
+    var d: Double
+    var fromDx: Double
+    var fromScale: Double
+    var shape: S
+    var animatableData: AnimatablePair<Double, Double> {
+        get { AnimatablePair(arrive, dip) }
+        set { arrive = newValue.first; dip = newValue.second }
+    }
+    func body(content: Content) -> some View {
+        let x = KF(stops: [(0, fromDx), (0.5, 0), (1, 0)], whole: .ease).at(arrive)
+        let s = KF(stops: [(0, fromScale), (0.5, 1.035), (1, 1)], whole: .ease).at(arrive)
+        let b = KF(stops: [(0, 1.35), (0.5, 1.08), (1, 1)], whole: .ease).at(arrive)
+        let dx = x + (-d * 0.5 - x) * dip, sc = s + (0.88 - s) * dip, br = b + (0.72 - b) * dip
+        content
+            .modifier(CSSBrightness(x: br, shape: shape))
+            .scaleEffect(sc)
+            .offset(x: dx)
     }
 }
 

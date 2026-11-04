@@ -107,27 +107,22 @@ struct SpringPress: ViewModifier {
     var deep: CGFloat
     var big: CGFloat
     @State private var down = false
-    @State private var releases = 0
+    @State private var up: Double = 1                    // the release spring (rest = 1)
 
     func body(content: Content) -> some View {
+        let e = Bezier(0.25, 0.7, 0.4, 1)
         content
             .scaleEffect(down ? deep : 1)
-            .keyframeAnimator(initialValue: CGFloat(1), trigger: releases) { v, k in v.scaleEffect(k) } keyframes: { _ in
-                KeyframeTrack {
-                    LinearKeyframe(deep, duration: 0.001)
-                    CubicKeyframe(big, duration: 0.143)
-                    CubicKeyframe(0.982, duration: 0.12)
-                    CubicKeyframe(1.005, duration: 0.08)
-                    CubicKeyframe(1, duration: 0.056)
-                }
-            }
+            .modifier(KFEffect(p: up, scale: KF(stops: [(0, Double(deep)), (0.36, Double(big)), (0.66, 0.982), (0.86, 1.005), (1, 1)], each: e)))
             .onChange(of: pressed) { _, p in
                 if p {
+                    var t = Transaction(); t.disablesAnimations = true
+                    withTransaction(t) { up = 1 }
                     withAnimation(.timingCurve(0.3, 0, 0.4, 1, duration: 0.15)) { down = true }
                 } else {
                     var t = Transaction(); t.disablesAnimations = true
                     withTransaction(t) { down = false }
-                    releases += 1
+                    replay($up, duration: 0.4)
                 }
             }
     }
@@ -138,15 +133,49 @@ struct SpringPress: ViewModifier {
 struct RoundButtonStyle: ButtonStyle {
     var size: CGFloat
     var filled = true
+    /// Light up exactly where the finger lands. Off for buttons inside scrolling lists (a touch-tracking gesture there
+    /// would hold up the scroll); those light up from the middle.
+    var touchPoint = false
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        RoundButtonBody(label: configuration.label, pressed: configuration.isPressed, size: size, filled: filled, touchPoint: touchPoint)
+    }
+}
+
+/// The round button itself. Where the finger lands, the glass lights up (web: .player-btn.pressed, a white radial
+/// light at the touch point, 40 %, in over 60 ms and fading out over 400 ms after release).
+private struct RoundButtonBody<L: View>: View {
+    var label: L
+    var pressed: Bool
+    var size: CGFloat
+    var filled: Bool
+    var touchPoint: Bool
+    @State private var at = UnitPoint.center
+    @State private var hl: Double = 0
+
+    var body: some View {
+        let far = hypot(max(at.x, 1 - at.x), max(at.y, 1 - at.y)) * size      // CSS: circle … farthest-corner
+        label
             .frame(width: size, height: size)
-            .background(Circle().fill(Color.w(filled ? (configuration.isPressed ? 0.16 : 0.1) : (configuration.isPressed ? 0.08 : 0))))
+            .background {
+                ZStack {
+                    Circle().fill(Color.w(filled ? (pressed ? 0.16 : 0.1) : (pressed ? 0.08 : 0)))
+                        .animation(Theme.easeN, value: pressed)
+                    if filled {
+                        Circle().fill(RadialGradient(colors: [.w(0.4 * hl), .w(0)], center: at, startRadius: 0, endRadius: far * 0.72))
+                    }
+                }
+            }
             .overlay(Circle().strokeBorder(Color.w(filled ? 0.15 : 0), lineWidth: 1))
             .shadow(color: .black.opacity(filled ? 0.2 : 0), radius: 2.5, y: 2)
             .contentShape(Circle())
-            .modifier(SpringPress(pressed: configuration.isPressed, deep: 0.86, big: 1.08))
-            .animation(Theme.easeN, value: configuration.isPressed)
+            .simultaneousGesture(DragGesture(minimumDistance: 0).onChanged { v in
+                at = UnitPoint(x: v.startLocation.x / size, y: v.startLocation.y / size)
+            }, isEnabled: touchPoint)
+            .onChange(of: pressed) { _, p in
+                if p { withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.06)) { hl = 1 } }
+                else { withAnimation(Theme.ease) { hl = 0 } }
+            }
+            .modifier(SpringPress(pressed: pressed, deep: 0.86, big: 1.08))
     }
 }
 
