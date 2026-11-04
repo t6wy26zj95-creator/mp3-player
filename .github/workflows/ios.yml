@@ -156,6 +156,7 @@ jobs:
           [ "$ok" = 1 ] || { tail -80 sim.log; exit 1; }
 
       - name: Install, add test songs, take screenshots
+        timeout-minutes: 12
         run: |
           app=$(ls -d ios/simbuild/Build/Products/Debug-iphonesimulator/MacawP3.app)
           xcrun simctl install "$SIM" "$app"
@@ -165,6 +166,7 @@ jobs:
           cp .github/test-songs/*.mp3 "$data/Documents/"
           mkdir -p screens
           shot() {
+            echo "shot $1 $(date +%T)"
             xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
             xcrun simctl launch "$SIM" app.macaw.player -macawScreen "$1"
             sleep "${2:-14}"
@@ -204,14 +206,16 @@ jobs:
           ls -l screens
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: screens
           path: screens
 
       - name: Publish the screenshots
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete ios-native-screens --cleanup-tag --yes || true
-          gh release create ios-native-screens screens/*.png screens/motion.mp4 screens/boot-log.txt --target "${{ github.sha }}" --prerelease \
+          gh release create ios-native-screens screens/* --target "${{ github.sha }}" --prerelease \
             --title "Native app screenshots (simulator)" --notes "Screenshots from the simulator, built from ${{ github.sha }}."
