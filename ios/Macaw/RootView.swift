@@ -28,7 +28,7 @@ struct RootView: View {
                     Spacer()
                     HStack {
                         Spacer()
-                        Button { Haptics.light(); ui.settingsOpen = true } label: {
+                        Button { Haptics.light(); withAnimation(Theme.ease) { ui.settingsOpen.toggle() } } label: {
                             Image(systemName: "gearshape.fill")
                                 .font(.system(size: 17, weight: .regular))
                                 .foregroundStyle(Color.w(0.8))
@@ -42,7 +42,29 @@ struct RootView: View {
                 }
                 .opacity(ui.expanded ? 0 : 1)
 
+                // Settings: a floating card over the player (web: .set-ov + .floating-customizer), not a sheet
+                if ui.settingsOpen {
+                    Color(red: 3 / 255, green: 10 / 255, blue: 14 / 255).opacity(0.42)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture { withAnimation(Theme.ease) { ui.settingsOpen = false } }
+                        .transition(.opacity.animation(Theme.easeN))
+                        .zIndex(4)
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        SettingsView(maxHeight: geo.size.height - 24) { withAnimation(Theme.ease) { ui.settingsOpen = false } }
+                            .frame(width: min(420, geo.size.width - 24))
+                            .padding(.bottom, 12)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(Theme.easeN).combined(with: .modifier(active: CardIn(on: false), identity: CardIn(on: true)).animation(Theme.ease)),
+                        removal: .opacity.animation(Theme.easeN).combined(with: .modifier(active: CardIn(on: false), identity: CardIn(on: true)).animation(Theme.ease))))
+                    .zIndex(5)
+                }
+
                 ToastView()
+                    .zIndex(6)
 
                 if let m = ui.menu { PopMenu(state: m).zIndex(10) }
             }
@@ -52,11 +74,6 @@ struct RootView: View {
         .background { WallpaperView().ignoresSafeArea() }
         .preferredColorScheme(.dark)
         .tint(.white)
-        .sheet(isPresented: Binding(get: { ui.settingsOpen }, set: { ui.settingsOpen = $0 })) {
-            SettingsView()
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
-        }
         .fileImporter(isPresented: Binding(get: { ui.importing }, set: { ui.importing = $0 }), allowedContentTypes: [.audio],
                       allowsMultipleSelection: true) { r in
             if case .success(let urls) = r { model.importFiles(urls) }
@@ -236,5 +253,13 @@ struct EmptyLibraryPanel: View {
         }
         .buttonStyle(PressStyle())
         .panelGlass(RoundedRectangle(cornerRadius: Theme.panelRadius, style: .continuous), classic: ui.classic)
+    }
+}
+
+/// The Settings card's way in and out: 18 pt lower and at 98 %, growing from its bottom edge.
+struct CardIn: ViewModifier {
+    var on: Bool
+    func body(content: Content) -> some View {
+        content.scaleEffect(on ? 1 : 0.98, anchor: .bottom).offset(y: on ? 0 : 18)
     }
 }
