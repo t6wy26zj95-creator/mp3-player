@@ -11,7 +11,8 @@ final class UIState {
     var expanded = false                // the big player
     var lyricsScroll: CGFloat = 0       // the big player scrolled up to show the lyrics bubble (0 = at the top)
     var lyricsMax: CGFloat = 0          // how far it scrolls: the bubble plus room under it
-    var lyricsOpen = false              // the full lyrics fill the panel
+    var lyricsOpen = false
+    var navDir = 0                      // which way the drawer last moved: 1 into a page, -1 back, 0 a tab switch              // the full lyrics fill the panel
     var settingsOpen = false
     var importing = false
     var menu: MenuState?
@@ -39,6 +40,7 @@ final class UIState {
     }
 
     func open(_ t: DrawerTab) {
+        navDir = 0
         withAnimation(Theme.ease) {
             if expanded { expanded = false }
             tab = tab == t ? nil : t
@@ -47,12 +49,14 @@ final class UIState {
     }
 
     func push(_ r: Route) {
-        withAnimation(Theme.easeN) {
+        navDir = 1
+        withAnimation(Theme.ease) {
             if tab == .artists { artistsPath.append(r) } else { libraryPath.append(r) }
         }
     }
     func back() {
-        withAnimation(Theme.easeN) {
+        navDir = -1
+        withAnimation(Theme.ease) {
             if tab == .artists { _ = artistsPath.popLast() } else { _ = libraryPath.popLast() }
         }
     }

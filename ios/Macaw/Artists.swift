@@ -11,8 +11,7 @@ struct ArtistsDrawer: View {
             default: ArtistGrid()
             }
         }
-        .transition(.opacity)
-        .id(ui.artistsPath.last)
+        // the slide between pages is done by DrawerView
     }
 }
 

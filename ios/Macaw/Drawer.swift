@@ -9,14 +9,31 @@ struct DrawerView: View {
     @State private var contentHeight: CGFloat = 0
     private var ui: UIState { .shared }
 
+    /// What the drawer shows now: a new key = a new view, which slides in (web: showOnly / .v-in).
+    private var viewKey: String {
+        let path = tab == .artists ? ui.artistsPath : tab == .library ? ui.libraryPath : []
+        return tab.rawValue + "/" + path.map { "\($0)" }.joined(separator: "/")
+    }
+
     var body: some View {
+        let d = CGFloat(ui.navDir)
+        // web: the new view comes in 18 pt from the side you went (8 pt from below on a tab switch), 400 ms ease;
+        // the old one fades out 12 pt the other way (4 pt up), 250 ms
+        let inT = AnyTransition.modifier(active: SongSwap(dx: d * 18, dy: d == 0 ? 8 : 0, fade: true, blur: 0), identity: SongSwap(dx: 0, dy: 0, fade: false, blur: 0))
+            .animation(Theme.ease)
+        let outT = AnyTransition.modifier(active: SongSwap(dx: -d * 12, dy: d == 0 ? -4 : 0, fade: true, blur: 0), identity: SongSwap(dx: 0, dy: 0, fade: false, blur: 0))
+            .animation(Theme.easeN)
         ScrollView(.vertical, showsIndicators: false) {
-            Group {
-                switch tab {
-                case .queue: QueueDrawer()
-                case .library: LibraryDrawer()
-                case .artists: ArtistsDrawer()
+            ZStack(alignment: .top) {
+                Group {
+                    switch tab {
+                    case .queue: QueueDrawer()
+                    case .library: LibraryDrawer()
+                    case .artists: ArtistsDrawer()
+                    }
                 }
+                .id(viewKey)
+                .transition(.asymmetric(insertion: inT, removal: outT))
             }
             .padding(.horizontal, Theme.panelPad)
             .padding(.top, 10)
@@ -25,7 +42,7 @@ struct DrawerView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(height: min(max(contentHeight, 40), room))
-        .animation(Theme.easeN, value: contentHeight)
+        .animation(Theme.ease, value: contentHeight)                       // web: #view-host height, 400 ms ease
     }
 }
 
@@ -253,8 +270,7 @@ struct LibraryDrawer: View {
             case .artist(let name): ArtistPage(name: name)
             }
         }
-        .transition(.opacity)
-        .id(ui.libraryPath.last)
+        // the slide between pages is done by DrawerView
     }
 }
 

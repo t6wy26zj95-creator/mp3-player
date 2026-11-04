@@ -28,11 +28,14 @@ struct PlayerPanel: View {
                     .padding(.top, Theme.panelPad)
                     .padding(.bottom, 16)
                 if let tab = ui.tab {
-                    Rectangle().fill(Color.w(0.1)).frame(height: 1)
-                        .padding(.horizontal, Theme.panelPad)
-                    DrawerView(tab: tab, room: room)
-                        .padding(.bottom, Theme.panelPad - 6)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    // web: the drawer's height grows with the panel (400 ms ease) while it fades in (250 ms)
+                    VStack(spacing: 0) {
+                        Rectangle().fill(Color.w(0.1)).frame(height: 1)
+                            .padding(.horizontal, Theme.panelPad)
+                        DrawerView(tab: tab, room: room)
+                            .padding(.bottom, Theme.panelPad - 6)
+                    }
+                    .transition(.opacity.animation(Theme.easeN))
                 } else {
                     Color.clear.frame(height: Theme.panelPad)
                 }
@@ -186,8 +189,9 @@ struct CompactPlayer: View {
 /// the artist line 60 ms after the title. Picked from a list (direction 0): out upwards, in from below.
 struct SongSwap: ViewModifier {
     var dx: CGFloat, dy: CGFloat, fade: Bool
+    var blur: CGFloat = 4
     func body(content: Content) -> some View {
-        content.offset(x: dx, y: dy).opacity(fade ? 0 : 1).blur(radius: fade ? 4 : 0)
+        content.offset(x: dx, y: dy).opacity(fade ? 0 : 1).blur(radius: fade ? blur : 0)
     }
 }
 
