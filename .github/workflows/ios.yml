@@ -108,10 +108,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag=ios-preview; case "${{ github.ref_name }}" in claude/project-thread-rbe9f3) tag=ios-native-preview;; esac
-          gh release delete "$tag" --cleanup-tag --yes || true
-          gh release create "$tag" MacawP3.ipa --target "${{ github.sha }}" --prerelease \
-            --title "iOS app preview (${{ github.ref_name }})" \
-            --notes "Test build from the branch ${{ github.ref_name }}, not merged yet. Download MacawP3.ipa below and open it with AltStore."
+          notes="Test build from the branch ${{ github.ref_name }} (${{ github.sha }}), not merged yet. Download MacawP3.ipa below and open it with AltStore."
+          # replace the file in place, so the download link never goes missing while a new build lands
+          if gh release view "$tag" > /dev/null 2>&1; then
+            # upload under another name first, then swap names: the old file is only gone for a split second
+            cp MacawP3.ipa MacawP3-new.ipa
+            gh release upload "$tag" MacawP3-new.ipa --clobber
+            api="repos/${{ github.repository }}/releases"
+            rid=$(gh api "$api/tags/$tag" -q .id)
+            old=$(gh api "$api/$rid/assets" -q '.[] | select(.name=="MacawP3.ipa") | .id')
+            new=$(gh api "$api/$rid/assets" -q '.[] | select(.name=="MacawP3-new.ipa") | .id')
+            [ -n "$old" ] && gh api -X DELETE "$api/assets/$old"
+            gh api -X PATCH "$api/assets/$new" -f name=MacawP3.ipa > /dev/null
+            gh release edit "$tag" --title "iOS app preview (${{ github.ref_name }})" --notes "$notes"
+          else
+            gh release create "$tag" MacawP3.ipa --target "${{ github.sha }}" --prerelease \
+              --title "iOS app preview (${{ github.ref_name }})" --notes "$notes"
+          fi
 
   # Runs the app in an iPhone simulator with a few test songs and takes screenshots of each screen, so the native app
   # can be compared with the web player before a build goes to a phone. (Native app branch only.)
