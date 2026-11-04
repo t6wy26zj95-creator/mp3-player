@@ -26,7 +26,8 @@ final class AppModel {
 
     private var tagCache: [String: TagInfo] = [:]
     private let tagFile = Library.shared.supportFolder.appendingPathComponent("tags.json")
-    private var scanning = false, scanAgain = false
+    private var scanning = false
+    private var scanAgain = false
 
     private init() {
         if let d = try? Data(contentsOf: tagFile), let c = try? JSONDecoder().decode([String: TagInfo].self, from: d) { tagCache = c }

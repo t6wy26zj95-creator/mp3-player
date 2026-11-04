@@ -18,7 +18,9 @@ final class Telegram {
     private(set) var problem = ""
     private(set) var status: String?                    // "Opening Telegram…", "Press Start in the bot…"
     private var version = -1
-    private var busy = false, polling = false, linking = false
+    private var busy = false
+    private var polling = false
+    private var linking = false
     private var jobs: [Job] = []
     private var active = 0
     private var tasks: [String: Task<Void, Never>] = [:]
