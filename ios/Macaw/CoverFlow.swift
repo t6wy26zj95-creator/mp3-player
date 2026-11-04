@@ -105,7 +105,7 @@ struct CoverFlow: View {
             .frame(maxWidth: .infinity, minHeight: 38, alignment: .top)
             .padding(.horizontal, 4)
         }
-        .padding(.bottom, 16)
+        .padding(.bottom, 2)
         .onAppear { sim.start(at: startIndex(list)) }
         .onChange(of: Int(sim.c.rounded())) { _, _ in if sim.moving { sim.tick() } }
     }
