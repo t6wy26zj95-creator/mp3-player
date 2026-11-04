@@ -252,7 +252,7 @@ struct ArtistPage: View {
                     .padding(.horizontal, 4).padding(.top, 14)
                 Chips(items: sim) { n in Haptics.light(); ui.push(.artist(n)) }
                     .padding(.horizontal, 4).padding(.vertical, 10)
-                    .modifier(CardIn(index: 0))
+                    .modifier(CardRise(index: 0))
             }
         }
         .padding(.bottom, 12)
@@ -273,7 +273,7 @@ struct ArtistPage: View {
                         // background-position: center 25%
                         GeometryReader { g in
                             img.resizable().scaledToFill()
-                                .frame(width: g.size.width, height: g.size.height, alignment: UnitPoint(x: 0.5, y: 0.25))
+                                .frame(width: g.size.width, height: g.size.height, alignment: Alignment(horizontal: .center, vertical: .quarter))
                                 .clipped()
                         }
                         .opacity(heroIn ? 1 : 0)
@@ -309,7 +309,7 @@ struct ArtistPage: View {
                     .buttonStyle(PopStyle())
             }
             .padding(.horizontal, 4)
-            .modifier(CardIn(index: 0))
+            .modifier(CardRise(index: 0))
         } else if slow && d?.albums == nil {
             Text("Artist info isn\u{2019}t loading. Here are your own albums.").font(.system(size: 12)).foregroundStyle(Color.w(0.45))
                 .padding(.horizontal, 4).padding(.vertical, 10)
@@ -361,7 +361,7 @@ struct ArtistPage: View {
                         .opacity(c.own == nil ? 0.4 : 1)                       // web .album-card.dim
                     }
                     .buttonStyle(TileStyle())
-                    .modifier(CardIn(index: i))
+                    .modifier(CardRise(index: i))
                 }
             } else {
                 ForEach(0..<6, id: \.self) { _ in                              // web .sk-card
@@ -383,7 +383,7 @@ struct ArtistPage: View {
 }
 
 /// web .card-in: fades in, 8 pt up and from 97 %, 400 ms ease, 22 ms apart (at most 12 steps).
-struct CardIn: ViewModifier {
+struct CardRise: ViewModifier {
     var index: Int
     @State private var p: Double = 0
     func body(content: Content) -> some View {
@@ -449,4 +449,10 @@ struct FlowLayout: Layout {
             x += z.width + spacing; row = max(row, z.height)
         }
     }
+}
+
+extension VerticalAlignment {
+    /// CSS background-position: center 25% (the picture's point a quarter down sits a quarter down the box)
+    private enum Quarter: AlignmentID { static func defaultValue(in d: ViewDimensions) -> CGFloat { d.height * 0.25 } }
+    static let quarter = VerticalAlignment(Quarter.self)
 }
