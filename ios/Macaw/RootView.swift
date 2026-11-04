@@ -13,15 +13,15 @@ struct RootView: View {
                 if booted && model.loaded && model.tracks.isEmpty {
                     EmptyLibraryPanel()
                         .frame(maxWidth: min(Theme.panelMaxWidth, geo.size.width - 32))
-                        .padding(.top, 8)
+                        .padding(.top, 24)
                 } else if booted && model.loaded {
-                    PlayerPanel(room: max(160, geo.size.height - 8 - 228 - 70))
+                    PlayerPanel(room: max(160, geo.size.height - 24 - 228 - 70))
                         .frame(maxWidth: min(Theme.panelMaxWidth, geo.size.width - 32))
-                        .padding(.top, 8)
+                        .padding(.top, 24)
                 } else {
                     LoadingPanel(text: model.readingText)
                         .frame(maxWidth: min(Theme.panelMaxWidth, geo.size.width - 32))
-                        .padding(.top, 8)
+                        .padding(.top, 24)
                 }
 
                 VStack {
@@ -30,13 +30,14 @@ struct RootView: View {
                         Spacer()
                         Button { Haptics.light(); ui.settingsOpen = true } label: {
                             Image(systemName: "gearshape.fill")
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundStyle(Color.w(0.85))
-                                .frame(width: 40, height: 40)
+                                .font(.system(size: 17, weight: .regular))
+                                .foregroundStyle(Color.w(0.8))
+                                .frame(width: 42, height: 42)
                         }
-                        .buttonStyle(PressStyle())
+                        .buttonStyle(PopStyle())
                         .buttonGlass(classic: ui.classic)
-                        .padding(.trailing, 5).padding(.bottom, 2)
+                        .opacity(0.75)
+                        .padding(.trailing, 20).padding(.bottom, 20)
                     }
                 }
                 .opacity(ui.expanded ? 0 : 1)
@@ -152,6 +153,13 @@ struct WallpaperView: View {
                 .id(ui.wallpaperVersion)
             }
             Theme.scrim.opacity(0.18)
+            // the web player's vignette: clear in the middle, darker towards the corners
+            GeometryReader { g in
+                let r = sqrt(g.size.width * g.size.width + g.size.height * g.size.height) / 2
+                RadialGradient(stops: [.init(color: .clear, location: 0.3), .init(color: .black.opacity(0.6), location: 1)],
+                               center: .center, startRadius: 0, endRadius: r)
+            }
+            .allowsHitTesting(false)
         }
     }
 }

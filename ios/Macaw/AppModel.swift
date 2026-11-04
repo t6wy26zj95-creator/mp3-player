@@ -148,13 +148,9 @@ final class AppModel {
     var tiles: [Tile] {
         let hiddenSet = Set(hidden)
         var items: [Tile] = [.all] + playlists.map { .playlist($0) }
-        let sortedAlbums = albums.filter { !hiddenSet.contains($0.name) }.sorted { x, y in
-            let ax = AppModel.sortName(x.artist), ay = AppModel.sortName(y.artist)
-            if ax != ay { return (ax.isEmpty ? "~" : ax).localizedCompare(ay.isEmpty ? "~" : ay) == .orderedAscending }
-            let yx = Int(x.year) ?? 10_000, yy = Int(y.year) ?? 10_000
-            if yx != yy { return yx < yy }
-            return x.name.localizedCompare(y.name) == .orderedAscending
-        }
+        // as the web player: albums in the order of the song list (by album name); songs without an album get no tile
+        let sortedAlbums = albums.filter { !hiddenSet.contains($0.name) && $0.name != "Unknown album" }
+            .sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
         items += sortedAlbums.map { .album($0) }
         let rank: (Tile) -> Int = { t in
             if let i = self.albumOrder.firstIndex(of: t.key) { return i }

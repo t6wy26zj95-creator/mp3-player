@@ -20,7 +20,7 @@ struct SettingsView: View {
                 Button { dismiss() } label: {
                     Image(systemName: "xmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Color.w(0.85)).frame(width: 32, height: 32)
                 }
-                .buttonStyle(PressStyle())
+                .buttonStyle(PopStyle())
                 .buttonGlass(classic: ui.classic)
             }
             .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 8)
@@ -78,7 +78,7 @@ struct SettingsView: View {
                                 row {
                                     Text(name).font(.system(size: 14)).foregroundStyle(Color.w(0.85)).lineLimit(1)
                                     Spacer()
-                                    Button { model.unhideAlbum(name) } label: { pill("Show") }.buttonStyle(PressStyle())
+                                    Button { model.unhideAlbum(name) } label: { pill("Show") }.buttonStyle(PopStyle())
                                 }
                             }
                         }
@@ -86,12 +86,12 @@ struct SettingsView: View {
                         row {
                             label("Telegram", tg.statusLine)
                             Button { Haptics.light(); Task { await tg.linkOrUnlink() } } label: { pill(tg.key.isEmpty ? "Link" : "Unlink") }
-                                .buttonStyle(PressStyle())
+                                .buttonStyle(PopStyle())
                         }
                         divider
                         row {
                             label("Songs", "\(model.tracks.count) in the app. You can also copy music into the MacawP3 folder in the Files app")
-                            Button { dismiss(); ui.importing = true } label: { pill("Add") }.buttonStyle(PressStyle())
+                            Button { dismiss(); ui.importing = true } label: { pill("Add") }.buttonStyle(PopStyle())
                         }
                     }
 

@@ -79,24 +79,75 @@ extension View {
     func buttonGlass(classic: Bool) -> some View { modifier(ButtonGlass(classic: classic)) }
 }
 
-/// The round player buttons (white 10% fill, faint rim), as in the web player.
+/// The web player's springy press (pressDown / pressUp in index.html): the control sinks under the finger
+/// (150 ms, cubic-bezier(.3,0,.4,1)) and, on release, springs back past its size before settling
+/// (400 ms: deep → big at 36 % → .982 at 66 % → 1.005 at 86 % → 1).
+struct SpringPress: ViewModifier {
+    var pressed: Bool
+    var deep: CGFloat
+    var big: CGFloat
+    @State private var down = false
+    @State private var releases = 0
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(down ? deep : 1)
+            .keyframeAnimator(initialValue: CGFloat(1), trigger: releases) { v, k in v.scaleEffect(k) } keyframes: { _ in
+                KeyframeTrack {
+                    LinearKeyframe(deep, duration: 0.001)
+                    CubicKeyframe(big, duration: 0.143)
+                    CubicKeyframe(0.982, duration: 0.12)
+                    CubicKeyframe(1.005, duration: 0.08)
+                    CubicKeyframe(1, duration: 0.056)
+                }
+            }
+            .onChange(of: pressed) { _, p in
+                if p {
+                    withAnimation(.timingCurve(0.3, 0, 0.4, 1, duration: 0.15)) { down = true }
+                } else {
+                    var t = Transaction(); t.disablesAnimations = true
+                    withTransaction(t) { down = false }
+                    releases += 1
+                }
+            }
+    }
+}
+
+/// The round player buttons (white 10% fill, faint rim, soft shadow), with the springy press (.86 → 1.08)
+/// and the glass lighting up a little while pressed.
 struct RoundButtonStyle: ButtonStyle {
     var size: CGFloat
     var filled = true
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(width: size, height: size)
-            .background(Circle().fill(Color.w(filled ? (configuration.isPressed ? 0.2 : 0.1) : (configuration.isPressed ? 0.1 : 0))))
+            .background(Circle().fill(Color.w(filled ? (configuration.isPressed ? 0.16 : 0.1) : (configuration.isPressed ? 0.08 : 0))))
             .overlay(Circle().strokeBorder(Color.w(filled ? 0.15 : 0), lineWidth: 1))
-            .scaleEffect(configuration.isPressed ? 0.92 : 1)
-            .animation(Theme.easeQ, value: configuration.isPressed)
+            .shadow(color: .black.opacity(filled ? 0.2 : 0), radius: 2.5, y: 2)
             .contentShape(Circle())
+            .modifier(SpringPress(pressed: configuration.isPressed, deep: 0.86, big: 1.08))
+            .animation(Theme.easeN, value: configuration.isPressed)
     }
 }
 
-/// Buttons that dim a little while pressed.
+/// Small controls (gear, pills, back, close, tabs): the springy press (.94 → 1.045, tabs .88).
+struct PopStyle: ButtonStyle {
+    var deep: CGFloat = 0.94
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.modifier(SpringPress(pressed: configuration.isPressed, deep: deep, big: 1.045))
+    }
+}
+
+/// Text links and rows: they dim a little while pressed (no size change, as in the web player).
 struct PressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.opacity(configuration.isPressed ? 0.6 : 1).animation(Theme.easeQ, value: configuration.isPressed)
+    }
+}
+
+/// Library and artist tiles: the picture dips to 96 % while pressed (web: .album-card:active).
+struct TileStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.scaleEffect(configuration.isPressed ? 0.96 : 1).animation(Theme.easeN, value: configuration.isPressed)
     }
 }

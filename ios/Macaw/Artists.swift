@@ -103,7 +103,7 @@ struct ArtistGrid: View {
                         Text(name).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.8)).lineLimit(1).frame(width: 90)
                     }
                 }
-                .buttonStyle(PressStyle())
+                .buttonStyle(TileStyle())
             }
         }
         .padding(.vertical, 4)
@@ -146,7 +146,7 @@ struct ArtistPage: View {
                                 if !a.year.isEmpty { Text(a.year).font(.system(size: 10)).foregroundStyle(Color.w(0.45)) }
                             }
                         }
-                        .buttonStyle(PressStyle())
+                        .buttonStyle(TileStyle())
                     }
                 }
                 .padding(.bottom, 8)

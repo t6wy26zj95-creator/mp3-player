@@ -151,7 +151,7 @@ struct SectionLabel: View {
             Text(text.uppercased()).font(.system(size: 11, weight: .semibold)).tracking(0.6).foregroundStyle(Color.w(0.5)).lineLimit(1)
             Spacer()
             if let button, let action {
-                Button(button, action: action).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.7)).buttonStyle(PressStyle())
+                Button(button, action: action).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.7)).buttonStyle(PopStyle())
             }
         }
         .padding(.horizontal, 12)
@@ -171,7 +171,7 @@ struct BackButton: View {
             .padding(.horizontal, 12).padding(.vertical, 8)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PressStyle())
+        .buttonStyle(PopStyle())
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

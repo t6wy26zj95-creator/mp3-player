@@ -169,7 +169,7 @@ struct UpNextStrip: View {
                     withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { ui.expanded = false; ui.tab = .queue }
                 }
                 .font(.system(size: 11, weight: .semibold)).tracking(0.6).foregroundStyle(Color.w(0.7))
-                .buttonStyle(PressStyle())
+                .buttonStyle(PopStyle())
             }
             .padding(.horizontal, 20)
             ScrollViewReader { proxy in
@@ -180,6 +180,7 @@ struct UpNextStrip: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 6)
                 }
+                .frame(height: 64)
                 .onAppear { proxy.scrollTo("now", anchor: .leading) }
                 .onChange(of: player.currentKey) { _, _ in withAnimation(Theme.ease) { proxy.scrollTo("now", anchor: .leading) } }
             }

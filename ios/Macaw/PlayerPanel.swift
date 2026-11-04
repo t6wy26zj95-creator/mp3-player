@@ -6,6 +6,10 @@ struct PlayerPanel: View {
     var room: CGFloat
     @Namespace private var ns
     @State private var pull: CGFloat = 0
+    @State private var lean: CGSize = .zero                 // the web player's pull: the panel leans after your finger...
+    @State private var sx: CGFloat = 1                      // ...stretches a little along the drag, gives a hair across it,
+    @State private var sy: CGFloat = 1                      // and sinks ~1 % while your finger is down
+    @State private var leaning = false
     @State private var scrollFrom: CGFloat?
     /// The big player's handle and cover: a drag that starts there folds it back.
     private let foldZone: CGFloat = 240
@@ -37,12 +41,18 @@ struct PlayerPanel: View {
         .frame(maxWidth: .infinity)
         .clipShape(shape)
         .contentShape(shape)
-        .panelGlass(shape, classic: ui.classic, interactive: true)
-        .scaleEffect(1 + min(pull, 60) / 3000, anchor: .top)
+        .panelGlass(shape, classic: ui.classic)
+        .scaleEffect(x: sx, y: sy)
+        .offset(lean)
         .offset(y: pull > 0 ? pull * 0.12 : pull * 0.06)
         .simultaneousGesture(
-            DragGesture(minimumDistance: 14)
+            DragGesture(minimumDistance: 0)
                 .onChanged { v in
+                    // the lean: anywhere on the compact panel except the drawer's lists and the progress bar
+                    if !ui.expanded && pull == 0 && player.scrubbing == nil && !(ui.tab != nil && v.startLocation.y > 228) {
+                        leanTo(v.translation)
+                    } else if leaning { release() }
+                    guard hypot(v.translation.width, v.translation.height) > 14 || scrollFrom != nil || pull != 0 else { return }
                     if scrollFrom == nil && pull == 0 {
                         guard abs(v.translation.height) > abs(v.translation.width), player.scrubbing == nil, !ui.lyricsOpen else { return }
                         // open: the handle and the cover fold it back; anywhere else scrolls down to the lyrics bubble
@@ -58,6 +68,7 @@ struct PlayerPanel: View {
                     else if ui.expanded && !ui.lyricsOpen && v.startLocation.y < foldZone { pull = v.translation.height }
                 }
                 .onEnded { v in
+                    release()
                     let dy = v.translation.height, fling = v.predictedEndTranslation.height
                     if scrollFrom != nil {
                         scrollFrom = nil
@@ -74,6 +85,25 @@ struct PlayerPanel: View {
                     withAnimation(Theme.ease) { pull = 0 }
                 }
         )
+    }
+
+    /// web: bubble.frame (index.html): strong resistance (1 - e^(-d/95)), at most ~7 px of lean, 1.8 % stretch, 0.9 % give,
+    /// 1.1 % press; follows closely while held (k 300, critically damped), glides back without bounce (k 150, damping .86).
+    private func leanTo(_ t: CGSize) {
+        let d = hypot(t.width, t.height)
+        var ux: CGFloat = 0, uy: CGFloat = 1, m: CGFloat = 0
+        if d > 0.5 { ux = t.width / d; uy = t.height / d; m = 1 - exp(-d / 95) }
+        leaning = true
+        withAnimation(.interactiveSpring(response: 0.36, dampingFraction: 1)) {
+            lean = CGSize(width: ux * 9 * 0.8 * m, height: uy * 9 * 0.8 * m)
+            sx = 1 + m * (0.018 * ux * ux - 0.009 * uy * uy) - 0.011
+            sy = 1 + m * (0.018 * uy * uy - 0.009 * ux * ux) - 0.011
+        }
+    }
+    private func release() {
+        guard leaning else { return }
+        leaning = false
+        withAnimation(.spring(response: 0.51, dampingFraction: 0.86)) { lean = .zero; sx = 1; sy = 1 }
     }
 
     private func open() {
@@ -111,6 +141,7 @@ struct CompactPlayer: View {
                         Button { if let a = player.current?.shownArtist { ui.showArtist(a) } } label: {
                             Text((player.current?.shownArtist ?? "") + " ›")
                                 .font(.system(size: 13)).foregroundStyle(Color.w(0.6)).lineLimit(1)
+                                .shadow(color: .black.opacity(0.4), radius: 1.5, y: 1)
                         }
                         .buttonStyle(PressStyle())
                         if player.shuffle {
@@ -160,6 +191,7 @@ struct SlidingTitle: View {
             Text(text)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.5), radius: 2.5, y: 2)        // web: text-shadow 0 2px 5px rgba(0,0,0,.5)
                 .lineLimit(1)
                 .id(text)
                 .transition(.asymmetric(insertion: .move(edge: direction >= 0 ? .trailing : .leading).combined(with: .opacity),
@@ -252,7 +284,7 @@ struct Footer: View {
                     .lineLimit(1).fixedSize()
                     .frame(height: 34).contentShape(Rectangle())
             }
-            .buttonStyle(PressStyle())
+            .buttonStyle(PopStyle(deep: 0.88))
             Spacer()
             HStack(spacing: 4) {
                 tab(.queue, "QUEUE")
@@ -281,7 +313,7 @@ struct Footer: View {
                 .frame(height: 34)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(PressStyle())
+        .buttonStyle(PopStyle(deep: 0.88))
         .animation(.spring(response: 0.38, dampingFraction: 0.8), value: ui.tab)
     }
 }

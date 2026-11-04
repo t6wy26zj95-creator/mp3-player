@@ -229,7 +229,7 @@ struct LyricsPage: View {
                     Image(systemName: "chevron.down").font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
                         .frame(width: 34, height: 34).background(Circle().fill(Color.w(0.08)))
                 }
-                .buttonStyle(PressStyle())
+                .buttonStyle(PopStyle())
                 .padding(.leading, -8).padding(.trailing, -4)
                 CoverImage(path: player.current?.path, px: 140)
                     .frame(width: 46, height: 46)
