@@ -412,10 +412,11 @@ struct Scrubber: View {
     }
 }
 
-/// + Songs on the left, Queue · Library · Artists on the right with the sliding pill.
+/// + Songs on the left, Queue · Library · Artists on the right (24 pt apart) with the sliding glass pill.
 struct Footer: View {
-    @Namespace private var pillNS
     private var ui: UIState { .shared }
+    @State private var frames: [DrawerTab: CGRect] = [:]
+    @State private var pill = PillSim()
 
     var body: some View {
         HStack(spacing: 0) {
@@ -426,13 +427,24 @@ struct Footer: View {
             }
             .buttonStyle(PopStyle(deep: 0.88))
             Spacer()
-            HStack(spacing: 4) {
+            HStack(spacing: 24) {
                 tab(.queue, "QUEUE")
                 tab(.library, "LIBRARY")
                 tab(.artists, "ARTISTS")
             }
+            .background(alignment: .leading) { PillView(sim: pill) }
+            .coordinateSpace(name: "tabs")
         }
         .padding(.horizontal, 10)
+        .onChange(of: ui.tab, initial: true) { _, t in move(t) }
+        .onChange(of: frames) { _, _ in move(ui.tab, jump: true) }
+    }
+
+    private func move(_ t: DrawerTab?, jump: Bool = false) {
+        guard let t else { pill.hide(); return }
+        guard let f = frames[t] else { return }
+        let pad: CGFloat = 10.8                                             // web: min(11, max(5, gap * .45))
+        pill.to(f.minX - pad, f.maxX + pad, jump: jump)
     }
 
     private func tab(_ t: DrawerTab, _ title: String) -> some View {
@@ -441,20 +453,78 @@ struct Footer: View {
             Text(title)
                 .font(.system(size: 11, weight: .semibold)).tracking(0.5)
                 .foregroundStyle(on ? Color.white : Color.w(0.4))
-                .lineLimit(1).fixedSize()
-                .padding(.horizontal, 10)
                 .shadow(color: on ? Color.w(0.3) : .clear, radius: 5)
-                .frame(height: 28)
-                .background {
-                    if on {
-                        TabPill().matchedGeometryEffect(id: "pill", in: pillNS)
-                    }
-                }
+                .lineLimit(1).fixedSize()
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("tabs")) } action: { frames[t] = $0 }
                 .frame(height: 34)
-                .contentShape(Rectangle())
+                .contentShape(Rectangle().inset(by: -12))
+                .animation(Theme.easeN, value: on)
         }
         .buttonStyle(PopStyle(deep: 0.88))
-        .animation(.spring(response: 0.38, dampingFraction: 0.8), value: ui.tab)
+    }
+}
+
+/// The web player's Liquid Glass tab slider: the pill's two edges are separate springs. The leading edge is quick and a
+/// little bouncy (k 640, damping .6), the trailing one slower (k 230, .92), so the pill stretches towards the new tab like
+/// a drop, squashes a touch while stretched, then pulls itself together and ticks as it lands. It pops in (scale .55 → 1)
+/// when the drawer opens and shrinks away when it closes.
+@Observable
+final class PillSim {
+    var L: CGFloat = 0
+    var R: CGFloat = 0
+    var on = false
+    var moving = false
+    var speed: CGFloat = 0
+    private var vL: CGFloat = 0, vR: CGFloat = 0, tL: CGFloat = 0, tR: CGFloat = 0, dir: CGFloat = 0
+    private var landed = true
+    private var last: Date?
+
+    var squash: CGFloat { 1 - min(0.22, max(0, (R - L) - (tR - tL)) / 150) }
+
+    @MainActor func to(_ a: CGFloat, _ z: CGFloat, jump: Bool) {
+        if !on || jump {
+            L = a; R = z; tL = a; tR = z; vL = 0; vR = 0; moving = false
+            if !on { withAnimation(Theme.easeN) { on = true } }
+            return
+        }
+        if a == tL && z == tR { return }
+        dir = (a + z - tL - tR) > 0 ? 1 : -1
+        tL = a; tR = z; landed = false; last = nil; moving = true
+    }
+    @MainActor func hide() { withAnimation(Theme.easeN) { on = false } }
+
+    @MainActor func step(_ now: Date) {
+        guard moving else { return }
+        let dt = min(0.034, last.map { now.timeIntervalSince($0) } ?? 0.016); last = now
+        let kl: CGFloat = dir < 0 ? 640 : 230, kr: CGFloat = dir > 0 ? 640 : 230
+        let zl: CGFloat = dir < 0 ? 0.6 : 0.92, zr: CGFloat = dir > 0 ? 0.6 : 0.92
+        var t = 0.0
+        while t < dt - 1e-6 {
+            let h = CGFloat(min(0.004, dt - t))
+            vL += (kl * (tL - L) - 2 * sqrt(kl) * zl * vL) * h; L += vL * h
+            vR += (kr * (tR - R) - 2 * sqrt(kr) * zr * vR) * h; R += vR * h
+            t += 0.004
+        }
+        speed = min(1, (abs(vL) + abs(vR)) / 1800)
+        if !landed && (dir > 0 ? R >= tR : L <= tL) { landed = true; Haptics.select() }
+        if abs(vL) + abs(vR) <= 2 && abs(tL - L) + abs(tR - R) <= 0.4 { L = tL; R = tR; vL = 0; vR = 0; speed = 0; moving = false }
+    }
+}
+
+struct PillView: View {
+    var sim: PillSim
+    var body: some View {
+        TimelineView(.animation(paused: !sim.moving)) { tl in
+            TabPill(glow: sim.speed)
+                .frame(width: max(0, sim.R - sim.L), height: 28)
+                .scaleEffect(x: 1, y: sim.squash)
+                .offset(x: sim.L)
+                .onChange(of: tl.date) { _, d in sim.step(d) }
+        }
+        .opacity(sim.on ? 1 : 0)
+        .scaleEffect(sim.on ? 1 : 0.55)
+        .animation(.timingCurve(0.34, 1.56, 0.64, 1, duration: 0.4), value: sim.on)
+        .allowsHitTesting(false)
     }
 }
 
@@ -539,6 +609,7 @@ struct NotesPlaceholder: View {
 
 /// The glass pill under the open tab (web: .tab-pill).
 struct TabPill: View {
+    var glow: CGFloat = 0
     var body: some View {
         Capsule()
             .fill(LinearGradient(colors: [.w(0.2), .w(0.06)], startPoint: .top, endPoint: .bottom))
@@ -549,6 +620,8 @@ struct TabPill: View {
                 Capsule().fill(LinearGradient(colors: [.w(0.3), .w(0)], startPoint: .top, endPoint: .bottom))
                     .frame(height: 11).padding(.horizontal, 7).padding(.top, 1)
             }
+            .background(Capsule().fill(Color.w(glow * 0.07)))
             .shadow(color: .black.opacity(0.22), radius: 7, y: 4)
+            .shadow(color: Color(red: 200 / 255, green: 215 / 255, blue: 225 / 255).opacity(glow * 0.5), radius: glow * 8)
     }
 }
