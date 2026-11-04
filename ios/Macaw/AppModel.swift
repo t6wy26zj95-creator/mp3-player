@@ -182,6 +182,12 @@ final class AppModel {
         Store.shared.setJSON("albumOrder", keys)
     }
 
+    /// Saves the grid's order after you moved tiles (web saveOrder).
+    func saveTileOrder(_ keys: [String]) {
+        albumOrder = keys
+        Store.shared.setJSON("albumOrder", keys)
+    }
+
     func coverKey(_ tileKey: String) -> String { tileKey == AppModel.allKey || tileKey.hasPrefix("pl:") ? tileKey : "a:" + tileKey }
 
     func setTileCover(_ tileKey: String, jpeg: Data?) {

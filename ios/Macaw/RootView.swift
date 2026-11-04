@@ -151,6 +151,7 @@ enum TestScreens {
         case "queue": ui.open(.queue)
         case "library": ui.open(.library)
         case "flow": ui.coverFlow = true; ui.open(.library)
+        case "edit": ui.open(.library); try? await Task.sleep(nanoseconds: 500_000_000); ui.editing = true
         case "swipe1", "swipe2":                // an album's first song held mid-swipe: Play next, and further, Play last
             swipe = name == "swipe1" ? -110 : -230
             ui.open(.library)

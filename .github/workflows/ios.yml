@@ -193,6 +193,7 @@ jobs:
           shot queue
           shot library
           shot flow
+          shot edit
           shot swipe1
           shot swipe2
           shot artists

@@ -554,6 +554,11 @@ struct Footer: View {
             .simultaneousGesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("tabs"))
                 .onChanged { v in dragMoved(v) }
                 .onEnded { _ in dragEnded() })
+            // web .player-footer.edit: while rearranging the Library the tabs step aside for Done
+            .opacity(ui.editing ? 0 : 1).offset(y: ui.editing ? 4 : 0)
+            .allowsHitTesting(!ui.editing)
+            .animation(Theme.easeN, value: ui.editing)
+            .overlay(alignment: .trailing) { DoneButton(on: ui.editing) }
         }
         .padding(.horizontal, 10)
         .onChange(of: ui.tab, initial: true) { _, t in move(t) }
@@ -835,5 +840,26 @@ struct XPLayer<C: View>: View {
         content
             .opacity(on ? 1 : 0)
             .allowsHitTesting(on && !poses.moving)
+    }
+}
+
+/// web .done-btn: a glass pill, 30 pt tall, that ends rearranging the Library
+struct DoneButton: View {
+    var on: Bool
+    var body: some View {
+        Button { Haptics.light(); withAnimation(Theme.easeN) { UIState.shared.editing = false } } label: {
+            Text("DONE").font(.system(size: 11, weight: .semibold)).tracking(0.6).foregroundStyle(.white)
+                .padding(.horizontal, 18).frame(height: 30)
+                .background {
+                    Capsule().fill(.ultraThinMaterial).overlay(Capsule().fill(Color.w(0.14)))
+                        .overlay(Capsule().strokeBorder(LinearGradient(colors: [.w(0.4), .w(0.22)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.25), radius: 6, y: 4)
+                }
+        }
+        .buttonStyle(PopStyle())
+        .opacity(on ? 1 : 0)
+        .scaleEffect(on ? 1 : 0.92).offset(y: on ? 0 : -4)
+        .animation(Theme.easeN.delay(on ? 0.06 : 0), value: on)
+        .allowsHitTesting(on)
     }
 }

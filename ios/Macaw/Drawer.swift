@@ -40,6 +40,7 @@ struct DrawerView: View {
             .padding(.bottom, 6)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
+        .scrollDisabled(UIState.shared.tileDragging)
         .scrollBounceBehavior(.basedOnSize)
         .frame(height: min(max(contentHeight, 40), room))
         .animation(Theme.ease, value: contentHeight)                       // web: #view-host height, 400 ms ease
@@ -363,27 +364,134 @@ struct LibraryDrawer: View {
     }
 }
 
-/// Library grid: All Tracks, your playlists, then albums (90 pt tiles, as in the web player). Hold for the tile's menu,
-/// or hold and move to rearrange.
+/// Library grid: All Tracks, your playlists, then albums (web .albums-grid). Hold a tile to lift it and move it
+/// (the others jiggle, each gets a hide badge, Done replaces the tabs); hold and let go without moving: its menu.
 struct TileGrid: View {
     private var model: AppModel { .shared }
     private var ui: UIState { .shared }
+    @State private var keys: [String]? = nil              // the order while a tile is being moved
+    @State private var lifted: String?
+    @State private var grab: CGSize = .zero              // where the finger holds the tile, from its slot's corner
+    @State private var finger: CGPoint = .zero
+    @State private var start: CGPoint = .zero
+    @State private var slots: [String: CGRect] = [:]
+    @State private var wasEditing = false
+    @State private var pending = false
+    @State private var going: Set<String> = []           // tiles shrinking away (hidden)
+    @State private var jig: [String: Int] = [:]          // web --j: each tile's own jiggle phase
+
     var body: some View {
         // web .albums-grid: three equal columns, 14 pt apart, 10 pt of padding all round
         let cols = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: 3)
+        let byKey = Dictionary(model.tiles.map { ($0.key, $0) }, uniquingKeysWith: { a, _ in a })
+        let list = (keys ?? model.tiles.map(\.key)).compactMap { byKey[$0] }
         LazyVGrid(columns: cols, alignment: .center, spacing: 14) {
-            ForEach(model.tiles) { tile in
-                TileView(tile: tile)
+            ForEach(list) { tile in
+                let k = tile.key, up = lifted == k
+                TileView(tile: tile, editing: ui.editing, lifted: up, j: jig[k] ?? 0, going: going.contains(k),
+                         hold: ui.editing ? 0.14 : 0.42,
+                         onLift: { p in lift(k, p) }, onMove: { s0, p in move(k, s0, p) }, onDrop: { f in drop(k, f) }, badge: { remove(tile) })
+                    .offset(up ? liftOffset(k) : .zero)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("grid")) } action: { slots[k] = $0 }   // the slot, not the lifted tile
+                    .zIndex(up ? 20 : 0)
             }
         }
         .padding(10)
+        .coordinateSpace(name: "grid")
+        .contentShape(Rectangle())
+        .onTapGesture { if ui.editing { setEdit(false) } }                       // web: a tap on the empty grid ends editing
+        .onAppear { for t in model.tiles where jig[t.key] == nil { jig[t.key] = Int.random(in: 0..<6) } }
+        .onChange(of: model.tiles.map(\.key)) { _, ks in for k in ks where jig[k] == nil { jig[k] = Int.random(in: 0..<6) } }
+        .onDisappear { setEdit(false) }
+    }
+
+    private func setEdit(_ on: Bool) { if ui.editing != on { withAnimation(Theme.easeN) { ui.editing = on } } }
+
+    private func liftOffset(_ k: String) -> CGSize {
+        guard let f = slots[k] else { return .zero }
+        return CGSize(width: finger.x - grab.width - f.minX, height: finger.y - grab.height - f.minY)
+    }
+
+    /// web attachDrag: after the hold the tile lifts and follows the finger; over the middle of another tile they swap
+    private func lift(_ k: String, _ at: CGPoint?) {
+        guard lifted == nil else { return }
+        wasEditing = ui.editing
+        setEdit(true)
+        let f = slots[k] ?? .zero
+        let p = at ?? CGPoint(x: f.midX, y: f.midY)
+        pending = at == nil
+        start = p; finger = p
+        grab = CGSize(width: p.x - f.minX, height: p.y - f.minY)
+        keys = model.tiles.map(\.key)
+        ui.tileDragging = true
+        Haptics.light()
+        withAnimation(Theme.easeN) { lifted = k }
+    }
+
+    private func move(_ k: String, _ s0: CGPoint, _ p: CGPoint) {
+        guard lifted == k else { return }
+        if pending, let f = slots[k] {                                           // the hold ended before the finger moved
+            pending = false; start = s0; grab = CGSize(width: s0.x - f.minX, height: s0.y - f.minY)
+        }
+        withAnimation(.interactiveSpring(response: 0.12, dampingFraction: 0.9)) { finger = p }
+        swapIfOver(k, p)
+    }
+
+    private func swapIfOver(_ k: String, _ p: CGPoint) {
+        guard var ks = keys, let from = ks.firstIndex(of: k) else { return }
+        // only the middle of a tile triggers a swap (no flapping)
+        guard let hit = slots.first(where: { $0.key != k && ks.contains($0.key) && $0.value.insetBy(dx: $0.value.width * 0.2, dy: $0.value.height * 0.2).contains(p) }),
+              let to = ks.firstIndex(of: hit.key), to != from else { return }
+        Haptics.select()
+        ks.remove(at: from); ks.insert(k, at: to)
+        withAnimation(Theme.ease) { keys = ks }
+    }
+
+    private func drop(_ k: String, _ frame: CGRect) {
+        guard lifted == k else { return }
+        let moved = hypot(finger.x - start.x, finger.y - start.y) >= 10 || keys != model.tiles.map(\.key)
+        if let ks = keys, ks != model.tiles.map(\.key) { model.saveTileOrder(ks) }
+        withAnimation(Theme.easeN) { lifted = nil }
+        ui.tileDragging = false
+        keys = nil
+        if !wasEditing && !moved {                                             // held and let go without moving: the tile's menu
+            setEdit(false)
+            if let t = model.tiles.first(where: { $0.key == k }) {
+                Haptics.medium(); ui.menu = UIState.MenuState(kind: .tile(t), anchor: frame)
+            }
+        }
+    }
+
+    /// web del-badge: a playlist is deleted; an album shrinks away and is hidden
+    private func remove(_ t: Tile) {
+        Haptics.light()
+        switch t {
+        case .all: break
+        case .playlist(let p): model.deletePlaylist(p.id)
+        case .album(let a):
+            withAnimation(Theme.easeN) { _ = going.insert(a.name) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                withAnimation(Theme.ease) { model.hideAlbum(a.name) }
+                going.remove(a.name)
+                if !model.tiles.contains(where: { if case .album = $0 { return true }; return false }) { setEdit(false) }
+            }
+        }
     }
 }
 
 struct TileView: View {
     var tile: Tile
+    var editing = false
+    var lifted = false
+    var j = 0
+    var going = false
+    var hold: Double = 0.42
+    var onLift: (CGPoint?) -> Void = { _ in }
+    var onMove: (CGPoint, CGPoint) -> Void = { _, _ in }
+    var onDrop: (CGRect) -> Void = { _ in }
+    var badge: () -> Void = {}
     @State private var frame: CGRect = .zero
-    @State private var pressed = false
+    @GestureState private var pressed = false
     private var model: AppModel { .shared }
     private var ui: UIState { .shared }
 
@@ -391,19 +499,24 @@ struct TileView: View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         VStack(spacing: 8) {
                 // web .album-card: the cover with the glass edge (::before rim, ::after light), shadow 0 8px 15px .3;
-                // pressed, the cover (not the name) dips to 96 % (250 ms)
+                // pressed, the cover (not the name) dips to 96 % (250 ms); lifted, 108 % with a deep shadow
                 Color.clear.aspectRatio(1, contentMode: .fit)
                     .overlay { cover }
                     .clipShape(shape)
                     .overlay { TileGlass(shape: shape) }
-                    .shadow(color: .black.opacity(0.3), radius: 7.5, y: 8)
-                    .scaleEffect(pressed ? 0.96 : 1)
+                    .shadow(color: .black.opacity(lifted ? 0.55 : 0.3), radius: lifted ? 17 : 7.5, y: lifted ? 20 : 8)
+                    .modifier(Jiggle(on: editing && !lifted, j: j))
+                    .overlay(alignment: .topLeading) { if case .all = tile {} else { DelBadge(on: editing && !lifted, j: j, action: badge) } }
+                    .scaleEffect(lifted ? 1.08 : pressed ? 0.96 : 1)
                     .animation(Theme.easeN, value: pressed)
+                    .animation(Theme.easeN, value: lifted)
                 Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.8)).lineLimit(1)
         }
+        .scaleEffect(going ? 0.7 : 1).opacity(going ? 0 : 1)
         .contentShape(Rectangle())
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
         .onTapGesture {
+            if editing { return }                                               // web: while editing, a tap does nothing
             Haptics.light()
             switch tile {
             case .all: ui.push(.allTracks)
@@ -411,9 +524,15 @@ struct TileView: View {
             case .album(let a): ui.push(.album(a.name))
             }
         }
-        .onLongPressGesture(minimumDuration: 0.45) {
-            Haptics.medium(); ui.menu = UIState.MenuState(kind: .tile(tile), anchor: frame)
-        } onPressingChanged: { pressed = $0 }
+        .gesture(LongPressGesture(minimumDuration: hold, maximumDistance: 8)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("grid")))
+            .updating($pressed) { v, st, _ in if case .first(true) = v { st = true } }
+            .onChanged { v in
+                guard case .second(true, let d) = v else { return }
+                onLift(d?.startLocation)
+                if let d { onMove(d.startLocation, d.location) }
+            }
+            .onEnded { _ in onDrop(frame) })
     }
 
     private var title: String {
@@ -597,5 +716,46 @@ struct AllTracksPage: View {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return model.tracks }
         return model.tracks.filter { $0.title.lowercased().contains(q) || $0.artist.lowercased().contains(q) || $0.album.lowercased().contains(q) }
+    }
+}
+
+/// web @keyframes jig: ±0.9° back and forth every .34 s (ease-in-out, alternate), each tile at its own phase
+struct Jiggle: ViewModifier {
+    var on: Bool
+    var j: Int
+    func body(content: Content) -> some View {
+        if on {
+            TimelineView(.animation) { tl in
+                let t = tl.date.timeIntervalSinceReferenceDate / 0.34 + Double(j) * 0.13 / 0.34
+                let c = floor(t), f0 = t - c, f = Int(c) % 2 == 0 ? f0 : 1 - f0
+                content.rotationEffect(.degrees(-0.9 + 1.8 * Bezier(0.42, 0, 0.58, 1)(f)))
+            }
+        } else { content }
+    }
+}
+
+/// web .del-badge: a small glass circle with a minus at the tile's corner, in one after another (22 ms apart)
+struct DelBadge: View {
+    var on: Bool
+    var j: Int
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle().fill(.ultraThinMaterial).overlay(Circle().fill(Color.w(0.2)))
+                    .overlay(Circle().strokeBorder(Color.w(0.4), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.35), radius: 4, y: 3)
+                RoundedRectangle(cornerRadius: 1).fill(.white).frame(width: 10, height: 2)
+            }
+            .frame(width: 24, height: 24)
+            .contentShape(Circle().inset(by: -8))
+        }
+        .buttonStyle(PopStyle())
+        .offset(x: -7, y: -7)
+        .scaleEffect(on ? 1 : 0.3)
+        .opacity(on ? 1 : 0)
+        .animation(Theme.ease.delay(on ? Double(j) * 0.022 : 0), value: on)
+        .allowsHitTesting(on)
+        .accessibilityLabel("Hide")
     }
 }

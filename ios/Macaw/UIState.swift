@@ -20,6 +20,8 @@ final class UIState {
     var coverPickFor: String?           // tile key whose cover you're choosing
     var classic = false                 // set from the saved settings at start (Boot)
     var minimalLight = false
+    var editing = false                 // Library: rearranging tiles (they jiggle; Done replaces the tabs)
+    var tileDragging = false
     var coverFlow = false               // Settings > Cover Flow: albums in one row instead of the grid
     var dimGlass = false                // Settings > Dim glass: a light shade behind the clear glass
     var blur: Double = 0
