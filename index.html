@@ -1156,7 +1156,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v64";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v65";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -1823,7 +1823,7 @@ function matchRows(rows, local, strict, edTitle, pin) {              // -> { got
   const used = new Set(), got = rows.map(() => null);
   const pass = fn => rows.forEach((x, i) => { if (got[i]) return; const t = local.find(l => !used.has(l) && fn(l, x)); if (t) { used.add(t); got[i] = t; } });
   const ok = strict ? (l, x) => belongs(l, x, edTitle) : () => true;
-  if (pin) pass((l, x) => { const id = pin(x); return !!id && songId(l) === id; });
+  if (pin) pass((l, x) => { const id = pin(x); return !!id && songId(l) === id && verOf(l.title) === verOf(x.title); });   // a + that brought a live/demo/remix doesn't take the studio song's row
   pass((l, x) => l.isrc && x.isrc && l.isrc.toUpperCase() === x.isrc.toUpperCase());
   pass((l, x) => sn(l.title) === sn(x.title) && ok(l, x));
   pass((l, x) => songKey(l.title) === songKey(x.title) && ok(l, x));
@@ -2694,7 +2694,7 @@ async function getSong(ctx, title) {
   try {
     const j = await apiCall("/api/fetch", { bot: SOURCE_BOT, artist: ctx.artist, title, album: ctx.album }, 240000);   // the music bot can take a few minutes
     const name = (j.artist ? j.artist + " – " : "") + (j.title || title);
-    if (j.id && !currentCat && !edView(currentAlbum)) { PINS[ctx.album + "|" + songKey(title)] = j.id; store.set("rowPins", JSON.stringify(PINS)); }   // Mixed: it fills this row, whatever it's called
+    if (j.id && !currentCat && !edView(currentAlbum) && verOf(j.title || title) === verOf(title)) { PINS[ctx.album + "|" + songKey(title)] = j.id; store.set("rowPins", JSON.stringify(PINS)); }   // Mixed: it fills this row, whatever it's called
     if (j.id && GW.ok !== false) {                                   // found: the ring now follows the file into your library (see getWatch)
       if (botMode) GW.hold.add(j.id);                                  // not in the list until its tags are read, so it doesn't show up half-named and move
       getShow(k, "busy", "Found it. Getting the file…", .15, { id: j.id, name, at: Date.now() });
