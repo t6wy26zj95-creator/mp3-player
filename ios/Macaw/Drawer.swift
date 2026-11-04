@@ -36,7 +36,7 @@ struct DrawerView: View {
                 .transition(.asymmetric(insertion: inT, removal: outT))
             }
             .padding(.horizontal, Theme.panelPad)
-            .padding(.top, 10)
+            .padding(.top, 14)                                                  // web #view-host: padding-top 14px
             .padding(.bottom, 6)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
@@ -76,8 +76,9 @@ struct SongRow: View {
                     .padding(1)
                     .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.w(0.1), lineWidth: 1))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text((number.map { "\($0). " } ?? "") + track.title)
-                        .font(.system(size: 13, weight: .medium)).foregroundStyle(.white).lineLimit(1)
+                    Text((number.map { "\($0). " } ?? "") + track.title)                      // web: up to 2 lines, line-height 1.25
+                        .font(.system(size: 13, weight: .medium)).foregroundStyle(.white).lineLimit(2)
+                        .lineSpacing(13 * 1.25 - UIFont.systemFont(ofSize: 13, weight: .medium).lineHeight)
                     Text(track.shownArtist).font(.system(size: 11)).foregroundStyle(Color.w(0.5)).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,20 +160,24 @@ struct HorizontalPan: UIGestureRecognizerRepresentable {
     }
 }
 
+/// web .q-sec: 11 pt caps, 26 pt tall, 12 pt of room above (2 pt for the first one) and 4 pt below.
 struct SectionLabel: View {
     var text: String
     var button: String? = nil
+    var first = false
     var action: (() -> Void)? = nil
     var body: some View {
-        HStack {
+        HStack(spacing: 10) {
             Text(text.uppercased()).font(.system(size: 11, weight: .semibold)).tracking(0.6).foregroundStyle(Color.w(0.5)).lineLimit(1)
-            Spacer()
+            Spacer(minLength: 0)
             if let button, let action {
-                Button(button, action: action).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.7)).buttonStyle(PopStyle())
+                Button(button, action: action).font(.system(size: 11, weight: .semibold)).tracking(0.6).foregroundStyle(Color.w(0.65))
+                    .padding(.vertical, 4).buttonStyle(PopStyle())
             }
         }
+        .frame(minHeight: 26)
         .padding(.horizontal, 12)
-        .padding(.top, 10).padding(.bottom, 8)
+        .padding(.top, first ? 2 : 12).padding(.bottom, 4)
     }
 }
 
@@ -205,7 +210,7 @@ struct QueueDrawer: View {
             if let cur = player.current {
                 let hist = Array(player.history.suffix(30))
                 if !hist.isEmpty {
-                    SectionLabel(text: "History", button: "Clear") { player.clearHistory() }
+                    SectionLabel(text: "History", button: "Clear", first: true) { player.clearHistory() }
                     ForEach(Array(hist.enumerated()), id: \.offset) { i, h in
                         if let t = model.byKey[h.key] {
                             SongRow(track: t, dim: true, leftAction: .remove({ player.removeHistory(at: player.history.count - hist.count + i) })) {
@@ -215,7 +220,7 @@ struct QueueDrawer: View {
                     }
                 }
                 let ctx = player.context
-                SectionLabel(text: player.nowFrom == .context && ctx != nil ? "Playing from \(ctx!.name)" : "Now Playing")
+                SectionLabel(text: player.nowFrom == .context && ctx != nil ? "Playing from \(ctx!.name)" : "Now Playing", first: hist.isEmpty)
                 SongRow(track: cur, active: true, leftAction: .none) {}
                 if !player.queue.isEmpty {
                     SectionLabel(text: "Queue · \(player.queue.count)", button: "Clear") { player.clearQueue() }
@@ -280,13 +285,14 @@ struct TileGrid: View {
     private var model: AppModel { .shared }
     private var ui: UIState { .shared }
     var body: some View {
-        let cols = [GridItem(.adaptive(minimum: 90, maximum: 90), spacing: 14, alignment: .top)]
+        // web .albums-grid: three equal columns, 14 pt apart, 10 pt of padding all round
+        let cols = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: 3)
         LazyVGrid(columns: cols, alignment: .center, spacing: 14) {
             ForEach(model.tiles) { tile in
                 TileView(tile: tile)
             }
         }
-        .padding(.vertical, 4)
+        .padding(10)
     }
 }
 
@@ -300,16 +306,17 @@ struct TileView: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         VStack(spacing: 8) {
-                cover
-                    .frame(width: 90, height: 90)
+                // web .album-card: the cover with the glass edge (::before rim, ::after light), shadow 0 8px 15px .3;
+                // pressed, the cover (not the name) dips to 96 % (250 ms)
+                Color.clear.aspectRatio(1, contentMode: .fit)
+                    .overlay { cover }
                     .clipShape(shape)
-                    .overlay(shape.strokeBorder(Color.w(0.08), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
+                    .overlay { TileGlass(shape: shape) }
+                    .shadow(color: .black.opacity(0.3), radius: 7.5, y: 8)
+                    .scaleEffect(pressed ? 0.96 : 1)
+                    .animation(Theme.easeN, value: pressed)
                 Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.8)).lineLimit(1)
-                    .frame(width: 90)
         }
-        .scaleEffect(pressed ? 0.96 : 1)
-        .animation(Theme.easeQ, value: pressed)
         .contentShape(Rectangle())
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
         .onTapGesture {
@@ -347,12 +354,44 @@ struct TileView: View {
     }
 }
 
+/// The glass edge every cover in a grid gets (web .album-card::before / ::after): a crisp 1 pt rim that catches the
+/// light top-left, tinted by the playing cover's colours, a soft highlight and a little thickness.
+struct TileGlass<S: InsettableShape>: View {
+    var shape: S
+    private var g: Glow { .shared }
+    var body: some View {
+        let lc = g.c1.color, lc2 = g.c2.color
+        ZStack {
+            // ::after: radial-gradient(70% 60% at 25% 12%, white .1 → 0 at 60%), linear-gradient(168deg, white .05 → 0 at 45%)
+            EllipticalGradient(colors: [.w(0.1), .w(0)], center: UnitPoint(x: 0.25, y: 0.12), startRadiusFraction: 0, endRadiusFraction: 0.6 * 0.7)
+            LinearGradient(stops: [.init(color: .w(0.05), location: 0), .init(color: .w(0), location: 0.45)],
+                           startPoint: UnitPoint(x: 0.4, y: 0), endPoint: UnitPoint(x: 0.6, y: 1))
+            // the thickness: inset 0 -12px 16px -14px black .5 (bottom), inset 0 11px 14px -14px white .35 (top)
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.w(0.16), .w(0)], startPoint: .top, endPoint: .bottom).frame(height: 7)
+                Spacer(minLength: 0)
+                LinearGradient(colors: [.black.opacity(0), .black.opacity(0.22)], startPoint: .top, endPoint: .bottom).frame(height: 8)
+            }
+            // ::before: the conic rim (CSS: from -40deg, 0deg at the top)
+            shape.strokeBorder(AngularGradient(stops: [
+                .init(color: .w(0.42), location: 0), .init(color: lc.opacity(0.22), location: 35 / 360.0),
+                .init(color: .w(0.1), location: 90 / 360.0), .init(color: .w(0.06), location: 180 / 360.0),
+                .init(color: lc2.opacity(0.14), location: 200 / 360.0), .init(color: .w(0.08), location: 260 / 360.0),
+                .init(color: lc.opacity(0.22), location: 325 / 360.0), .init(color: .w(0.42), location: 1)],
+                center: .center, startAngle: .degrees(-130), endAngle: .degrees(230)), lineWidth: 1)
+        }
+        .clipShape(shape)
+        .allowsHitTesting(false)
+    }
+}
+
 struct IconTile: View {
     var system: String
+    var size: CGFloat = 34
     var body: some View {
         ZStack {
             Color.w(0.05)
-            Image(systemName: system).font(.system(size: 26, weight: .semibold)).foregroundStyle(Color.w(0.45))
+            Image(systemName: system).font(.system(size: size, weight: .regular)).foregroundStyle(Color.w(0.4))   // web: 40 px icon, white .4
         }
     }
 }
@@ -367,7 +406,7 @@ struct ListHeader: View {
     var play: () -> Void
     var body: some View {
         HStack(spacing: 12) {
-            CoverImage(path: coverPath, dataURL: coverData, px: 200, placeholder: AnyView(IconTile(system: icon)))
+            CoverImage(path: coverPath, dataURL: coverData, px: 200, placeholder: AnyView(IconTile(system: icon, size: 20)))
                 .frame(width: 54, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .padding(1)

@@ -32,8 +32,10 @@ struct PlayerPanel: View {
                         VStack(spacing: 0) {
                             Rectangle().fill(Color.w(0.1)).frame(height: 1)
                                 .padding(.horizontal, Theme.panelPad)
+                            // web: under the drawer come the panel's 16 pt gap and its 20 pt padding (measured on the
+                            // web screenshots: 15 pt more than before)
                             DrawerView(tab: tab, room: room)
-                                .padding(.bottom, Theme.panelPad - 6)
+                                .padding(.bottom, Theme.panelPad - 6 + 15)
                         }
                         .transition(.opacity.animation(Theme.easeN))
                     } else {

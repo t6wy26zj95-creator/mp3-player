@@ -15,7 +15,7 @@ struct RootView: View {
                         .frame(maxWidth: min(Theme.panelMaxWidth, geo.size.width - 32))
                         .padding(.top, 24)
                 } else if booted && model.loaded {
-                    PlayerPanel(room: max(160, geo.size.height - 24 - 228 - 70))
+                    PlayerPanel(room: max(160, geo.size.height - 24 - 228 - 70 - 15))
                         .frame(maxWidth: min(Theme.panelMaxWidth, geo.size.width - 32))
                         .padding(.top, 24)
                 } else {
