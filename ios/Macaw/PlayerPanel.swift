@@ -277,7 +277,8 @@ struct SkipButton: View {
 struct PlayButton: View {
     var size: CGFloat
     @State private var t: CGFloat = 0                   // 0 = play triangle, 1 = pause bars
-    @State private var turns = 0
+    @State private var turnAngle: Double = 0
+    @State private var turnScale: CGFloat = 1
     @State private var hold: CGFloat = 0
     @State private var ringOn = false
     @State private var burst = 0
@@ -294,10 +295,10 @@ struct PlayButton: View {
             PlayPauseShape(t: t)
                 .fill(.white)
                 .frame(width: size * 0.41, height: size * 0.41)
-                .keyframeAnimator(initialValue: PlayTurn(), trigger: turns) { v, k in v.rotationEffect(.degrees(k.angle)).scaleEffect(k.scale) } keyframes: { _ in
-                    KeyframeTrack(\.angle) { LinearKeyframe(player.isPlaying ? -14 : 14, duration: 0.001); SpringKeyframe(0, duration: 0.4, spring: .init(duration: 0.4, bounce: 0.25)) }
-                    KeyframeTrack(\.scale) { LinearKeyframe(0.72, duration: 0.001); SpringKeyframe(1, duration: 0.4, spring: .init(duration: 0.4, bounce: 0.25)) }
-                }
+                // the little turn when it flips (web: a spring from ±14° and 72 %). Its resting value is always 0° / 100 %,
+                // so if iOS drops the animation (app in the background, lock screen) the icon still ends up straight.
+                .rotationEffect(.degrees(turnAngle))
+                .scaleEffect(turnScale)
         }
         .buttonStyle(RoundButtonStyle(size: size))
         .modifier(Breath(index: 1, amount: 0.06))
@@ -320,7 +321,11 @@ struct PlayButton: View {
         .onAppear { t = player.isPlaying ? 1 : 0 }
         .onChange(of: player.isPlaying) { _, p in
             withAnimation(.spring(duration: 0.4, bounce: 0.3)) { t = p ? 1 : 0 }
-            turns += 1
+            var jump = Transaction(); jump.disablesAnimations = true
+            withTransaction(jump) { turnAngle = p ? -14 : 14; turnScale = 0.72 }
+            DispatchQueue.main.async {
+                withAnimation(.spring(duration: 0.4, bounce: 0.25)) { turnAngle = 0; turnScale = 1 }
+            }
         }
     }
 
@@ -348,7 +353,6 @@ struct PlayButton: View {
     }
 }
 
-struct PlayTurn { var angle: Double = 0; var scale: CGFloat = 1 }
 
 /// The web player's play / pause path (24 × 24): two quads that move from the triangle's halves to the two bars.
 struct PlayPauseShape: Shape {

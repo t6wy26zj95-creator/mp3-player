@@ -42,7 +42,9 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
             } else {
                 let dim = GlassStyle.forced.map { $0 == "dim" } ?? UIState.shared.dimGlass
                 content
-                    .background(shape.fill(Color.black.opacity(dim ? 0.16 : 0)).animation(Theme.ease, value: dim))
+                    // Apple's clear glass lifts a dark wallpaper by about 40 levels on a phone (the dock: about 15). This shade
+                    // brings the panel back to the web player's darkness; Dim glass goes darker still.
+                    .background(shape.fill(Color.black.opacity(dim ? 0.65 : 0.5)).animation(Theme.ease, value: dim))
                     .glassEffect(clear(), in: shape)
             }
         } else {
