@@ -141,7 +141,7 @@ struct CompactPlayer: View {
                 .buttonStyle(PressStyle())
                 .padding(.leading, 34)
                 VStack(alignment: .leading, spacing: 2) {
-                    SlidingTitle(text: player.current?.title ?? "", size: 17, direction: player.songDirection, tag: "c.title")
+                    SlidingTitle(text: player.current?.title ?? "", size: 17, direction: player.songDirection, tag: "c.title", spark: true)
                     HStack(spacing: 6) {
                         Button { if let a = player.current?.shownArtist { ui.showArtist(a) } } label: {
                             Text((player.current?.shownArtist ?? "") + " ›")
@@ -221,15 +221,68 @@ struct SlidingTitle: View {
     var direction: Int
     var center = false
     var tag = ""
+    /// The compact title glows now and then (web: the title spark).
+    var spark = false
     var body: some View {
         Text(text)
             .font(.system(size: size, weight: .semibold))
             .foregroundStyle(.white)
             .shadow(color: .black.opacity(0.5), radius: 2.5, y: 2)        // web: text-shadow 0 2px 5px rgba(0,0,0,.5)
             .lineLimit(1)
+            .overlay(alignment: .leading) { if spark { TitleGlint(text: text, size: size) } }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { if spark { Glow.shared.titleW = $0 } }
             .songSwap(text, direction: direction, center: center)
             .xp(tag)
             .frame(maxWidth: .infinity, alignment: center ? .center : .leading)
+    }
+}
+
+/// The title spark: no object travels across, the letters themselves glow. A copy of the title, its letters filled with
+/// a soft 84 pt band of light, with a white and cover-coloured halo; the band slides across while it fades in and out
+/// (web .title-glint + sparkFire: 1.3–2.1 s, cubic-bezier(.45,0,.3,1), opacity 0 → .85 → 1 → .8 → 0 at 0/.2/.5/.78/1).
+struct TitleGlint: View {
+    var text: String
+    var size: CGFloat
+    @State private var p: Double = 1                       // rest = 1 (invisible)
+    @State private var b: Double = 0.7
+    @State private var w: CGFloat = 0
+    private var g: Glow { .shared }
+    var body: some View {
+        GlintBand(p: p, b: b, w: w)
+            .mask(alignment: .leading) {
+                Text(text).font(.system(size: size, weight: .semibold)).lineLimit(1)
+            }
+            .shadow(color: .white.opacity(0.9), radius: 0.75)
+            .shadow(color: g.c1.color.opacity(0.75), radius: 3)
+            .allowsHitTesting(false)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w = $0 }
+            .onChange(of: g.sparkN) { _, _ in
+                b = g.sparkB
+                replay($p, duration: g.sparkD)
+            }
+            .onChange(of: text) { _, _ in                      // web: a new title stops the spark
+                var t = Transaction(); t.disablesAnimations = true
+                withTransaction(t) { p = 1 }
+            }
+    }
+}
+
+private struct GlintBand: View, Animatable {
+    var p: Double
+    var b: Double
+    var w: CGFloat
+    var animatableData: Double { get { p } set { p = newValue } }
+    var body: some View {
+        let e = Bezier(0.45, 0, 0.3, 1), B: Double = 84, x0 = -B * 0.8, x1 = Double(min(w, Glow.shared.titleW > 0 ? Glow.shared.titleW : w)) - B * 0.2
+        let x = KF(stops: [(0, x0), (1, x1)], whole: e).at(p)
+        let o = KF(stops: [(0, 0), (0.2, 0.85), (0.5, 1), (0.78, 0.8), (1, 0)], whole: e).at(p) * (0.55 + 0.45 * b)
+        LinearGradient(stops: [.init(color: .w(0), location: 0), .init(color: .w(0.35), location: 0.25), .init(color: .w(0.9), location: 0.45),
+                               .init(color: .white, location: 0.5), .init(color: .w(0.9), location: 0.55), .init(color: .w(0.35), location: 0.75),
+                               .init(color: .w(0), location: 1)], startPoint: .leading, endPoint: .trailing)
+            .frame(width: B)
+            .offset(x: x)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .opacity(o)
     }
 }
 
@@ -278,6 +331,7 @@ struct PlayButton: View {
     @State private var ringOn = false
     @State private var burst: Double = 1                 // the ring bursting outwards (rest = 1)
     @State private var comet: Double = 1                 // the comet round the rim (rest = 1)
+    @State private var cometB: Double = 1
     @State private var fired = false
     @State private var holdTask: Task<Void, Never>?
     private var player: Player { .shared }
@@ -311,7 +365,12 @@ struct PlayButton: View {
                 .modifier(KFEffect(p: burst, scale: KF(stops: [(0, 1), (1, 1.45)], whole: .ease), opacity: KF(stops: [(0, 1), (1, 0)], whole: .ease)))
                 .allowsHitTesting(false)
         }
-        .overlay { Comet(p: comet).padding(-2).allowsHitTesting(false) }
+        .overlay { Comet(p: comet, bright: cometB).padding(-2).allowsHitTesting(false) }
+        .onChange(of: Glow.shared.cometN) { _, _ in                // after the title spark (web: ringFire(b), 1.5 s)
+            guard size < 38 else { return }                           // the compact player's Play only
+            cometB = Glow.shared.cometB
+            replay($comet, duration: 1.5)
+        }
         .simultaneousGesture(DragGesture(minimumDistance: 0)
             .onChanged { _ in if holdTask == nil { startHold() } }
             .onEnded { _ in stopHold() })
@@ -335,6 +394,7 @@ struct PlayButton: View {
             fired = true
             player.toggleShuffle()
             ringOn = false
+            cometB = 1
             replay($burst, duration: 0.4); replay($comet, duration: 1.0)
             try? await Task.sleep(nanoseconds: 400_000_000)
             ringOn = false

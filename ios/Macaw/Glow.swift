@@ -2,6 +2,7 @@ import SwiftUI
 import AVFoundation
 import CoreImage
 import QuartzCore
+import UIKit
 
 /// The music glow, ported from the web player's decorative loop (pulseLoop, breathe, envelope, bandEvents, coverGlow and
 /// the cover-colour picker). Everything here runs at 30 fps and only feeds a few small views: the bloom and the light
@@ -35,9 +36,21 @@ final class Glow {
     var bloom: UIImage?
     var light: UIImage?
 
+    // the title spark (web: sparkTick / sparkFire): sparkN counts sparks, the title's glint plays one per change;
+    // cometN does the same for the comet round Play that follows it
+    var sparkN = 0
+    @ObservationIgnored var sparkB = 0.7
+    @ObservationIgnored var sparkD = 1.3
+    var cometN = 0
+    @ObservationIgnored var cometB = 1.0
+    /// Width of the title text on screen (stops at the ellipsis), set by the compact title.
+    @ObservationIgnored var titleW: CGFloat = 0
+
     @ObservationIgnored private var env: [Float]?
+    @ObservationIgnored private var events: [GlowMath.Event] = []
+    @ObservationIgnored private var accents: Accents?
     @ObservationIgnored private var envKey: String?
-    @ObservationIgnored private var envCache: [String: [Float]] = [:]
+    @ObservationIgnored private var envCache: [String: ([Float], [GlowMath.Event])] = [:]
     @ObservationIgnored private var envOrder: [String] = []
     @ObservationIgnored private var artKey: String?
     @ObservationIgnored private var lastLight = ""
@@ -96,6 +109,7 @@ final class Glow {
         if f != flare { flare = f }
         if e != energy { energy = e }
         rimA = a
+        sparkTick(playing, dt, now)
         glassT += dt
         br = 0.5 + 0.5 * sin(now / 2.6)
         if zip(nb, bp).contains(where: { abs($0 - $1) > 0.006 }) { bp = nb }
@@ -107,24 +121,134 @@ final class Glow {
         }
     }
 
+    // MARK: the title spark (web: accentsOf, sparkGap, sparkPlan, sparkTick, sparkFire)
+
+    /// Accents = local peaks with a sharp rise over the recent past, ranked by strength within the song.
+    struct Accents {
+        var list: [(t: Double, s: Double, r: Double)]
+        var P: [Double]
+        func avg(_ x0: Int, _ y0: Int) -> Double {
+            let F = P.count - 1, x = max(0, x0), y = min(F, y0)
+            return y > x ? (P[y] - P[x]) / Double(y - x) : 0
+        }
+        func sec(_ t: Double) -> Double { let f = Int((t * 30).rounded()); return avg(f - 90, f + 90) }   // ~6 s loudness
+    }
+    private func accentsOf(_ e: [Float]) -> Accents {
+        if let a = accents { return a }
+        let F = e.count
+        var P = [Double](repeating: 0, count: F + 1)
+        for i in 0..<F { P[i + 1] = P[i] + Double(e[i]) }
+        var a = Accents(list: [], P: P)
+        var list: [(t: Double, s: Double, r: Double)] = []
+        if F > 18 {
+            for f in 12..<(F - 6) {
+                let v = Double(e[f])
+                var pk = true
+                for k in -6...6 where k != 0 && Double(e[f + k]) > v { pk = false; break }
+                if !pk { continue }
+                if let l = list.last, Double(f) / 30 - l.t < 0.25 { continue }
+                var lo = v
+                for k in 1...12 { lo = min(lo, Double(e[f - k])) }
+                let rise = v - lo, ctx = v - a.avg(f - 60, f - 3)
+                if rise >= 0.15 && ctx >= 0.06 { list.append((t: Double(f) / 30, s: rise * 0.6 + ctx * 0.8, r: 0)) }
+            }
+        }
+        let ord = list.indices.sorted { list[$0].s < list[$1].s }
+        for (k, i) in ord.enumerated() { list[i].r = list.count > 1 ? Double(k) / Double(list.count - 1) : 1 }
+        a.list = list
+        accents = a
+        return a
+    }
+
+    @ObservationIgnored private var spTrack: String?
+    @ObservationIgnored private var spWait = 0.0
+    @ObservationIgnored private var spTarget: (at: Double, b: Double)?
+    @ObservationIgnored private var spLastCt = 0.0
+    @ObservationIgnored private var spBusy: CFTimeInterval = 0
+    @ObservationIgnored private var spLeadV = 0.7
+    @ObservationIgnored private var spLeadAt: CFTimeInterval = 0
+    @ObservationIgnored private var spLastEv = -1.0
+
+    private func spDur(_ w: CGFloat) -> Double { max(1.3, min(2.1, 1.15 + Double(w) * 3.4 / 1000)) }   // short titles: a shorter pass
+    private func sparkGap(_ ct: Double) -> Double {
+        let I = env.map { accentsOf($0).sec(ct) } ?? 0.5
+        return (12 + Double.random(in: 0..<1) * 16) * (1.25 - 0.5 * I)
+    }
+    private func nearEvent(_ t: Double) -> Bool { events.contains { $0.go && abs($0.t - t) < 8 } }
+    private func sparkPlan(_ ct: Double, _ now: CFTimeInterval) -> (at: Double, b: Double)? {
+        let lead = spLeadV
+        var p: (at: Double, b: Double)
+        if let e = env {
+            let a = accentsOf(e)
+            var best: (t: Double, s: Double, r: Double)?
+            for x in a.list {
+                if x.t < ct + lead + 0.15 { continue }
+                if x.t > ct + 6 { break }
+                if x.r < 0.35 || nearEvent(x.t) { continue }               // skip the weakest third, and anything next to an energy-change glow
+                let sh = 0.5 + 0.45 * sin((now + x.t - ct) / 9.5)            // the cover's reflection streak would be crossing then
+                if sh > 0.38 && sh < 0.6 { continue }
+                if x.r >= 0.8 { best = x; break }
+                if best == nil || x.r > best!.r { best = x }
+            }
+            if let b = best { p = (b.t - lead, min(1, 0.6 + 0.25 * b.r + 0.25 * a.sec(b.t))) }
+            else { p = (ct + 5 + Double.random(in: 0..<1.5), 0.5) }        // no good accent coming: fire anyway, softer
+        } else { p = (ct, 0.7) }
+        return nearEvent(p.at + lead) ? nil : p
+    }
+    private func sparkTick(_ playing: Bool, _ dt: Double, _ now: CFTimeInterval) {
+        guard playing, let cur = Player.shared.current else { return }
+        let ct = Player.shared.preciseTime
+        if spTrack != cur.key {                                                       // a "hello" a few seconds into each song
+            spTrack = cur.key; spWait = 2.5 + Double.random(in: 0..<2.5); spTarget = nil; spLastEv = -1; spLeadAt = 0
+        } else if abs(ct - spLastCt) > 1.2 { spTarget = nil }                         // seek: plan again
+        spLastCt = ct
+        if now - spLeadAt > 2 { spLeadAt = now; spLeadV = spDur(titleW) * 0.5 }      // brightest halfway through its pass
+        for e in events where e.go && e.t != spLastEv {                               // energy-change moments come first
+            let at = e.t - spLeadV
+            if ct >= at && ct < at + 0.3 {
+                spLastEv = e.t; sparkFire(min(1, 0.6 + 0.4 * min(1, (e.s - 4) / 8)), now)
+                spTarget = nil; spWait = sparkGap(ct); return
+            }
+        }
+        if now < spBusy { return }
+        if let t = spTarget {
+            if ct >= t.at { sparkFire(t.b, now); spTarget = nil; spWait = sparkGap(ct) }
+            return
+        }
+        spWait -= dt
+        if spWait <= 0 { spTarget = sparkPlan(ct, now); if spTarget == nil { spWait = 4 } }
+    }
+    private func sparkFire(_ b: Double, _ now: CFTimeInterval) {
+        guard titleW >= 12, !UIState.shared.expanded, XPMotion.shared.phase == .compact,
+              UIApplication.shared.applicationState == .active else { return }
+        let D = spDur(titleW)
+        sparkB = b; sparkD = D; sparkN += 1
+        spBusy = now + D + 0.25
+        DispatchQueue.main.asyncAfter(deadline: .now() + D * 0.38) { [weak self] in   // the light carries on round Play
+            guard let self else { return }
+            self.cometB = b; self.cometN += 1
+        }
+    }
+
     // MARK: the music's envelope
 
     private func analyze(_ t: Track) {
-        env = nil; envKey = t.key
-        if let c = envCache[t.key] { env = c; return }
+        env = nil; events = []; accents = nil; envKey = t.key
+        if let c = envCache[t.key] { env = c.0; events = c.1; return }
         guard t.size <= 80_000_000 else { return }
         let key = t.key, url = Library.shared.songsFolder.appendingPathComponent(t.path)
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_500_000_000)                  // never competes with the first notes
             guard self.envKey == key else { return }
-            let out = await Task.detached(priority: .utility) { () -> [Float]? in
+            let out = await Task.detached(priority: .utility) { () -> ([Float], [GlowMath.Event])? in
                 guard let mono = GlowMath.decodeMono(url, sr: 22050) else { return nil }
-                return GlowMath.envelope(mono, sr: 22050).env
+                let r = GlowMath.envelope(mono, sr: 22050)
+                return (r.env, r.events)
             }.value
             guard let out else { return }
             self.envCache[key] = out; self.envOrder.append(key)
             if self.envOrder.count > 24 { self.envCache[self.envOrder.removeFirst()] = nil }
-            if self.envKey == key { self.env = out }
+            if self.envKey == key { self.env = out.0; self.events = out.1; self.accents = nil }
         }
     }
 
