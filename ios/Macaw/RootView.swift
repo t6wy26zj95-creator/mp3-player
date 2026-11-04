@@ -109,7 +109,8 @@ enum Boot {
         mark("scan")
         Telegram.shared.start()
         if let i = CommandLine.arguments.firstIndex(of: "-macawScreen"), i + 1 < CommandLine.arguments.count {
-            await TestScreens.show(CommandLine.arguments[i + 1])
+            let name = CommandLine.arguments[i + 1]
+            Task { try? await Task.sleep(nanoseconds: 300_000_000); await TestScreens.show(name) }   // after the app has shown
         }
     }
 }
