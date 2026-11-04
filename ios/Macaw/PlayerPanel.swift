@@ -479,9 +479,13 @@ final class PillSim {
     var on = false
     var moving = false
     var speed: CGFloat = 0
-    private var vL: CGFloat = 0, vR: CGFloat = 0, tL: CGFloat = 0, tR: CGFloat = 0, dir: CGFloat = 0
-    private var landed = true
-    private var last: Date?
+    @ObservationIgnored private var vL: CGFloat = 0
+    @ObservationIgnored private var vR: CGFloat = 0
+    @ObservationIgnored private var tL: CGFloat = 0
+    @ObservationIgnored private var tR: CGFloat = 0
+    @ObservationIgnored private var dir: CGFloat = 0
+    @ObservationIgnored private var landed = true
+    @ObservationIgnored private var last: Date?
 
     var squash: CGFloat { 1 - min(0.22, max(0, (R - L) - (tR - tL)) / 150) }
 
