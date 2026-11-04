@@ -135,13 +135,17 @@ jobs:
 
       - name: Pick and start a simulator
         run: |
-          xcrun simctl list devices available
+          # the newest iOS (Liquid Glass needs iOS 26; an iOS 18 simulator only shows the frosted fallback), on an
+          # iPhone the size of Nick's 15 Pro (393 x 852 pt: the 16 Pro / 16 / 15 Pro)
+          xcrun simctl list runtimes available
+          rt=$(xcrun simctl list runtimes available -j | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runtimes'] if x['platform']=='iOS' and x.get('isAvailable')]; r.sort(key=lambda x:[int(p) for p in x['version'].split('.')]); print(r[-1]['identifier'])")
+          echo "Runtime: $rt"
           id=""
-          for n in "iPhone 16" "iPhone 17" "iPhone 16 Pro" "iPhone 17 Pro" "iPhone 15 Pro"; do
-            id=$(xcrun simctl list devices available | grep -E "^ +$n \(" | head -1 | grep -oE '[0-9A-F-]{36}')
-            [ -n "$id" ] && { echo "Using $n"; break; }
+          for t in iPhone-16-Pro iPhone-16 iPhone-15-Pro iPhone-17-Pro iPhone-17; do
+            id=$(xcrun simctl create "Macaw test" "com.apple.CoreSimulator.SimDeviceType.$t" "$rt" 2>/dev/null) && { echo "Using $t on $rt"; break; }
+            id=""
           done
-          [ -n "$id" ] || id=$(xcrun simctl list devices available | grep -E "iPhone" | head -1 | grep -oE '[0-9A-F-]{36}')
+          [ -n "$id" ] || id=$(xcrun simctl list devices available | grep -E "iPhone" | tail -1 | grep -oE '[0-9A-F-]{36}')
           echo "SIM=$id" >> $GITHUB_ENV
           xcrun simctl boot "$id"
           xcrun simctl bootstatus "$id" -b
