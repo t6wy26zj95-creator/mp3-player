@@ -18,22 +18,23 @@ final class Library {
         try? fm.createDirectory(at: artFolder, withIntermediateDirectories: true)
     }
 
-    /// Every song: n = path inside the folder, s = size in bytes, m = last modified (ms). Sent to the player as JSON.
-    func list() -> [[String: Any]] {
+    struct Entry { let path: String; let size: Int; let modified: Int64 }
+
+    /// Every song file in the folder (sub-folders too).
+    func scan() -> [Entry] {
         let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
         guard let walker = fm.enumerator(at: songsFolder, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
         let base = songsFolder.standardizedFileURL.resolvingSymlinksInPath().path
-        var out: [[String: Any]] = []
+        var out: [Entry] = []
         for case let url as URL in walker {
             guard Library.audioExtensions.contains(url.pathExtension.lowercased()),
                   let v = try? url.resourceValues(forKeys: Set(keys)), v.isRegularFile == true else { continue }
             let full = url.standardizedFileURL.resolvingSymlinksInPath().path
             guard full.hasPrefix(base + "/") else { continue }
-            let rel = String(full.dropFirst(base.count + 1))
             let ms = Int64((v.contentModificationDate ?? Date(timeIntervalSince1970: 0)).timeIntervalSince1970 * 1000)
-            out.append(["n": rel, "s": v.fileSize ?? 0, "m": ms])
+            out.append(Entry(path: String(full.dropFirst(base.count + 1)), size: v.fileSize ?? 0, modified: ms))
         }
-        return out.sorted { ($0["n"] as? String ?? "") < ($1["n"] as? String ?? "") }
+        return out.sorted { $0.path < $1.path }
     }
 
     /// The file for a path the player asked for, or nil if it isn't a song inside the folder.
@@ -105,6 +106,7 @@ final class Library {
     }
 
     /// Removes a song the app downloaded from the bot (only those: the Telegram folder).
+    /// (Songs you added yourself are only removed in the Files app.)
     func deleteDownloaded(_ rel: String) {
         guard rel.hasPrefix("Telegram/"), let file = songFile(rel) else { return }
         try? fm.removeItem(at: file)
@@ -118,4 +120,8 @@ final class Library {
     }
     func saveArt(_ data: Data, for rel: String) { try? data.write(to: artFile(rel), options: .atomic) }
     func art(for rel: String) -> Data? { try? Data(contentsOf: artFile(rel)) }
+    func artURL(for rel: String) -> URL { artFile(rel) }
+    func hasArt(_ rel: String) -> Bool { fm.fileExists(atPath: artFile(rel).path) }
+    /// Where the app keeps its own files (tags, settings, wallpaper), out of sight of the Files app.
+    var supportFolder: URL { artFolder.deletingLastPathComponent() }
 }

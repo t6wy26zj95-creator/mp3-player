@@ -2,13 +2,13 @@
 # - Every push to main: a new release, "iOS app build N", with MacawP3.ipa attached.
 #   Always-current download link: https://github.com/<owner>/<repo>/releases/latest/download/MacawP3.ipa
 # - A push to any other branch (a pull request being tested): the "iOS app preview" pre-release is replaced with that build.
+#   (The native app's branch uses its own "ios-native-preview" pre-release, so it never replaces another test build.)
 # The .ipa is unsigned on purpose: AltStore signs it with your own Apple ID when it installs it.
 name: iOS app
 
 on:
   push:
     paths:
-      - index.html
       - ios/**
       - .github/workflows/ios.yml
   workflow_dispatch:
@@ -27,14 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Put the player inside the app
+      # Real Liquid Glass needs Apple's iOS 26 tools (Xcode 26). Pick the newest Xcode 26 on the build machine.
+      - name: Pick Xcode
         run: |
-          mkdir -p ios/Macaw/www
-          cp index.html ios/Macaw/www/index.html
-          # the tag reader, kept in the app so songs added offline still get their names and covers
-          curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js \
-            || curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdn.jsdelivr.net/gh/aadsm/jsmediatags@v3.9.5/dist/jsmediatags.min.js
-          test -s ios/Macaw/www/jsmediatags.min.js
+          x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $x"; sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
 
       - name: Make the Xcode project
         run: |
@@ -79,7 +77,7 @@ jobs:
           now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
           ipa = f"https://github.com/{repo}/releases/download/ios-{run}/MacawP3.ipa"
           size = os.path.getsize("MacawP3.ipa")
-          version = {"version": f"1.0.{run}", "buildVersion": run, "date": now, "downloadURL": ipa, "size": size, "minOSVersion": "15.0",
+          version = {"version": f"1.0.{run}", "buildVersion": run, "date": now, "downloadURL": ipa, "size": size, "minOSVersion": "18.0",
                      "localizedDescription": f"Build {run}"}
           app = {"name": "MacawP3", "bundleIdentifier": "app.macaw.player", "developerName": "Nick", "subtitle": "Your music player",
                  "localizedDescription": "The MacawP3 music player. Songs stay in the app, play in the background and on the lock screen, and can come from your Telegram bot.",
@@ -109,7 +107,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete ios-preview --cleanup-tag --yes || true
-          gh release create ios-preview MacawP3.ipa --target "${{ github.sha }}" --prerelease \
+          tag=ios-preview; case "${{ github.ref_name }}" in claude/project-thread-rbe9f3) tag=ios-native-preview;; esac
+          gh release delete "$tag" --cleanup-tag --yes || true
+          gh release create "$tag" MacawP3.ipa --target "${{ github.sha }}" --prerelease \
             --title "iOS app preview (${{ github.ref_name }})" \
             --notes "Test build from the branch ${{ github.ref_name }}, not merged yet. Download MacawP3.ipa below and open it with AltStore."
