@@ -464,6 +464,13 @@ struct Footer: View {
     private var ui: UIState { .shared }
     @State private var frames: [DrawerTab: CGRect] = [:]
     @State private var pill = PillSim()
+    @State private var drag: TabDrag?
+    @State private var eatTap = false
+    private let order: [DrawerTab] = [.queue, .library, .artists]
+    private let pad: CGFloat = 10.8                                         // web: min(11, max(5, gap * .45))
+
+    /// Drag the open tab's pill sideways to switch tabs (web: like an iOS segmented control).
+    private struct TabDrag { var start: DrawerTab; var off: CGFloat; var on = false; var hot: DrawerTab }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -481,31 +488,74 @@ struct Footer: View {
             }
             .background(alignment: .leading) { PillView(sim: pill) }
             .coordinateSpace(name: "tabs")
+            .simultaneousGesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("tabs"))
+                .onChanged { v in dragMoved(v) }
+                .onEnded { _ in dragEnded() })
         }
         .padding(.horizontal, 10)
         .onChange(of: ui.tab, initial: true) { _, t in move(t) }
         .onChange(of: frames) { _, _ in move(ui.tab, jump: true) }
     }
 
-    private func move(_ t: DrawerTab?, jump: Bool = false) {
+    private func move(_ t: DrawerTab?, jump: Bool = false, quiet: Bool = false) {
         guard let t else { pill.hide(); return }
         guard let f = frames[t] else { return }
-        let pad: CGFloat = 10.8                                             // web: min(11, max(5, gap * .45))
-        pill.to(f.minX - pad, f.maxX + pad, jump: jump)
+        pill.to(f.minX - pad, f.maxX + pad, jump: jump, quiet: quiet)
+    }
+
+    private func centre(_ t: DrawerTab) -> CGFloat { frames[t]?.midX ?? 0 }
+    private func width(_ t: DrawerTab) -> CGFloat { (frames[t]?.width ?? 0) + pad * 2 }
+
+    private func dragMoved(_ v: DragGesture.Value) {
+        if drag == nil {
+            guard let cur = ui.tab, let f = frames[cur], f.insetBy(dx: -12, dy: -12).contains(v.startLocation) else { return }
+            drag = TabDrag(start: cur, off: v.startLocation.x - f.midX, hot: cur)
+        }
+        guard var d = drag else { return }
+        if !d.on {
+            if abs(v.translation.width) < 6 { return }
+            d.on = true; eatTap = true
+            withAnimation(Theme.easePop) { pill.held = true }
+        }
+        // the pill follows the finger, its width blending between the tabs it passes; past the ends it gives a little
+        let lo = centre(order[0]), hi = centre(order[order.count - 1])
+        var p = v.location.x - d.off
+        if p < lo { p = lo - min(14, (lo - p) * 0.25) } else if p > hi { p = hi + min(14, (p - hi) * 0.25) }
+        var i = 0
+        while i < order.count - 2 && p > centre(order[i + 1]) { i += 1 }
+        let a = order[i], b = order[i + 1]
+        let t = max(0, min(1, (p - centre(a)) / max(1, centre(b) - centre(a))))
+        let w = width(a) + (width(b) - width(a)) * t
+        pill.hold(p - w / 2, p + w / 2)
+        let near = order.min { abs(centre($0) - p) < abs(centre($1) - p) } ?? d.hot
+        if near != d.hot { d.hot = near; Haptics.select() }
+        drag = d
+    }
+
+    private func dragEnded() {
+        guard let d = drag else { return }
+        drag = nil
+        guard d.on else { return }
+        withAnimation(Theme.easePop) { pill.held = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { eatTap = false }   // the tap that ends a drag isn't a tap
+        if d.hot != d.start { ui.open(d.hot) }
+        move(d.hot, quiet: true)                                          // springs from where the finger left it
     }
 
     private func tab(_ t: DrawerTab, _ title: String) -> some View {
         let on = ui.tab == t
-        return Button { ui.open(t) } label: {
+        // while dragging: the open tab dims and the tab under the pill lights up (web: .dragging .active / .hot)
+        let lit = drag?.on == true ? drag?.hot == t : on
+        return Button { if !eatTap { ui.open(t) } } label: {
             Text(title)
                 .font(.system(size: 11, weight: .semibold)).tracking(0.5)
-                .foregroundStyle(on ? Color.white : Color.w(0.4))
-                .shadow(color: on ? Color.w(0.3) : .clear, radius: 5)
+                .foregroundStyle(lit ? Color.white : Color.w(0.4))
+                .shadow(color: lit ? Color.w(0.3) : .clear, radius: 5)
                 .lineLimit(1).fixedSize()
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("tabs")) } action: { frames[t] = $0 }
                 .frame(height: 34)
                 .contentShape(Rectangle().inset(by: -12))
-                .animation(Theme.easeN, value: on)
+                .animation(Theme.easeN, value: lit)
         }
         .buttonStyle(PopStyle(deep: 0.88))
     }
@@ -520,6 +570,7 @@ final class PillSim {
     var L: CGFloat = 0
     var R: CGFloat = 0
     var on = false
+    var held = false                                                       // lifted under the finger (scale 1.1)
     var moving = false
     var speed: CGFloat = 0
     @ObservationIgnored private var vL: CGFloat = 0
@@ -532,7 +583,7 @@ final class PillSim {
 
     var squash: CGFloat { 1 - min(0.22, max(0, (R - L) - (tR - tL)) / 150) }
 
-    @MainActor func to(_ a: CGFloat, _ z: CGFloat, jump: Bool) {
+    @MainActor func to(_ a: CGFloat, _ z: CGFloat, jump: Bool, quiet: Bool = false) {
         if !on || jump {
             L = a; R = z; tL = a; tR = z; vL = 0; vR = 0; moving = false
             if !on { withAnimation(Theme.easeN) { on = true } }
@@ -540,7 +591,11 @@ final class PillSim {
         }
         if a == tL && z == tR { return }
         dir = (a + z - tL - tR) > 0 ? 1 : -1
-        tL = a; tR = z; landed = false; last = nil; moving = true
+        tL = a; tR = z; landed = quiet; last = nil; moving = true
+    }
+    /// The finger places the pill directly.
+    @MainActor func hold(_ a: CGFloat, _ z: CGFloat) {
+        L = a; R = z; tL = a; tR = z; vL = 0; vR = 0; speed = 0; moving = false; last = nil
     }
     @MainActor func hide() { withAnimation(Theme.easeN) { on = false } }
 
@@ -573,8 +628,10 @@ struct PillView: View {
                 .onChange(of: tl.date) { _, d in sim.step(d) }
         }
         .opacity(sim.on ? 1 : 0)
-        .scaleEffect(sim.on ? 1 : 0.55)
-        .animation(.timingCurve(0.34, 1.56, 0.64, 1, duration: 0.4), value: sim.on)
+        .animation(Theme.easeN, value: sim.on)                               // web: opacity var(--t-n) var(--ease)
+        .scaleEffect(sim.on ? (sim.held ? 1.1 : 1) : 0.55)
+        .animation(Theme.easePop, value: sim.on)                             //      scale var(--t-s) var(--ease-pop)
+        .animation(Theme.easePop, value: sim.held)
         .allowsHitTesting(false)
     }
 }

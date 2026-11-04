@@ -9,6 +9,7 @@ enum Theme {
     static let panelMaxWidth: CGFloat = 580
     static let ease = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.4)         // --ease / --t-s
     static let easeN = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.25)       // --t-n
+    static let easePop = Animation.timingCurve(0.34, 1.56, 0.64, 1, duration: 0.4)   // --ease-pop over --t-s
     static let easeQ = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.15)       // --t-q
     static let scrim = Color(red: 6 / 255, green: 18 / 255, blue: 26 / 255)
 }

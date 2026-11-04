@@ -217,16 +217,31 @@ struct SheetBackground: View {
 struct MacawSwitch: View {
     @Binding var on: Bool
     var body: some View {
-        Button { Haptics.light(); withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { on.toggle() } } label: {
-            ZStack(alignment: on ? .trailing : .leading) {
-                Capsule().fill(on ? Theme.teal.opacity(0.55) : Color.w(0.12))
-                    .overlay(Capsule().strokeBorder(on ? Color(red: 160 / 255, green: 240 / 255, blue: 225 / 255).opacity(0.5) : Color.w(0.15), lineWidth: 1))
-                Circle().fill(LinearGradient(colors: [.white, Color(red: 0.89, green: 0.93, blue: 0.94)], startPoint: .top, endPoint: .bottom))
-                    .frame(width: 22, height: 22).shadow(color: .black.opacity(0.35), radius: 3, y: 2).padding(2)
-            }
-            .frame(width: 46, height: 26)
+        Button { Haptics.light(); on.toggle() } label: { EmptyView() }
+            .buttonStyle(SwitchLook(on: on))
+    }
+}
+
+/// web .switch: 46 × 28, 1 px rim; the knob (22 px, 2 px in from the inside of the rim) slides 18 px with the small
+/// overshoot (400 ms ease-pop) and stretches to 27 px while pressed (250 ms), sliding back 5 px when on.
+private struct SwitchLook: ButtonStyle {
+    var on: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        let p = configuration.isPressed
+        ZStack(alignment: .topLeading) {
+            Capsule().fill(on ? Theme.teal.opacity(0.55) : Color.w(0.1))
+                .overlay(Capsule().strokeBorder(on ? Color(red: 160 / 255, green: 240 / 255, blue: 225 / 255).opacity(0.5) : Color.w(0.2), lineWidth: 1))
+                .animation(Theme.easeN, value: on)
+            Capsule().fill(LinearGradient(colors: [.white, Color(red: 0xe3 / 255, green: 0xec / 255, blue: 0xf0 / 255)], startPoint: .top, endPoint: .bottom))
+                .frame(width: p ? 27 : 22, height: 22)
+                .animation(Theme.easeN, value: p)
+                .shadow(color: .black.opacity(0.35), radius: 3, y: 2)
+                .offset(x: 3 + (on ? (p ? 13 : 18) : 0), y: 3)
+                .animation(Theme.easePop, value: on)
+                .animation(Theme.easePop, value: p)
         }
-        .buttonStyle(.plain)
+        .frame(width: 46, height: 28)
+        .contentShape(Capsule())
     }
 }
 
@@ -240,8 +255,9 @@ struct EffectTick: View {
             .font(.system(size: 15, weight: .bold))
             .foregroundStyle(Color(red: 120 / 255, green: 222 / 255, blue: 202 / 255))
             .opacity(on ? (busy && dim ? 0.35 : 1) : 0)
-            .scaleEffect(on ? 1 : 0.6)
             .animation(Theme.easeN, value: on)
+            .scaleEffect(on ? 1 : 0.6)
+            .animation(.timingCurve(0.34, 1.56, 0.64, 1, duration: 0.25), value: on)     // web: transform var(--t-n) var(--ease-pop)
             .frame(width: 22, height: 22)
             .onChange(of: busy, initial: true) { _, b in
                 if b { withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { dim = true } }
