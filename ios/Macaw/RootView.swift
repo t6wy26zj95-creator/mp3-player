@@ -126,6 +126,19 @@ enum TestScreens {
             try? await Task.sleep(nanoseconds: 800_000_000)
             ui.lyricsScroll = ui.lyricsMax
         case "settings": ui.settingsOpen = true
+        case "motion":                      // a fixed walk through the main motions, for the build's screen recording
+            func wait(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * 1_000_000_000)) }
+            await wait(2); player.next()
+            await wait(2); player.previous(); player.previous()
+            await wait(2); ui.open(.library)
+            await wait(2); if let a = model.albums.first { ui.push(.album(a.name)) }
+            await wait(2); ui.back()
+            await wait(2); ui.open(.queue)
+            await wait(2); ui.open(.artists)
+            await wait(2); ui.open(.artists)
+            await wait(2); withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { ui.expanded = true; ui.tab = nil }
+            await wait(2.5); player.next()
+            await wait(2); withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { ui.expanded = false }
         default: break
         }
     }
