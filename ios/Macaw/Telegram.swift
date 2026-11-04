@@ -149,6 +149,12 @@ final class Telegram {
         return t.isEmpty ? "Song" : t
     }
 
+    private static func idOf(_ x: [String: Any]) -> String? {
+        if let s = x["id"] as? String { return s }
+        if let n = x["id"] as? Int { return String(n) }
+        return nil
+    }
+
     func sync() async {
         guard !key.isEmpty, !busy, AppModel.shared.loaded else { return }
         busy = true; defer { busy = false }
@@ -185,7 +191,7 @@ final class Telegram {
         var gone = dedupe(files), found = 0
         var seen = Set<String>()
         for x in list {
-            guard let id = (x["id"] as? String) ?? (x["id"] as? Int).map { String($0) } else { continue }
+            guard let id = Telegram.idOf(x) else { continue }
             seen.insert(id)
             if waiting.contains(id) { continue }
             let title = x["title"] as? String ?? "", artist = x["artist"] as? String ?? "", size = x["size"] as? Int ?? 0
@@ -211,7 +217,7 @@ final class Telegram {
         }
         var al: [String: String] = [:], du: [String: Double] = [:]
         for x in list {
-            guard let id = (x["id"] as? String) ?? (x["id"] as? Int).map { String($0) } else { continue }
+            guard let id = Telegram.idOf(x) else { continue }
             if let a = x["album"] as? String, !a.isEmpty { al[id] = a }
             if let d = x["duration"] as? Double, d > 0 { du[id] = d } else if let d = x["duration"] as? Int, d > 0 { du[id] = Double(d) }
         }
