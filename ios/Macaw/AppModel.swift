@@ -162,6 +162,10 @@ final class AppModel {
         }.map(\.element)
     }
 
+    /// Letters and digits only, lower case (web: sn), for matching names that are written differently.
+    nonisolated static func sn(_ s: String) -> String {
+        String(s.lowercased().unicodeScalars.filter { ($0 >= "a" && $0 <= "z") || ($0 >= "0" && $0 <= "9") }.map(Character.init))
+    }
     static func sortName(_ s: String) -> String {
         let l = s.lowercased()
         return l.hasPrefix("the ") ? String(l.dropFirst(4)) : l
