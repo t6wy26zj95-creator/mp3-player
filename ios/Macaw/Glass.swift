@@ -17,13 +17,13 @@ extension Color {
     static func w(_ a: Double) -> Color { Color.white.opacity(a) }
 }
 
-/// Which of Apple's glasses the panel uses. Clear by default; the build's screenshots also take the others
-/// (launch argument -macawGlass regular | dim | clear) to compare them.
+/// Which of Apple's glasses the panel uses: clear, or clear with a light shade behind it (Settings > Dim glass).
+/// The build's screenshots can force one with the launch argument -macawGlass regular | dim | clear.
 enum GlassStyle {
-    static let current: String = {
+    static let forced: String? = {
         let a = CommandLine.arguments
         if let i = a.firstIndex(of: "-macawGlass"), i + 1 < a.count { return a[i + 1] }
-        return "clear"
+        return nil
     }()
 }
 
@@ -37,10 +37,13 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
     func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *), !classic {
-            switch GlassStyle.current {
-            case "regular": content.glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
-            case "dim": content.background(shape.fill(Color.black.opacity(0.16))).glassEffect(clear(), in: shape)
-            default: content.glassEffect(clear(), in: shape)
+            if GlassStyle.forced == "regular" {
+                content.glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
+            } else {
+                let dim = GlassStyle.forced.map { $0 == "dim" } ?? UIState.shared.dimGlass
+                content
+                    .background(shape.fill(Color.black.opacity(dim ? 0.16 : 0)).animation(Theme.ease, value: dim))
+                    .glassEffect(clear(), in: shape)
             }
         } else {
             frosted(content)

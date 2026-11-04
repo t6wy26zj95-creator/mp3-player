@@ -118,6 +118,13 @@ struct SettingsView: View {
                             label("Classic panel", "Plain frosted glass instead of Liquid Glass")
                             MacawSwitch(on: Binding(get: { ui.classic }, set: { ui.setClassic($0) }))
                         }
+                        if !ui.classic {
+                            divider
+                            row {
+                                label("Dim glass", "A light shade behind the glass, so text stays easy to read on bright wallpapers")
+                                MacawSwitch(on: Binding(get: { ui.dimGlass }, set: { ui.setDimGlass($0) }))
+                            }
+                        }
                         divider
                         row {
                             label("Minimal light", "No coloured light behind the player, only the cover's own glow")
