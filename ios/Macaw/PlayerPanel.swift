@@ -392,6 +392,8 @@ struct CometState { var angle: Double = -70; var opacity: Double = 0 }
 struct Scrubber: View {
     var height: CGFloat
     var thumb: CGFloat = 14
+    /// The big player's motion (0…1): while it moves, the line bends like a carried string (web: bow).
+    var bow: Double = 0
     private var player: Player { .shared }
     @State private var dragging = false
 
@@ -399,14 +401,34 @@ struct Scrubber: View {
         GeometryReader { g in
             let d = max(player.duration, 0.001)
             let p = min(1, max(0, (player.scrubbing ?? player.time) / d))
+            // the string: it sags in the middle and a soft ripple runs along it, strongest halfway, gone at either end
+            let sn = sin(Double.pi * bow), env = bow > 0 && bow < 1 ? sn * sn : 0
+            let A = -9 * env, Wr = 3 * env, ph = bow * 2.2
+            let dy: (Double) -> CGFloat = { t in 4 * t * (1 - t) * (A + Wr * sin(2 * .pi * (1.3 * t - ph))) }
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.w(0.15)).frame(height: height)
-                Capsule().fill(Color.w(0.85)).frame(width: max(0, g.size.width * p), height: height)
+                if env > 0.0001 {
+                    let w = g.size.width, mid = g.size.height / 2, r = height / 2
+                    let line: (Double, Double) -> Path = { a, b in
+                        Path { pth in
+                            let n = max(1, Int((28 * (b - a)).rounded()))
+                            for i in 0...n {
+                                let t = a + (b - a) * Double(i) / Double(n)
+                                let pt = CGPoint(x: min(w - r, max(r, w * t)), y: mid + dy(t))
+                                if i == 0 { pth.move(to: pt) } else { pth.addLine(to: pt) }
+                            }
+                        }
+                    }
+                    line(0, 1).stroke(Color.w(0.15), style: StrokeStyle(lineWidth: height, lineCap: .round))
+                    if p > 0.002 { line(0, p).stroke(Color.w(0.85), style: StrokeStyle(lineWidth: height, lineCap: .round)) }
+                } else {
+                    Capsule().fill(Color.w(0.15)).frame(height: height)
+                    Capsule().fill(Color.w(0.85)).frame(width: max(0, g.size.width * p), height: height)
+                }
                 Circle().fill(.white)
                     .frame(width: thumb, height: thumb)
                     .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
                     .scaleEffect(dragging ? 1.25 : 1)
-                    .offset(x: g.size.width * p - thumb / 2)
+                    .offset(x: g.size.width * p - thumb / 2, y: dy(p))
             }
             .frame(height: g.size.height)
             .contentShape(Rectangle())

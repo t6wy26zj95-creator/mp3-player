@@ -67,7 +67,7 @@ struct BigPlayer: View {
             .padding(.top, 22)
 
             VStack(spacing: 5) {
-                Scrubber(height: 4).xp("b.bar")
+                Scrubber(height: 4, bow: poses.moving ? poses.p : 0).xp("b.bar")
                 HStack {
                     Text(formatTime(player.scrubbing ?? player.time)).xp("b.cur")
                     Spacer()
