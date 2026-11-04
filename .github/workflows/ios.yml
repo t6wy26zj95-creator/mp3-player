@@ -192,6 +192,7 @@ jobs:
           shot home 25
           shot queue
           shot library
+          shot flow
           shot artists
           shot big
           shot lyrics 18

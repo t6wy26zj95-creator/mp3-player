@@ -119,6 +119,7 @@ enum Boot {
         UIState.shared.classic = Store.shared["oldPanel"] == "1"
         UIState.shared.minimalLight = Store.shared["lightMin"] == "1"
         UIState.shared.dimGlass = Store.shared["glassDim"] == "1"
+        UIState.shared.coverFlow = Store.shared["libView"] == "flow"
         UIState.shared.blur = Double(Store.shared["wallpaperBlur"] ?? "") ?? 0
         // the build's screenshots: a detailed test wallpaper, where the glass's bending shows (launch argument -macawWall)
         if CommandLine.arguments.contains("-macawWall"),
@@ -147,6 +148,7 @@ enum TestScreens {
         switch name {
         case "queue": ui.open(.queue)
         case "library": ui.open(.library)
+        case "flow": ui.coverFlow = true; ui.open(.library)
         case "artists": ui.open(.artists)
         case "big": XPMotion.shared.open()
         case "lyrics":

@@ -268,7 +268,7 @@ struct LibraryDrawer: View {
     var body: some View {
         Group {
             switch ui.libraryPath.last {
-            case nil: TileGrid()
+            case nil: if ui.coverFlow { CoverFlow() } else { TileGrid() }
             case .album(let name): AlbumPage(name: name, back: "Back to Library")
             case .playlist(let id): PlaylistPage(id: id)
             case .allTracks: AllTracksPage()

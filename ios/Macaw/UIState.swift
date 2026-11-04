@@ -20,6 +20,7 @@ final class UIState {
     var coverPickFor: String?           // tile key whose cover you're choosing
     var classic = false                 // set from the saved settings at start (Boot)
     var minimalLight = false
+    var coverFlow = false               // Settings > Cover Flow: albums in one row instead of the grid
     var dimGlass = false                // Settings > Dim glass: a light shade behind the clear glass
     var blur: Double = 0
     var wallpaper: UIImage?
@@ -71,6 +72,7 @@ final class UIState {
     }
 
     func setClassic(_ on: Bool) { classic = on; Store.shared["oldPanel"] = on ? "1" : "" }
+    func setCoverFlow(_ on: Bool) { coverFlow = on; Store.shared["libView"] = on ? "flow" : "grid" }
     func setDimGlass(_ on: Bool) { dimGlass = on; Store.shared["glassDim"] = on ? "1" : "" }
     func setMinimalLight(_ on: Bool) { minimalLight = on; Store.shared["lightMin"] = on ? "1" : "" }
     func setBlur(_ v: Double) { blur = v; Store.shared["wallpaperBlur"] = String(Int(v)) }
