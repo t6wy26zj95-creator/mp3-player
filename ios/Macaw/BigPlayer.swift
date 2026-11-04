@@ -5,6 +5,9 @@ import SwiftUI
 struct BigPlayer: View {
     var close: () -> Void
     @Environment(\.xpPoses) private var poses
+    @State private var meta: Double = 1                   // the song-change motion of the title block (rest = 1)
+    @State private var bump: Double = 1                   // ... and of the cover
+    @State private var metaDir = 1
     private var ui: UIState { .shared }
     private var player: Player { .shared }
 
@@ -29,7 +32,12 @@ struct BigPlayer: View {
                                             removal: .opacity.combined(with: .scale(scale: 0.9, anchor: .bottom))))
             }
         }
-        .onChange(of: player.currentKey, initial: true) { _, _ in Lyrics.shared.song() }
+        .onChange(of: player.currentKey, initial: true) { old, _ in
+            Lyrics.shared.song()
+            guard old != nil, XPMotion.shared.phase == .big, player.isPlaying else { return }
+            metaDir = player.songDirection
+            replay($meta, duration: 0.4); replay($bump, duration: 0.4)
+        }
         .onChange(of: ui.lyricsScroll > 0.5) { _, on in if on { Lyrics.shared.retryIfFailed() } }
         .onDisappear { ui.lyricsScroll = 0; ui.lyricsOpen = false }
     }
@@ -54,19 +62,25 @@ struct BigPlayer: View {
             .xp("b.handle")
             .padding(.top, 6)
 
-            CoverArt(track: player.current, size: 191, radius: poses.artRadius ?? 18, glow: !ui.minimalLight)
+            CoverArt(track: player.current, size: 191, radius: poses.artRadius ?? 18, glow: !ui.minimalLight, bump: bump)
                 .xp("b.art")
                 .padding(.top, 10)
                 .onTapGesture(perform: close)
 
+            // web .xp-meta: on a song change it comes in 26 pt from the side you skipped to (8 pt from below when picked)
+            // while the cover springs; nothing slides out
             VStack(spacing: 5) {
-                SlidingTitle(text: player.current?.title ?? "", size: 20, direction: player.songDirection, center: true, tag: "b.title")
+                BigTitle(text: player.current?.title ?? "", tag: "b.title")
                 subtitle
             }
+            .modifier(KFEffect(p: meta, dx: KF(stops: [(0, Double(metaDir) * 26), (1, 0)], whole: .ease),
+                               dy: KF(stops: [(0, metaDir == 0 ? 8 : 0), (1, 0)], whole: .ease),
+                               opacity: KF(stops: [(0, 0), (1, 1)], whole: .ease)))
             .padding(.horizontal, 22)
             .padding(.top, 22)
 
-            VStack(spacing: 5) {
+            // measured against the web screenshot at the same scale: bar 24 pt under the artist line, times 9 pt under the bar
+            VStack(spacing: 2) {
                 Scrubber(height: 4, bow: poses.moving ? poses.p : 0).xp("b.bar")
                 HStack {
                     Text(formatTime(player.scrubbing ?? player.time)).xp("b.cur")
@@ -76,10 +90,10 @@ struct BigPlayer: View {
                 .font(.system(size: 11).monospacedDigit()).foregroundStyle(Color.w(0.6))
             }
             .padding(.horizontal, 22)
-            .padding(.top, 22)
+            .padding(.top, 18.5)
 
             HStack(spacing: 0) {
-                ToggleButton(system: "shuffle", on: player.shuffle) { player.toggleShuffle() }.xp("b.shuf")
+                ToggleButton(d: SVGIcon.shuffle, on: player.shuffle) { player.toggleShuffle() }.xp("b.shuf")
                 Spacer(minLength: 0)
                 TransportButton(kind: .prev, size: 46).xp("b.prev")
                 Spacer(minLength: 0)
@@ -87,16 +101,16 @@ struct BigPlayer: View {
                 Spacer(minLength: 0)
                 TransportButton(kind: .next, size: 46).xp("b.next")
                 Spacer(minLength: 0)
-                ToggleButton(system: player.repeatMode == .one ? "repeat.1" : "repeat", on: player.repeatMode != .off) { player.cycleRepeat() }.xp("b.rep")
+                ToggleButton(d: player.repeatMode == .one ? SVGIcon.repeatOne : SVGIcon.repeatAll, on: player.repeatMode != .off) { player.cycleRepeat() }.xp("b.rep")
             }
             .padding(.horizontal, 26)
             .frame(height: 60)
-            .padding(.top, 12)
+            .padding(.top, 12.5)
 
             UpNextStrip()
                 .xp("b.strip")
-                .padding(.top, 34)
-                .padding(.bottom, 12)
+                .padding(.top, 40)
+                .padding(.bottom, 18)
                 .transition(.opacity)
         }
         .frame(maxWidth: .infinity)
@@ -139,17 +153,24 @@ struct BigPlayer: View {
 
 /// Shuffle / Repeat: no ring, lit (with a dot under it) when on.
 struct ToggleButton: View {
-    var system: String
+    var d: String
     var on: Bool
     var action: () -> Void
+    // web .xp-tog: a 20 px icon in a 40 px button, rgba(255,255,255,.55) → rgb(120,222,202) when on, with a 4 px dot
+    // 3 px above the bottom fading in (250 ms)
+    private static let lit = Color(red: 120 / 255, green: 222 / 255, blue: 202 / 255)
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 3) {
-                Image(systemName: system).font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(on ? Theme.teal.opacity(0.95) : Color.w(0.55))
-                    .contentTransition(.symbolEffect(.replace))
-                Circle().fill(on ? Theme.teal : .clear).frame(width: 4, height: 4)
-            }
+            SVGIcon(d: d).fill(on ? Self.lit : Color.w(0.55))
+                .frame(width: 20, height: 20)
+                .animation(Theme.easeN, value: on)
+                .frame(width: 40, height: 40)
+                .overlay(alignment: .bottom) {
+                    Circle().fill(on ? Self.lit : Color.w(0.55)).frame(width: 4, height: 4)
+                        .padding(.bottom, 3)
+                        .opacity(on ? 1 : 0)
+                        .animation(Theme.easeN, value: on)
+                }
         }
         .buttonStyle(RoundButtonStyle(size: 40, filled: false))
     }
@@ -248,5 +269,31 @@ struct UpNextStrip: View {
                 Button("Remove from up next", systemImage: "minus.circle", role: .destructive) { player.removeUpcoming(c.track.key) }
             }
         }
+    }
+}
+
+/// The big title (web .xp-title): 20 pt, up to 2 lines, balanced; a name that needs a 3rd line drops to 17 pt (fitTitle).
+struct BigTitle: View {
+    var text: String
+    var tag: String
+    @State private var w: CGFloat = 300
+    private func lines(_ size: CGFloat) -> Int {
+        let f = UIFont.systemFont(ofSize: size, weight: .semibold)
+        let r = (text as NSString).boundingRect(with: CGSize(width: max(1, w), height: .greatestFiniteMagnitude),
+                                                 options: [.usesLineFragmentOrigin], attributes: [.font: f], context: nil)
+        return Int((r.height / f.lineHeight).rounded())
+    }
+    var body: some View {
+        let size: CGFloat = lines(20) > 2 ? 17 : 20
+        Text(text)
+            .font(.system(size: size, weight: .semibold))
+            .lineSpacing(size * 1.25 - UIFont.systemFont(ofSize: size, weight: .semibold).lineHeight)
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+            .lineLimit(3)
+            .shadow(color: .black.opacity(0.45), radius: 3, y: 2)           // web: text-shadow 0 2px 6px rgba(0,0,0,.45)
+            .xp(tag)                                                         // the morph measures the text itself
+            .frame(maxWidth: .infinity)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w = $0 }
     }
 }

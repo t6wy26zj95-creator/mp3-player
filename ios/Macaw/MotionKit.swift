@@ -120,3 +120,73 @@ struct CSSBrightness<S: Shape>: ViewModifier {
             .overlay { if x < 0.999 { shape.fill(Color.black.opacity(1 - x)).allowsHitTesting(false) } }
     }
 }
+
+/// The web player's own icons (SVG path data on a 24 × 24 box), drawn exactly. Reads M L H V C Z, absolute and relative.
+struct SVGIcon: Shape {
+    var d: String
+
+    func path(in r: CGRect) -> Path {
+        let k = min(r.width, r.height) / 24
+        let ox = r.midX - 12 * k, oy = r.midY - 12 * k
+        var p = Path()
+        var cur = CGPoint.zero, start = CGPoint.zero
+        func pt(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: ox + x * k, y: oy + y * k) }
+        var nums: [Double] = []
+        var cmd: Character = "M"
+        func flush() {
+            var i = 0
+            func take(_ n: Int) -> [Double]? { guard i + n <= nums.count else { return nil }; defer { i += n }; return Array(nums[i..<i + n]) }
+            let rel = cmd.isLowercase
+            var c = Character(cmd.uppercased())
+            repeat {
+                switch c {
+                case "M":
+                    guard let a = take(2) else { return }
+                    cur = rel ? CGPoint(x: cur.x + a[0], y: cur.y + a[1]) : CGPoint(x: a[0], y: a[1])
+                    start = cur; p.move(to: pt(cur.x, cur.y)); c = "L"                     // more pairs after M are lines
+                case "L":
+                    guard let a = take(2) else { return }
+                    cur = rel ? CGPoint(x: cur.x + a[0], y: cur.y + a[1]) : CGPoint(x: a[0], y: a[1])
+                    p.addLine(to: pt(cur.x, cur.y))
+                case "H":
+                    guard let a = take(1) else { return }
+                    cur.x = rel ? cur.x + a[0] : a[0]; p.addLine(to: pt(cur.x, cur.y))
+                case "V":
+                    guard let a = take(1) else { return }
+                    cur.y = rel ? cur.y + a[0] : a[0]; p.addLine(to: pt(cur.x, cur.y))
+                case "C":
+                    guard let a = take(6) else { return }
+                    let b = rel ? cur : .zero
+                    let c1 = CGPoint(x: b.x + a[0], y: b.y + a[1]), c2 = CGPoint(x: b.x + a[2], y: b.y + a[3]), e = CGPoint(x: b.x + a[4], y: b.y + a[5])
+                    p.addCurve(to: pt(e.x, e.y), control1: pt(c1.x, c1.y), control2: pt(c2.x, c2.y)); cur = e
+                case "Z":
+                    p.closeSubpath(); cur = start; return
+                default: return
+                }
+            } while i < nums.count
+        }
+        var numStr = ""
+        func endNum() { if let v = Double(numStr) { nums.append(v) }; numStr = "" }
+        for ch in d {
+            if ch.isLetter {
+                endNum(); flush(); nums = []; cmd = ch
+                if ch == "Z" || ch == "z" { flush(); cmd = " " }
+            } else if ch == "-" {
+                if !numStr.isEmpty && numStr.last != "e" { endNum() }
+                numStr.append(ch)
+            } else if ch == "." && numStr.contains(".") {
+                endNum(); numStr = "."
+            } else if ch == "," || ch == " " {
+                endNum()
+            } else { numStr.append(ch) }
+        }
+        endNum(); flush()
+        return p
+    }
+
+    static let prev = "M6 6h2v12H6zm3.5 6l8.5 6V6z"
+    static let next = "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"
+    static let shuffle = "M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"
+    static let repeatAll = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"
+    static let repeatOne = repeatAll + "m-4-2V9h-1l-2 1v1h1.5v4H13z"
+}

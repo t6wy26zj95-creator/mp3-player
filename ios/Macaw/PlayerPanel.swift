@@ -308,9 +308,9 @@ struct SkipButton: View {
             Haptics.light(); replay($nudge, duration: 0.4)
             if next { player.next() } else { player.previous() }
         } label: {
-            Image(systemName: next ? "forward.end.fill" : "backward.end.fill")
-                .font(.system(size: size * 0.3, weight: .bold))
-                .foregroundStyle(.white)
+            // the web's own icon: 14 px in the small player, 20 px in the big one
+            SVGIcon(d: next ? SVGIcon.next : SVGIcon.prev).fill(.white)
+                .frame(width: size >= 44 ? 20 : 14, height: size >= 44 ? 20 : 14)
                 // web nudge: 0 → 4 px the way it points (30 %) → 1 px back (65 %) → 0, 400 ms ease
                 .modifier(KFEffect(p: nudge, dx: KF(stops: [(0, 0), (0.3, d * 4), (0.65, -d), (1, 0)], whole: .ease)))
         }
@@ -335,6 +335,7 @@ struct PlayButton: View {
     @State private var fired = false
     @State private var holdTask: Task<Void, Never>?
     private var player: Player { .shared }
+    private var icon: CGFloat { size >= 56 ? 26 : size == 34 ? 14 : size * 0.41 }   // web: 14 px small, 26 px big
 
     var body: some View {
         Button {
@@ -343,7 +344,7 @@ struct PlayButton: View {
         } label: {
             PlayPauseShape(t: t)
                 .fill(.white)
-                .frame(width: size * 0.41, height: size * 0.41)
+                .frame(width: icon, height: icon)
                 // web: rotate(±14deg) scale(.72) → none, 400 ms cubic-bezier(.22,1.35,.36,1)
                 .modifier(KFEffect(p: turn, scale: KF(stops: [(0, 0.72), (1, 1)], whole: Bezier(0.22, 1.35, 0.36, 1)),
                                    angle: KF(stops: [(0, turnFrom), (1, 0)], whole: Bezier(0.22, 1.35, 0.36, 1))))
@@ -707,6 +708,8 @@ struct CoverArt: View {
     /// and settles (400 ms ease).
     var motion = false
     var direction = 1
+    /// The big player's song change (web XP.onSong): 0 → 1 springs the cover from 93 %, darker, past full size, brighter.
+    var bump: Double = 1
     @State private var shown: Track?
     @State private var dip: Double = 0                  // 0…1: the dip before the new artwork
     @State private var arrive: Double = 1               // the new artwork coming in (rest = 1)
@@ -730,7 +733,7 @@ struct CoverArt: View {
             .overlay(shape.stroke(.black.opacity(0.45), lineWidth: 0.5))
             .shadow(color: .black.opacity(0.18), radius: 2.5 * size / 66, y: 2 * size / 66)
             .shadow(color: .black.opacity(0.32), radius: 9 * size / 66, y: 7 * size / 66)
-            .modifier(CoverMotion(arrive: arrive, dip: dip, d: Double(direction) * 22, fromDx: fromDx, fromScale: fromScale, shape: shape))
+            .modifier(CoverMotion(arrive: arrive, dip: dip, bump: bump, d: Double(direction) * 22, fromDx: fromDx, fromScale: fromScale, shape: shape))
         }
         .frame(width: size, height: size)
         .onAppear { shown = track }
@@ -768,18 +771,22 @@ struct CoverArt: View {
 struct CoverMotion<S: Shape>: ViewModifier, Animatable {
     var arrive: Double
     var dip: Double
+    var bump: Double
     var d: Double
     var fromDx: Double
     var fromScale: Double
     var shape: S
-    var animatableData: AnimatablePair<Double, Double> {
-        get { AnimatablePair(arrive, dip) }
-        set { arrive = newValue.first; dip = newValue.second }
+    var animatableData: AnimatablePair<Double, AnimatablePair<Double, Double>> {
+        get { AnimatablePair(arrive, AnimatablePair(dip, bump)) }
+        set { arrive = newValue.first; dip = newValue.second.first; bump = newValue.second.second }
     }
     func body(content: Content) -> some View {
         let x = KF(stops: [(0, fromDx), (0.5, 0), (1, 0)], whole: .ease).at(arrive)
-        let s = KF(stops: [(0, fromScale), (0.5, 1.035), (1, 1)], whole: .ease).at(arrive)
-        let b = KF(stops: [(0, 1.35), (0.5, 1.08), (1, 1)], whole: .ease).at(arrive)
+        let s0 = KF(stops: [(0, fromScale), (0.5, 1.035), (1, 1)], whole: .ease).at(arrive)
+        let b0 = KF(stops: [(0, 1.35), (0.5, 1.08), (1, 1)], whole: .ease).at(arrive)
+        // big player: scale(.93) brightness(.8) → scale(1.015) brightness(1.08) at 55 % → rest, 400 ms ease
+        let s = s0 * KF(stops: [(0, 0.93), (0.55, 1.015), (1, 1)], whole: .ease).at(bump)
+        let b = b0 * KF(stops: [(0, 0.8), (0.55, 1.08), (1, 1)], whole: .ease).at(bump)
         let dx = x + (-d * 0.5 - x) * dip, sc = s + (0.88 - s) * dip, br = b + (0.72 - b) * dip
         content
             .modifier(CSSBrightness(x: br, shape: shape))
