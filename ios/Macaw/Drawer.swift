@@ -110,7 +110,7 @@ struct SongRow: View {
 
     private func openMenu() {
         Haptics.medium()
-        UIState.shared.menu = .init(kind: .song(track, inPlaylist: inPlaylist), anchor: frame)
+        UIState.shared.menu = UIState.MenuState(kind: .song(track, inPlaylist: inPlaylist), anchor: frame)
     }
 }
 
@@ -305,7 +305,7 @@ struct TileView: View {
             }
         }
         .onLongPressGesture(minimumDuration: 0.45) {
-            Haptics.medium(); ui.menu = .init(kind: .tile(tile), anchor: frame)
+            Haptics.medium(); ui.menu = UIState.MenuState(kind: .tile(tile), anchor: frame)
         } onPressingChanged: { pressed = $0 }
     }
 

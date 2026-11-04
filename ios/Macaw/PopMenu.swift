@@ -98,7 +98,7 @@ struct PopMenu: View {
             }
         }
         item("New playlist", "plus", dimmed: true) {
-            ui.prompt = .init(title: "New playlist", text: "My playlist \(model.playlists.count + 1)", button: "Create") { name in
+            ui.prompt = UIState.Prompt(title: "New playlist", text: "My playlist \(model.playlists.count + 1)", button: "Create") { name in
                 let p = model.newPlaylist(name, keys: [t.key])
                 model.toast("Added to “\(p.name)”")
             }
@@ -121,7 +121,7 @@ struct PopMenu: View {
             item("Choose cover", "photo") { ui.coverPickFor = tile.key }
             if model.tileCovers[AppModel.allKey] != nil { item("Use the standard cover", "arrow.uturn.backward") { model.setTileCover(tile.key, jpeg: nil) } }
             item("Rename", "pencil") {
-                ui.prompt = .init(title: "Rename", text: model.allName, button: "Rename") { model.renameAll($0) }
+                ui.prompt = UIState.Prompt(title: "Rename", text: model.allName, button: "Rename") { model.renameAll($0) }
             }
         case .playlist(let p):
             item("Play", "play") { player.playAll(model.tracks(of: p), name: p.name) }
@@ -129,7 +129,7 @@ struct PopMenu: View {
             item("Choose cover", "photo") { ui.coverPickFor = tile.key }
             if model.tileCovers["pl:" + p.id] != nil { item("Use the standard cover", "arrow.uturn.backward") { model.setTileCover(tile.key, jpeg: nil) } }
             item("Rename", "pencil") {
-                ui.prompt = .init(title: "Rename playlist", text: p.name, button: "Rename") { model.renamePlaylist(p.id, $0) }
+                ui.prompt = UIState.Prompt(title: "Rename playlist", text: p.name, button: "Rename") { model.renamePlaylist(p.id, $0) }
             }
             sep
             item("Delete playlist", "trash", danger: true) { model.deletePlaylist(p.id) }
