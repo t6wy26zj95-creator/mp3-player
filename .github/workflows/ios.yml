@@ -184,6 +184,21 @@ jobs:
           xcrun simctl launch "$SIM" app.macaw.player -macawScreen motion
           sleep 80
           kill -INT $rec; wait $rec || true
+          # the panel's glass, side by side on a detailed wallpaper (the bending only shows on a picture with detail)
+          cp .github/test-wall.jpg "$data/Documents/test-wall.jpg"
+          shotx() {
+            xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+            f=$1; shift
+            xcrun simctl launch "$SIM" app.macaw.player "$@"
+            sleep 14
+            xcrun simctl io "$SIM" screenshot "screens/$f.png"
+          }
+          shotx glass-clear-home -macawScreen home -macawWall 1 -macawGlass clear
+          shotx glass-dim-home -macawScreen home -macawWall 1 -macawGlass dim
+          shotx glass-regular-home -macawScreen home -macawWall 1 -macawGlass regular
+          shotx glass-clear-big -macawScreen big -macawWall 1 -macawGlass clear
+          shotx glass-regular-big -macawScreen big -macawWall 1 -macawGlass regular
+          rm -f "$data/Documents/test-wall.jpg"
           xcrun simctl spawn "$SIM" log show --last 10m --style compact --predicate 'eventMessage CONTAINS "MacawBoot"' > screens/boot-log.txt || true
           cat screens/boot-log.txt
           ls -l screens

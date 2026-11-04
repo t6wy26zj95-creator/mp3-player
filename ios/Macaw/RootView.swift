@@ -119,6 +119,9 @@ enum Boot {
         UIState.shared.classic = Store.shared["oldPanel"] == "1"
         UIState.shared.minimalLight = Store.shared["lightMin"] == "1"
         UIState.shared.blur = Double(Store.shared["wallpaperBlur"] ?? "") ?? 0
+        // the build's screenshots: a detailed test wallpaper, where the glass's bending shows (launch argument -macawWall)
+        if CommandLine.arguments.contains("-macawWall"),
+           let d = try? Data(contentsOf: Library.shared.songsFolder.appendingPathComponent("test-wall.jpg")) { Wallpaper.saveCustom(d) }
         UIState.shared.reloadWallpaper()
         _ = Player.shared
         Glow.shared.start()

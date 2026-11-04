@@ -17,6 +17,16 @@ extension Color {
     static func w(_ a: Double) -> Color { Color.white.opacity(a) }
 }
 
+/// Which of Apple's glasses the panel uses. Clear by default; the build's screenshots also take the others
+/// (launch argument -macawGlass regular | dim | clear) to compare them.
+enum GlassStyle {
+    static let current: String = {
+        let a = CommandLine.arguments
+        if let i = a.firstIndex(of: "-macawGlass"), i + 1 < a.count { return a[i + 1] }
+        return "clear"
+    }()
+}
+
 /// The panel's glass. On iOS 26 and later it is Apple's real Liquid Glass (it bends and lights what's behind it);
 /// before that, or with Classic panel on, the frosted glass the web player used.
 struct PanelGlass<S: InsettableShape>: ViewModifier {
@@ -27,7 +37,11 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
     func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *), !classic {
-            content.glassEffect(glass(), in: shape)
+            switch GlassStyle.current {
+            case "regular": content.glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
+            case "dim": content.background(shape.fill(Color.black.opacity(0.16))).glassEffect(clear(), in: shape)
+            default: content.glassEffect(clear(), in: shape)
+            }
         } else {
             frosted(content)
         }
@@ -38,9 +52,10 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
 
     #if compiler(>=6.2)
     @available(iOS 26.0, *)
-    private func glass() -> Glass {
-        // Apple's standard glass, untinted: it bends and lights the wallpaper at its edges and adapts to what's behind it
-        interactive ? Glass.regular.interactive() : Glass.regular
+    private func clear() -> Glass {
+        // Apple's clear glass (as in the iOS 26 dock): hardly frosted, the wallpaper stays sharp in the middle and is
+        // bent and stretched at the rounded edges, with a thin bright rim
+        interactive ? Glass.clear.interactive() : Glass.clear
     }
     #endif
 
