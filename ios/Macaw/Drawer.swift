@@ -61,14 +61,40 @@ struct SongRow: View {
 
     enum LeftAction { case queue, remove(() -> Void), none }
 
-    @State private var dx: CGFloat = 0
+    // the swipe, as the web's attachSwipe: d = how far the row has slid, dir = which way, k = the stage reached
+    @State private var d: CGFloat = 0
+    @State private var dir: CGFloat = -1
+    @State private var k = 0
+    @State private var swiping = false
+    @State private var done: String?             // the confirmation shown in the strip (Plays next / Added)
+    @State private var pop: Double = 1           // the label's pop (web swpop), rest = 1
+    @State private var labW: CGFloat = 0
+    @State private var rowH: CGFloat = 0
+    @State private var out = false               // Queue: the row leaving
+    @State private var gone = false              // …and its gap closing
     @State private var frame: CGRect = .zero
     private var player: Player { .shared }
+
+    struct Stage { var min: CGFloat; var f: CGFloat; var label: String; var icon: String; var tone: Color }
+    static let next = Stage(min: 64, f: 0.2, label: "Play next", icon: SVGIcon.qNext, tone: Color(red: 88 / 255, green: 196 / 255, blue: 178 / 255))
+    static let last = Stage(min: 170, f: 0.52, label: "Play last", icon: SVGIcon.qLast, tone: Color(red: 126 / 255, green: 146 / 255, blue: 1))
+    static let remove = Stage(min: 90, f: 0.35, label: "Remove", icon: SVGIcon.trash, tone: Color(red: 1, green: 99 / 255, blue: 99 / 255))
+    static let more = Stage(min: 64, f: 0.2, label: "More", icon: SVGIcon.more, tone: Color(red: 160 / 255, green: 170 / 255, blue: 190 / 255))
+
+    private var stages: [Stage] {
+        if dir > 0 { return [Self.more] }
+        switch leftAction {
+        case .queue: return [Self.next, Self.last]
+        case .remove: return [Self.remove]
+        case .none: return []
+        }
+    }
+    private func at(_ st: Stage) -> CGFloat { max(st.min, st.f * frame.width) }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         ZStack {
-            if dx < 0 { swipeBack(shape) }
+            if d > 0 || out { strip }
             HStack(spacing: 10) {
                 CoverImage(path: track.path, px: 120, placeholder: AnyView(Color.w(0.05)))
                     .frame(width: 28, height: 28)
@@ -88,42 +114,97 @@ struct SongRow: View {
             .overlay(shape.strokeBorder(Color.w(active ? 0.1 : 0), lineWidth: 1))
             .contentShape(shape)
             .opacity(dim ? 0.5 : 1)
-            .offset(x: dx)
+            .offset(x: out ? -frame.width : dir * d)
         }
+        .clipShape(shape)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if !out { rowH = $0 } }
+        .frame(height: out ? (gone ? 0 : rowH) : nil, alignment: .top)
+        .opacity(gone ? 0 : 1)
+        .clipped()
         .onTapGesture { Haptics.light(); tap() }
         .onLongPressGesture(minimumDuration: 0.38) { openMenu() }
-        .gesture(HorizontalPan(changed: { t in
-            var x = t
-            if case .none = leftAction, x < 0 { x = 0 }
-            dx = x < 0 ? x : min(x, 90) * 0.8
-        }, ended: { t, v in
-            let x = t + v * 0.08
-            if x < -60 {
-                switch leftAction {
-                case .queue: player.enqueue(track, last: x < -170)
-                case .remove(let f): f()
-                case .none: break
-                }
-                Haptics.light()
-            } else if x > 60 { openMenu() }
-            withAnimation(Theme.ease) { dx = 0 }
-        }))
+        .gesture(HorizontalPan(changed: moved, ended: { _, _ in released() }))
     }
 
-    private func swipeBack(_ shape: RoundedRectangle) -> some View {
-        let isRemove: Bool = { if case .remove = leftAction { return true }; return false }()
-        let label = isRemove ? "Remove" : (dx < -170 ? "Play last" : "Play next")
-        return shape.fill(isRemove ? Color(red: 1, green: 0.42, blue: 0.42).opacity(0.3) : Theme.teal.opacity(0.34))
-            .overlay(alignment: .trailing) {
-                HStack(spacing: 6) {
-                    Image(systemName: isRemove ? "minus.circle" : (dx < -170 ? "text.append" : "text.line.first.and.arrowtriangle.forward"))
-                    Text(label)
-                }
-                .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-                .padding(.trailing, 14)
-                .animation(Theme.easeQ, value: label)
+    /// web .sw-bg / .sw-lab: the strip behind the row, as wide as the row has slid, in the stage's colour
+    private var strip: some View {
+        let st = stages.isEmpty ? nil : stages[max(0, k - 1)]
+        let left = dir < 0
+        let label = HStack(spacing: 6) {
+            if !left { SVGIcon(d: done != nil ? SVGIcon.check : st?.icon ?? "").fill(.white).frame(width: 18, height: 18) }
+            Text(done ?? st?.label ?? "").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                .opacity(done != nil || d >= labW - 2 ? 1 : 0).animation(Theme.easeQ, value: d >= labW - 2)
+            if left { SVGIcon(d: done != nil ? SVGIcon.check : st?.icon ?? "").fill(.white).frame(width: 18, height: 18) }
+        }
+        .padding(.horizontal, 14)
+        .fixedSize()
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { labW = $0 }
+        .opacity(k > 0 || done != nil ? 1 : min(0.5, d / 90))
+        .modifier(KFEffect(p: pop, scale: KF(stops: [(0, 0.82), (0.6, 1.07), (1, 1)], each: .ease)))
+        return RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(k > 0 || done != nil ? (st?.tone ?? .white).opacity(0.34) : Color.w(0.07))
+            .animation(Theme.easeQ, value: k)
+            .overlay(alignment: left ? .trailing : .leading) { label }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(width: out ? frame.width : d)
+            .padding(.vertical, 1)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: left ? .trailing : .leading)
+    }
+
+    private func moved(_ t: CGFloat) {
+        if out { return }
+        if !swiping {
+            swiping = true; done = nil
+            var tr = Transaction(); tr.disablesAnimations = true
+            withTransaction(tr) { dir = t < 0 ? -1 : 1; k = 0 }
+        }
+        let st = stages
+        guard let lastStage = st.last else { d = 0; return }
+        var x = max(0, dir > 0 ? t : -t)
+        let lim = at(lastStage) + 70
+        if x > lim { x = lim + (x - lim) * 0.3 }
+        var nk = 0
+        for (i, s) in st.enumerated() where x >= at(s) - (k > i ? 12 : 0) { nk = i + 1 }
+        if nk != k {
+            Haptics.select()
+            k = nk
+            if nk > 0 { replay($pop, duration: 0.25) }
+        }
+        var tr = Transaction(); tr.disablesAnimations = true
+        withTransaction(tr) { d = x }
+    }
+
+    private func released() {
+        guard swiping else { return }
+        swiping = false
+        guard k > 0 else { back(); return }
+        Haptics.light()
+        if dir > 0 { back(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) { openMenu() }; return }
+        switch leftAction {
+        case .queue:                                                   // web swDone: the strip confirms, then the row springs back
+            player.enqueue(track, last: k == 2)
+            done = k == 2 ? "Added" : "Plays next"
+            replay($pop, duration: 0.25)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) { back() }
+        case .remove(let f):                                           // web swOut: the row leaves and the gap closes
+            withAnimation(Theme.easeN) { out = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { withAnimation(Theme.easeN) { gone = true } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
+                f()
+                var tr = Transaction(); tr.disablesAnimations = true
+                withTransaction(tr) { out = false; gone = false; d = 0; k = 0 }
             }
+        case .none: back()
+        }
+    }
+
+    /// web swBack: the row springs back into place (the strip keeps its colour on the way)
+    private func back() {
+        withAnimation(Theme.ease) { d = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
+            if !swiping { var tr = Transaction(); tr.disablesAnimations = true; withTransaction(tr) { k = 0; done = nil } }
+        }
     }
 
     private func openMenu() {

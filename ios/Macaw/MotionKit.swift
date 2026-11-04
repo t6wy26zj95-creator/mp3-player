@@ -129,7 +129,7 @@ struct SVGIcon: Shape {
         let k = min(r.width, r.height) / 24
         let ox = r.midX - 12 * k, oy = r.midY - 12 * k
         var p = Path()
-        var cur = CGPoint.zero, start = CGPoint.zero
+        var cur = CGPoint.zero, start = CGPoint.zero, c2prev: CGPoint? = nil
         func pt(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: ox + x * k, y: oy + y * k) }
         var nums: [Double] = []
         var cmd: Character = "M"
@@ -158,11 +158,18 @@ struct SVGIcon: Shape {
                     guard let a = take(6) else { return }
                     let b = rel ? cur : .zero
                     let c1 = CGPoint(x: b.x + a[0], y: b.y + a[1]), c2 = CGPoint(x: b.x + a[2], y: b.y + a[3]), e = CGPoint(x: b.x + a[4], y: b.y + a[5])
-                    p.addCurve(to: pt(e.x, e.y), control1: pt(c1.x, c1.y), control2: pt(c2.x, c2.y)); cur = e
+                    p.addCurve(to: pt(e.x, e.y), control1: pt(c1.x, c1.y), control2: pt(c2.x, c2.y)); cur = e; c2prev = c2; continue
+                case "S":                                                                   // smooth: the first control mirrors the last one
+                    guard let a = take(4) else { return }
+                    let b = rel ? cur : .zero
+                    let c1 = c2prev.map { CGPoint(x: 2 * cur.x - $0.x, y: 2 * cur.y - $0.y) } ?? cur
+                    let c2 = CGPoint(x: b.x + a[0], y: b.y + a[1]), e = CGPoint(x: b.x + a[2], y: b.y + a[3])
+                    p.addCurve(to: pt(e.x, e.y), control1: pt(c1.x, c1.y), control2: pt(c2.x, c2.y)); cur = e; c2prev = c2; continue
                 case "Z":
                     p.closeSubpath(); cur = start; return
                 default: return
                 }
+                c2prev = nil
             } while i < nums.count
         }
         var numStr = ""
@@ -189,4 +196,9 @@ struct SVGIcon: Shape {
     static let shuffle = "M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"
     static let repeatAll = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"
     static let repeatOne = repeatAll + "m-4-2V9h-1l-2 1v1h1.5v4H13z"
+    static let qNext = "M2 6h12v2H2zm0 4h12v2H2zm0 4h8v2H2zm14-4v8l6-4z"
+    static let qLast = "M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"
+    static let trash = "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+    static let more = "M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
+    static let check = "M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"
 }
