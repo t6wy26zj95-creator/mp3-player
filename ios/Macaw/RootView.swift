@@ -140,6 +140,8 @@ enum Boot {
 
 /// Only for the build's screenshots (the simulator opens the app with -macawScreen <name>): puts the app on one screen.
 enum TestScreens {
+    @MainActor static var swipe: CGFloat?
+    @MainActor static var swipeShown = false
     @MainActor static func show(_ name: String) async {
         let ui = UIState.shared, model = AppModel.shared, player = Player.shared
         if player.current == nil, let t = model.tracks.first { player.start(model.tracks, at: t, name: "Library", wholeLibrary: true) }
@@ -149,6 +151,11 @@ enum TestScreens {
         case "queue": ui.open(.queue)
         case "library": ui.open(.library)
         case "flow": ui.coverFlow = true; ui.open(.library)
+        case "swipe1", "swipe2":                // an album's first song held mid-swipe: Play next, and further, Play last
+            swipe = name == "swipe1" ? -110 : -230
+            ui.open(.library)
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            if let a = model.albums.first(where: { $0.tracks.contains { $0.num > 0 } }) ?? model.albums.first { ui.push(.album(a.name)) }
         case "artists": ui.open(.artists)
         case "big": XPMotion.shared.open()
         case "lyrics":

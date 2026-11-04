@@ -125,6 +125,9 @@ struct SongRow: View {
         .onTapGesture { Haptics.light(); tap() }
         .onLongPressGesture(minimumDuration: 0.38) { openMenu() }
         .gesture(HorizontalPan(changed: moved, ended: { _, _ in released() }))
+        .onAppear {                                                     // the build's screenshots: hold the first row mid-swipe
+            if let x = TestScreens.swipe, number != nil, !TestScreens.swipeShown { TestScreens.swipeShown = true; moved(x) }
+        }
     }
 
     /// web .sw-bg / .sw-lab: the strip behind the row, as wide as the row has slid, in the stage's colour

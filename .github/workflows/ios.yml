@@ -193,6 +193,8 @@ jobs:
           shot queue
           shot library
           shot flow
+          shot swipe1
+          shot swipe2
           shot artists
           shot big
           shot lyrics 18
