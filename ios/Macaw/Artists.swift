@@ -93,19 +93,23 @@ struct ArtistPhoto: View {
 struct ArtistGrid: View {
     private var ui: UIState { .shared }
     var body: some View {
-        let cols = [GridItem(.adaptive(minimum: 90, maximum: 90), spacing: 14, alignment: .top)]
+        // the same grid as Library (web .albums-grid), round covers with the same glass edge (web .artist-card)
+        let cols = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: 3)
         LazyVGrid(columns: cols, alignment: .center, spacing: 14) {
             ForEach(Artists.all(), id: \.self) { name in
                 Button { Haptics.light(); ui.push(.artist(name)) } label: {
                     VStack(spacing: 8) {
-                        ArtistPhoto(name: name, size: 90)
-                        Text(name).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.8)).lineLimit(1).frame(width: 90)
+                        Color.clear.aspectRatio(1, contentMode: .fit)
+                            .overlay { GeometryReader { g in ArtistPhoto(name: name, size: g.size.width) } }
+                            .overlay { TileGlass(shape: Circle()) }
+                            .shadow(color: .black.opacity(0.3), radius: 7.5, y: 8)
+                        Text(name).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.8)).lineLimit(1)
                     }
                 }
                 .buttonStyle(TileStyle())
             }
         }
-        .padding(.vertical, 4)
+        .padding(10)
     }
 }
 
