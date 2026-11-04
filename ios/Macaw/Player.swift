@@ -102,6 +102,8 @@ final class Player {
         contextRestart()
         return contextOrder().first
     }
+    /// What Next would play (to prepare it ahead).
+    func peekNext() -> String? { queue.first ?? contextNext(commit: false) }
     /// Your queue, then what the album still has to play.
     var upNext: [Track] { (queue + contextUpcoming()).compactMap { model.byKey[$0] } }
 
@@ -277,19 +279,33 @@ final class Player {
         time = start
         duration = t.duration
         pendingSeek = start > 0 ? start : nil
-        let item = AVPlayerItem(url: t.url)
-        statusObservation = Player.observeStatus(item) { [weak self] status, d in self?.itemStatus(status, duration: d) }
-        if let o = endObserver { NotificationCenter.default.removeObserver(o) }
-        endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.ended() }
-        }
-        av.replaceCurrentItem(with: item)
+        attach(Retro.shared.fileFor(t))
         if autoplay {
             try? AVAudioSession.sharedInstance().setActive(true)
             av.play(); isPlaying = true
         } else { av.pause(); isPlaying = false }
         updateNowPlaying()
         Covers.shared.prefetch(t)
+        Retro.shared.want(t)
+    }
+
+    /// Swaps the song between its original and its old-sounding copy, at the same place, playing or not.
+    func swapSource(_ url: URL) {
+        guard currentKey != nil else { return }
+        pendingSeek = pendingSeek ?? max(0, time)
+        if pendingSeek == 0 { pendingSeek = nil }
+        attach(url)
+        if isPlaying { av.play() }
+    }
+
+    private func attach(_ url: URL) {
+        let item = AVPlayerItem(url: url)
+        statusObservation = Player.observeStatus(item) { [weak self] status, d in self?.itemStatus(status, duration: d) }
+        if let o = endObserver { NotificationCenter.default.removeObserver(o) }
+        endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.ended() }
+        }
+        av.replaceCurrentItem(with: item)
     }
 
     private func itemStatus(_ s: AVPlayerItem.Status, duration d: Double) {
@@ -348,6 +364,7 @@ final class Player {
     private struct SavedPos: Codable { var cur: String; var pos: Double; var dur: Double? }
 
     private func changed() {
+        Retro.shared.preNext()
         saveWork?.cancel()
         saveWork = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 400_000_000)

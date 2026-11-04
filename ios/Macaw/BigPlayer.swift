@@ -75,6 +75,7 @@ struct BigPlayer: View {
             }
             .buttonStyle(PressStyle())
             if !rest.isEmpty { Text(" · " + rest).foregroundStyle(Color.w(0.55)) }
+            if Retro.shared.mode != "off" { Text(" · " + Retro.shared.label).foregroundStyle(Color(red: 232 / 255, green: 196 / 255, blue: 140 / 255)) }
         }
         .font(.system(size: 13.5))
         .lineLimit(1)

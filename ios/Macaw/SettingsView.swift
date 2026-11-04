@@ -9,6 +9,8 @@ struct SettingsView: View {
     private var ui: UIState { .shared }
     private var model: AppModel { .shared }
     private var tg: Telegram { .shared }
+    static let effects: [(mode: String, name: String, sub: String?)] = [
+        ("off", "None", "Your songs as they are"), ("gram", "Gramophone", nil), ("radio", "Old radio", nil), ("vinyl", "Vinyl", nil)]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -90,6 +92,21 @@ struct SettingsView: View {
                         row {
                             label("Songs", "\(model.tracks.count) in the app. You can also copy music into the MacawP3 folder in the Files app")
                             Button { dismiss(); ui.importing = true } label: { pill("Add") }.buttonStyle(PressStyle())
+                        }
+                    }
+
+                    header("Sound effect")
+                    group {
+                        ForEach(Array(SettingsView.effects.enumerated()), id: \.offset) { i, e in
+                            if i > 0 { divider }
+                            Button { Retro.shared.set(e.mode) } label: {
+                                row {
+                                    label(e.name, e.sub)
+                                    EffectTick(on: Retro.shared.mode == e.mode, busy: Retro.shared.busy && Retro.shared.mode == e.mode)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(PressStyle())
                         }
                     }
 
@@ -185,5 +202,25 @@ struct MacawSwitch: View {
             .frame(width: 46, height: 26)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// The tick of the chosen sound effect; it pulses while the song is being made to sound old.
+struct EffectTick: View {
+    var on: Bool
+    var busy: Bool
+    @State private var dim = false
+    var body: some View {
+        Image(systemName: "checkmark")
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(Color(red: 120 / 255, green: 222 / 255, blue: 202 / 255))
+            .opacity(on ? (busy && dim ? 0.35 : 1) : 0)
+            .scaleEffect(on ? 1 : 0.6)
+            .animation(Theme.easeN, value: on)
+            .frame(width: 22, height: 22)
+            .onChange(of: busy, initial: true) { _, b in
+                if b { withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { dim = true } }
+                else { withAnimation(.easeOut(duration: 0.2)) { dim = false } }
+            }
     }
 }
