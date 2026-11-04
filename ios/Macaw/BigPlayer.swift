@@ -9,6 +9,41 @@ struct BigPlayer: View {
     private var player: Player { .shared }
 
     var body: some View {
+        ZStack(alignment: .top) {
+            home
+                .overlay(alignment: .bottom) {
+                    // under the panel's bottom edge until the player is scrolled up
+                    LyricsBubble(open: openLyrics)
+                        .padding(.horizontal, 16)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { ui.lyricsMax = $0 + 4 + 18 }
+                        .alignmentGuide(.bottom) { d in d[.top] - 4 }
+                        .opacity(ui.lyricsScroll > 0.5 ? 1 : 0)
+                }
+                .offset(y: -ui.lyricsScroll)
+                .opacity(ui.lyricsOpen ? 0 : 1)
+                .allowsHitTesting(!ui.lyricsOpen)
+            if ui.lyricsOpen {
+                LyricsPage(close: closeLyrics)
+                    .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)).combined(with: .offset(y: 12)),
+                                            removal: .opacity.combined(with: .scale(scale: 0.9, anchor: .bottom))))
+            }
+        }
+        .onChange(of: player.currentKey, initial: true) { _, _ in Lyrics.shared.song() }
+        .onChange(of: ui.lyricsScroll > 0.5) { _, on in if on { Lyrics.shared.retryIfFailed() } }
+        .onDisappear { ui.lyricsScroll = 0; ui.lyricsOpen = false }
+    }
+
+    private func openLyrics() {
+        guard !ui.lyricsOpen else { return }
+        Haptics.light()
+        withAnimation(Theme.ease) { ui.lyricsOpen = true }
+    }
+    private func closeLyrics() {
+        Haptics.light()
+        withAnimation(Theme.ease) { ui.lyricsOpen = false }
+    }
+
+    private var home: some View {
         VStack(spacing: 0) {
             Button(action: close) {
                 Capsule().fill(Color.w(0.3)).frame(width: 36, height: 5)

@@ -10,7 +10,7 @@ final class Migration: NSObject, WKScriptMessageHandler, WKURLSchemeHandler {
     /// Keys taken over as they are (same names and format in this app).
     static let keys = ["playlists", "hiddenAlbums", "albumOrder", "releaseMap2", "tileCovers", "allName", "wallpaperBlur", "repeatMode",
                        "playState", "playPos", "tgKey", "tgDone", "tgAlbums", "tgDur", "tgPending", "syncSeen", "oldPanel", "retroMode",
-                       "libView", "lightMin", "tiltOn", "artistCache", "lyricsCache"]
+                       "libView", "lightMin", "tiltOn", "artistCache", "lyrics1"]
 
     private var web: WKWebView?
     private var finish: ((([String: String])?) -> Void)?

@@ -9,6 +9,9 @@ final class UIState {
     var libraryPath: [Route] = []       // Library remembers where you were (open album, scroll) for the session
     var artistsPath: [Route] = []
     var expanded = false                // the big player
+    var lyricsScroll: CGFloat = 0       // the big player scrolled up to show the lyrics bubble (0 = at the top)
+    var lyricsMax: CGFloat = 0          // how far it scrolls: the bubble plus room under it
+    var lyricsOpen = false              // the full lyrics fill the panel
     var settingsOpen = false
     var importing = false
     var menu: MenuState?

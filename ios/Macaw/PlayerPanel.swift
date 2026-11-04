@@ -6,6 +6,10 @@ struct PlayerPanel: View {
     var room: CGFloat
     @Namespace private var ns
     @State private var pull: CGFloat = 0
+    @State private var scrollFrom: CGFloat?
+    /// The big player's handle and cover: a drag that starts there folds it back.
+    private let foldZone: CGFloat = 240
+    private func rub(_ d: CGFloat) -> CGFloat { 34 * (1 - exp(-d / 90)) }      // past either end: a little give
     private var ui: UIState { .shared }
     private var player: Player { .shared }
 
@@ -39,14 +43,34 @@ struct PlayerPanel: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 14)
                 .onChanged { v in
-                    guard abs(v.translation.height) > abs(v.translation.width) else { return }
+                    if scrollFrom == nil && pull == 0 {
+                        guard abs(v.translation.height) > abs(v.translation.width), player.scrubbing == nil, !ui.lyricsOpen else { return }
+                        // open: the handle and the cover fold it back; anywhere else scrolls down to the lyrics bubble
+                        if ui.expanded && (v.startLocation.y + ui.lyricsScroll) >= foldZone { scrollFrom = ui.lyricsScroll }
+                    }
+                    if let from = scrollFrom {
+                        let m = ui.lyricsMax, s = from - v.translation.height
+                        ui.lyricsScroll = s < 0 ? -rub(-s) : s > m ? m + rub(s - m) : s
+                        return
+                    }
+                    guard abs(v.translation.height) > abs(v.translation.width) || pull != 0 else { return }
                     if !ui.expanded && ui.tab == nil && v.startLocation.y < 130 { pull = v.translation.height }
-                    else if ui.expanded && v.startLocation.y < 280 { pull = v.translation.height }
+                    else if ui.expanded && !ui.lyricsOpen && v.startLocation.y < foldZone { pull = v.translation.height }
                 }
                 .onEnded { v in
                     let dy = v.translation.height, fling = v.predictedEndTranslation.height
-                    if !ui.expanded && ui.tab == nil && v.startLocation.y < 130 && (dy > 50 || fling > 160) { open() }
-                    else if ui.expanded && v.startLocation.y < 280 && (dy < -50 || fling < -160) { close() }
+                    if scrollFrom != nil {
+                        scrollFrom = nil
+                        let m = ui.lyricsMax, vel = fling - dy
+                        let proj = ui.lyricsScroll + max(-m, min(m, -vel * 0.4)), t: CGFloat = proj > m * 0.42 ? m : 0
+                        if (t > 0) != (ui.lyricsScroll > m * 0.5) { Haptics.select() }
+                        withAnimation(.spring(response: 0.42, dampingFraction: 1)) { ui.lyricsScroll = t }
+                        return
+                    }
+                    if pull != 0 {
+                        if !ui.expanded && ui.tab == nil && v.startLocation.y < 130 && (dy > 50 || fling > 160) { open() }
+                        else if ui.expanded && v.startLocation.y < foldZone && (dy < -50 || fling < -160) { close() }
+                    }
                     withAnimation(Theme.ease) { pull = 0 }
                 }
         )
@@ -59,7 +83,7 @@ struct PlayerPanel: View {
     }
     private func close() {
         Haptics.light()
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { ui.expanded = false }
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { ui.expanded = false; ui.lyricsScroll = 0; ui.lyricsOpen = false }
     }
 }
 
