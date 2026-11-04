@@ -182,8 +182,10 @@ jobs:
           xcrun simctl io "$SIM" recordVideo --codec h264 --force screens/motion.mp4 & rec=$!
           sleep 2
           xcrun simctl launch "$SIM" app.macaw.player -macawScreen motion
-          sleep 45
+          sleep 80
           kill -INT $rec; wait $rec || true
+          xcrun simctl spawn "$SIM" log show --last 10m --style compact --predicate 'eventMessage CONTAINS "MacawBoot"' > screens/boot-log.txt || true
+          cat screens/boot-log.txt
           ls -l screens
 
       - uses: actions/upload-artifact@v4
@@ -196,5 +198,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete ios-native-screens --cleanup-tag --yes || true
-          gh release create ios-native-screens screens/*.png screens/motion.mp4 --target "${{ github.sha }}" --prerelease \
+          gh release create ios-native-screens screens/*.png screens/motion.mp4 screens/boot-log.txt --target "${{ github.sha }}" --prerelease \
             --title "Native app screenshots (simulator)" --notes "Screenshots from the simulator, built from ${{ github.sha }}."

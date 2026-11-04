@@ -138,6 +138,9 @@ struct ToggleButton: View {
 
 /// QUEUE ... See all, then a row of cards: what you heard (grey), now playing (lit), your queue (teal dot), the album.
 struct UpNextStrip: View {
+    @State private var stripW: CGFloat = 0
+    /// The playing card sits 20 pt in from the panel's edge, like the web player (not flush against it).
+    private var nowAnchor: UnitPoint { UnitPoint(x: stripW > 158 ? 20 / (stripW - 138) : 0, y: 0.5) }
     private var ui: UIState { .shared }
     private var player: Player { .shared }
     private var model: AppModel { .shared }
@@ -181,8 +184,10 @@ struct UpNextStrip: View {
                     .padding(.vertical, 6)
                 }
                 .frame(height: 64)
-                .onAppear { proxy.scrollTo("now", anchor: .leading) }
-                .onChange(of: player.currentKey) { _, _ in withAnimation(Theme.ease) { proxy.scrollTo("now", anchor: .leading) } }
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { stripW = $0 }
+                .onAppear { proxy.scrollTo("now", anchor: nowAnchor) }
+                .onChange(of: player.currentKey) { _, _ in withAnimation(Theme.ease) { proxy.scrollTo("now", anchor: nowAnchor) } }
+                .onChange(of: stripW) { _, _ in proxy.scrollTo("now", anchor: nowAnchor) }
             }
         }
     }

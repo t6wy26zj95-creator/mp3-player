@@ -28,6 +28,7 @@ final class Migration: NSObject, WKScriptMessageHandler, WKURLSchemeHandler {
             Store.shared.saveNow()
         }
         UserDefaults.standard.set(true, forKey: doneKey)
+        UserDefaults.standard.synchronize()
     }
 
     private func read() async -> [String: String]? {

@@ -93,7 +93,10 @@ struct RootView: View {
 
 enum Boot {
     @MainActor static func start() async {
+        let t0 = Date()
+        func mark(_ what: String) { NSLog("MacawBoot %@ %.2fs", what, Date().timeIntervalSince(t0)) }
         await Migration.runIfNeeded()
+        mark("migration")
         AppModel.shared.loadArrangement()
         Telegram.shared.load()
         UIState.shared.classic = Store.shared["oldPanel"] == "1"
@@ -101,7 +104,9 @@ enum Boot {
         UIState.shared.blur = Double(Store.shared["wallpaperBlur"] ?? "") ?? 0
         UIState.shared.reloadWallpaper()
         _ = Player.shared
+        mark("settings")
         await AppModel.shared.scan()
+        mark("scan")
         Telegram.shared.start()
         if let i = CommandLine.arguments.firstIndex(of: "-macawScreen"), i + 1 < CommandLine.arguments.count {
             await TestScreens.show(CommandLine.arguments[i + 1])
