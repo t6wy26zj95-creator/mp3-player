@@ -404,7 +404,7 @@ struct Scrubber: View {
             // the string: it sags in the middle and a soft ripple runs along it, strongest halfway, gone at either end
             let sn = sin(Double.pi * bow), env = bow > 0 && bow < 1 ? sn * sn : 0
             let A = -9 * env, Wr = 3 * env, ph = bow * 2.2
-            let dy: (Double) -> CGFloat = { t in 4 * t * (1 - t) * (A + Wr * sin(2 * .pi * (1.3 * t - ph))) }
+            let dy: (Double) -> CGFloat = { t in CGFloat(4 * t * (1 - t) * (A + Wr * sin(2 * Double.pi * (1.3 * t - ph)))) }
             ZStack(alignment: .leading) {
                 if env > 0.0001 {
                     let w = g.size.width, mid = g.size.height / 2, r = height / 2
@@ -413,7 +413,7 @@ struct Scrubber: View {
                             let n = max(1, Int((28 * (b - a)).rounded()))
                             for i in 0...n {
                                 let t = a + (b - a) * Double(i) / Double(n)
-                                let pt = CGPoint(x: min(w - r, max(r, w * t)), y: mid + dy(t))
+                                let pt = CGPoint(x: min(w - r, max(r, w * CGFloat(t))), y: mid + dy(t))
                                 if i == 0 { pth.move(to: pt) } else { pth.addLine(to: pt) }
                             }
                         }
