@@ -10,11 +10,6 @@ struct RootView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .top) {
-                WallpaperView()
-                    .frame(width: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
-                           height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom)
-                    .ignoresSafeArea()
-
                 if booted && model.loaded && model.tracks.isEmpty {
                     EmptyLibraryPanel()
                         .frame(maxWidth: min(Theme.panelMaxWidth, geo.size.width - 32))
@@ -52,6 +47,8 @@ struct RootView: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
+        // behind everything and under the status bar, without making the layout itself taller than the screen
+        .background { WallpaperView().ignoresSafeArea() }
         .preferredColorScheme(.dark)
         .tint(.white)
         .sheet(isPresented: Binding(get: { ui.settingsOpen }, set: { ui.settingsOpen = $0 })) {
@@ -105,6 +102,31 @@ enum Boot {
         _ = Player.shared
         await AppModel.shared.scan()
         Telegram.shared.start()
+        if let i = CommandLine.arguments.firstIndex(of: "-macawScreen"), i + 1 < CommandLine.arguments.count {
+            await TestScreens.show(CommandLine.arguments[i + 1])
+        }
+    }
+}
+
+/// Only for the build's screenshots (the simulator opens the app with -macawScreen <name>): puts the app on one screen.
+enum TestScreens {
+    @MainActor static func show(_ name: String) async {
+        let ui = UIState.shared, model = AppModel.shared, player = Player.shared
+        if player.current == nil, let t = model.tracks.first { player.start(model.tracks, at: t, name: "Library", wholeLibrary: true) }
+        player.pause()
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        switch name {
+        case "queue": ui.open(.queue)
+        case "library": ui.open(.library)
+        case "artists": ui.open(.artists)
+        case "big": ui.expanded = true
+        case "lyrics":
+            ui.expanded = true
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            ui.lyricsScroll = ui.lyricsMax
+        case "settings": ui.settingsOpen = true
+        default: break
+        }
     }
 }
 

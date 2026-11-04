@@ -112,3 +112,82 @@ jobs:
           gh release create "$tag" MacawP3.ipa --target "${{ github.sha }}" --prerelease \
             --title "iOS app preview (${{ github.ref_name }})" \
             --notes "Test build from the branch ${{ github.ref_name }}, not merged yet. Download MacawP3.ipa below and open it with AltStore."
+
+  # Runs the app in an iPhone simulator with a few test songs and takes screenshots of each screen, so the native app
+  # can be compared with the web player before a build goes to a phone. (Native app branch only.)
+  screens:
+    if: github.ref == 'refs/heads/claude/project-thread-rbe9f3'
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick Xcode
+        run: |
+          x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $x"; sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
+
+      - name: Make the Xcode project
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Pick and start a simulator
+        run: |
+          xcrun simctl list devices available
+          id=""
+          for n in "iPhone 16" "iPhone 17" "iPhone 16 Pro" "iPhone 17 Pro" "iPhone 15 Pro"; do
+            id=$(xcrun simctl list devices available | grep -E "^ +$n \(" | head -1 | grep -oE '[0-9A-F-]{36}')
+            [ -n "$id" ] && { echo "Using $n"; break; }
+          done
+          [ -n "$id" ] || id=$(xcrun simctl list devices available | grep -E "iPhone" | head -1 | grep -oE '[0-9A-F-]{36}')
+          echo "SIM=$id" >> $GITHUB_ENV
+          xcrun simctl boot "$id"
+          xcrun simctl bootstatus "$id" -b
+
+      - name: Build for the simulator
+        run: |
+          cd ios
+          xcodebuild -project MacawP3.xcodeproj -scheme MacawP3 -configuration Debug \
+            -destination "id=$SIM" -derivedDataPath simbuild CODE_SIGNING_ALLOWED=NO \
+            build > sim.log 2>&1 && ok=1 || ok=0
+          grep -E 'error:|\*\* BUILD' sim.log || true
+          [ "$ok" = 1 ] || { tail -80 sim.log; exit 1; }
+
+      - name: Install, add test songs, take screenshots
+        run: |
+          app=$(ls -d ios/simbuild/Build/Products/Debug-iphonesimulator/MacawP3.app)
+          xcrun simctl install "$SIM" "$app"
+          xcrun simctl status_bar "$SIM" override --time 9:41 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+          data=$(xcrun simctl get_app_container "$SIM" app.macaw.player data)
+          mkdir -p "$data/Documents"
+          cp .github/test-songs/*.mp3 "$data/Documents/"
+          mkdir -p screens
+          shot() {
+            xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+            xcrun simctl launch "$SIM" app.macaw.player -macawScreen "$1"
+            sleep "${2:-14}"
+            xcrun simctl io "$SIM" screenshot "screens/$1.png"
+          }
+          shot home 25
+          shot queue
+          shot library
+          shot artists
+          shot big
+          shot lyrics 18
+          shot settings
+          ls -l screens
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screens
+          path: screens
+
+      - name: Publish the screenshots
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ios-native-screens --cleanup-tag --yes || true
+          gh release create ios-native-screens screens/*.png --target "${{ github.sha }}" --prerelease \
+            --title "Native app screenshots (simulator)" --notes "Screenshots from the simulator, built from ${{ github.sha }}."

@@ -27,9 +27,7 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
     func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *), !classic {
-            content
-                .background(shape.fill(Theme.scrim.opacity(0.13)))
-                .glassEffect(glass(), in: shape)
+            content.glassEffect(glass(), in: shape)
         } else {
             frosted(content)
         }
@@ -41,8 +39,8 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
     #if compiler(>=6.2)
     @available(iOS 26.0, *)
     private func glass() -> Glass {
-        let g = Glass.clear.tint(Theme.scrim.opacity(0.22))
-        return interactive ? g.interactive() : g
+        // Apple's standard glass, untinted: it bends and lights the wallpaper at its edges and adapts to what's behind it
+        interactive ? Glass.regular.interactive() : Glass.regular
     }
     #endif
 
@@ -64,7 +62,7 @@ struct ButtonGlass: ViewModifier {
     func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *), !classic {
-            content.glassEffect(.clear.interactive(), in: Circle())
+            content.glassEffect(.regular.interactive(), in: Circle())
         } else {
             content.background(Circle().fill(.ultraThinMaterial).overlay(Circle().strokeBorder(Color.w(0.15), lineWidth: 1)))
         }

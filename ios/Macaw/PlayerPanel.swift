@@ -37,7 +37,7 @@ struct PlayerPanel: View {
         .frame(maxWidth: .infinity)
         .clipShape(shape)
         .contentShape(shape)
-        .panelGlass(shape, classic: ui.classic)
+        .panelGlass(shape, classic: ui.classic, interactive: true)
         .scaleEffect(1 + min(pull, 60) / 3000, anchor: .top)
         .offset(y: pull > 0 ? pull * 0.12 : pull * 0.06)
         .simultaneousGesture(
@@ -74,7 +74,6 @@ struct PlayerPanel: View {
                     withAnimation(Theme.ease) { pull = 0 }
                 }
         )
-        .padding(.horizontal, 16)
     }
 
     private func open() {
@@ -250,6 +249,7 @@ struct Footer: View {
         HStack(spacing: 0) {
             Button { Haptics.light(); ui.importing = true } label: {
                 Text("+ SONGS").font(.system(size: 11, weight: .semibold)).tracking(0.5).foregroundStyle(Color.w(0.7))
+                    .lineLimit(1).fixedSize()
                     .frame(height: 34).contentShape(Rectangle())
             }
             .buttonStyle(PressStyle())
@@ -269,6 +269,7 @@ struct Footer: View {
             Text(title)
                 .font(.system(size: 11, weight: .semibold)).tracking(0.5)
                 .foregroundStyle(on ? Color.white : Color.w(0.4))
+                .lineLimit(1).fixedSize()
                 .padding(.horizontal, 10)
                 .shadow(color: on ? Color.w(0.3) : .clear, radius: 5)
                 .frame(height: 28)
