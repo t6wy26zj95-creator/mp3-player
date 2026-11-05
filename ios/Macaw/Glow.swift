@@ -3,6 +3,7 @@ import AVFoundation
 import CoreImage
 import QuartzCore
 import UIKit
+import UIKit.UIGestureRecognizerSubclass
 import CoreMotion
 
 /// The music glow, ported from the web player's decorative loop (pulseLoop, breathe, envelope, bandEvents, coverGlow and
@@ -64,6 +65,7 @@ final class Glow {
     @ObservationIgnored private var proxy: LinkProxy?
     @ObservationIgnored private var last: CFTimeInterval = 0
     @ObservationIgnored private var idleSlow = false
+    @ObservationIgnored private var clock: Double = 0
     private let motion = CMMotionManager()
     @ObservationIgnored private var rawX = 0.0
     @ObservationIgnored private var rawY = 0.0
@@ -82,6 +84,7 @@ final class Glow {
         l.add(to: .main, forMode: .common)
         proxy = p; link = l
         light = Glow.makeLight(.neutral, .neutral); lastLight = "n|n"
+        TouchWatch.install()
         startTilt()
     }
 
@@ -136,17 +139,24 @@ final class Glow {
         if !playing && e < 0.005 { e = 0 }
         let lag = bpHist[0], idle = (1 - e) * (0.16 + 0.14 * sin(now / 1.5))
         let nb = [lag * 0.7, max(p, idle), lag * 0.7]
-        a = (a + (4 + e * (5 + p * 14)) * dt).truncatingRemainder(dividingBy: 360)          // the light slowly orbits the cover
+        // web: while you touch or scroll (and just after), the glass light, its clock and the slow breath hold still,
+        // so the phone spends that time following your finger; a song change's swing still plays. It carries on from
+        // where it stopped, never with a jump.
+        let held = TouchWatch.held(now) && f <= 0.05
+        if !held {
+            a = (a + (4 + e * (5 + p * 14)) * dt).truncatingRemainder(dividingBy: 360)      // the light slowly orbits the cover
+        }
         if p != pulse { pulse = p }
         if f != flare { flare = f }
         if e != energy { energy = e }
-        rimA = a
+        if a != rimA { rimA = a }
         sparkTick(playing, dt, now)
-        glassT += dt
+        if !held { glassT += dt; clock += dt }
         let k = 1 - pow(0.9, min(4, dt * 60))                 // web: the same smoothing at any frame rate
         sx += (rawX - sx) * k; sy += (rawY - sy) * k
         if abs(sx - tx) + abs(sy - ty) > 0.012 { tx = sx; ty = sy }
-        br = 0.5 + 0.5 * sin(now / 2.6)
+        let nbr = 0.5 + 0.5 * sin(clock / 2.6)
+        if nbr != br { br = nbr }
         if zip(nb, bp).contains(where: { abs($0 - $1) > 0.006 }) { bp = nb }
         // paused and settled: only the slow drift is left, 10 fps is plenty
         let slow = !playing && e < 0.02 && f == 0 && p < 0.003
@@ -712,4 +722,45 @@ struct PanelTint: View {
             .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.9), value: a)
             .allowsHitTesting(false)
     }
+}
+
+/// Knows when a finger is on the screen (and for a moment after it lifts, while a list may still be gliding), without
+/// taking part in any touch: a recognizer on the window that never claims anything.
+@MainActor
+final class TouchWatch: UIGestureRecognizer, UIGestureRecognizerDelegate {
+    private static var down = 0
+    private static var calmAt: CFTimeInterval = 0
+    private static var installed = false
+
+    static func held(_ now: CFTimeInterval) -> Bool { down > 0 || now < calmAt }
+
+    static func install() {
+        guard !installed else { return }
+        guard let w = UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { install() }
+            return
+        }
+        installed = true
+        let r = TouchWatch(target: nil, action: nil)
+        r.cancelsTouchesInView = false
+        r.delaysTouchesBegan = false
+        r.delaysTouchesEnded = false
+        r.delegate = r
+        w.addGestureRecognizer(r)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        TouchWatch.down += touches.count
+    }
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) { lift(touches) }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { lift(touches) }
+    private func lift(_ touches: Set<UITouch>) {
+        TouchWatch.down = max(0, TouchWatch.down - touches.count)
+        TouchWatch.calmAt = CACurrentMediaTime() + 0.7         // web: 450 ms after the finger lifts, 250 ms after a scroll
+        if TouchWatch.down == 0 { state = .failed }
+    }
+    override func reset() { TouchWatch.down = 0 }
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith o: UIGestureRecognizer) -> Bool { true }
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldBeRequiredToFailBy o: UIGestureRecognizer) -> Bool { false }
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRequireFailureOf o: UIGestureRecognizer) -> Bool { false }
 }
