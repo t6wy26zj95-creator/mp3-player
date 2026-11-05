@@ -269,7 +269,7 @@ jobs:
             done ) &
           tr=$!
           cd ios
-          xcodebuild test -project MacawP3.xcodeproj -scheme MacawP3 -destination "id=$SIM" -derivedDataPath simbuild \
+          xcodebuild test -project MacawP3.xcodeproj -scheme MacawP3 -configuration Release -destination "id=$SIM" -derivedDataPath simbuild \
             -resultBundlePath ../walk.xcresult CODE_SIGNING_ALLOWED=NO > ../walk.log 2>&1 || echo "the walk-through test reported a failure"
           cd ..
           grep -E "error:|Test Case|passed|failed|\*\* TEST" walk.log | tail -40 || true
@@ -292,7 +292,7 @@ jobs:
                   ext = os.path.splitext(a["exportedFileName"])[1]
                   shutil.copy(src, os.path.join("screens", "walk-" + base + ext))
           PY
-          xcrun simctl spawn "$SIM" log show --last 15m --style compact --predicate 'eventMessage CONTAINS "MacawPerf" OR eventMessage CONTAINS "MacawStep" OR eventMessage CONTAINS "MacawMissed"' > screens/walk-perf.txt || true
+          xcrun simctl spawn "$SIM" log show --last 30m --style compact --predicate 'subsystem == "app.macaw.player" OR eventMessage CONTAINS "MacawPerf" OR eventMessage CONTAINS "MacawStep" OR eventMessage CONTAINS "MacawMissed"' > screens/walk-perf.txt || true
           grep -c MacawPerf screens/walk-perf.txt || true
           if [ -d walk.trace ]; then
             xcrun xctrace export --input walk.trace --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' > tp.xml 2>/dev/null || true

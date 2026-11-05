@@ -665,6 +665,9 @@ struct CoverGlass: View {
         }
         .frame(width: size, height: size)
         .clipShape(shape)
+        // the glass layers change 30 times a second; drawn as one picture on the graphics chip, not by the CPU
+        // (the profiler found the circular rim gradients being shaded on the CPU every frame)
+        .drawingGroup()
         .allowsHitTesting(false)
     }
 }
@@ -732,6 +735,9 @@ final class TouchWatch: UIGestureRecognizer, UIGestureRecognizerDelegate {
     private static var calmAt: CFTimeInterval = 0
     private static var installed = false
 
+    /// Where the last finger came down, in screen points (SwiftUI's .global space).
+    static var lastDown: CGPoint?
+
     static func held(_ now: CFTimeInterval) -> Bool { down > 0 || now < calmAt }
 
     static func install() {
@@ -751,6 +757,7 @@ final class TouchWatch: UIGestureRecognizer, UIGestureRecognizerDelegate {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         TouchWatch.down += touches.count
+        if let t = touches.first, let v = view { TouchWatch.lastDown = t.location(in: v) }
     }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) { lift(touches) }
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { lift(touches) }

@@ -37,7 +37,7 @@ for row in root.iter("row"):
         continue
     rows += 1
     selfall[f"{frames[0][0]}  [{frames[0][1]}]"] += 1
-    app = [n for n, b in frames if b == "MacawP3"]
+    app = [n for n, b in frames if b.startswith("MacawP3")]   # Debug builds put the code in MacawP3.debug.dylib
     if app:
         selfc[app[0]] += 1
         for n in set(app):

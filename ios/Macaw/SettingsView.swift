@@ -25,6 +25,7 @@ struct SettingsView: View {
                         .frame(width: 30, height: 30).background(Circle().fill(Color.w(0.12)))
                 }
                 .buttonStyle(PopStyle())
+                .accessibilityIdentifier("closeSettings")
             }
             .padding(.leading, 20).padding(.trailing, 14).padding(.top, 16).padding(.bottom, 6)
 

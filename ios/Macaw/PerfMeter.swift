@@ -1,5 +1,6 @@
 import SwiftUI
 import QuartzCore
+import os
 
 /// Measures how smoothly the app draws: every screen refresh is timed, and a frame that took clearly longer than the
 /// screen's own refresh (a hitch) is counted. Used two ways:
@@ -9,6 +10,7 @@ import QuartzCore
 @MainActor @Observable
 final class PerfMeter {
     static let shared = PerfMeter()
+    nonisolated static let log = Logger(subsystem: "app.macaw.player", category: "perf")
 
     var fps: Double = 0
     var hitchesPerSec: Double = 0
@@ -57,7 +59,8 @@ final class PerfMeter {
             hitchesPerSec = Double(hitches) / span
             worstMs = worst * 1000
             if logging {
-                NSLog("MacawPerf fps=%.0f hitches=%d worst=%.0fms where=%@ total=%d/%d", fps, hitches, worstMs, Self.where_(), totalHitches, totalFrames)
+                let line = String(format: "MacawPerf fps=%.0f hitches=%d worst=%.0fms where=%@ total=%d/%d", fps, hitches, worstMs, Self.where_(), totalHitches, totalFrames)
+                Self.log.notice("\(line, privacy: .public)")
             }
             frames = 0; hitches = 0; worst = 0; winStart = now
         }

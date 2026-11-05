@@ -233,6 +233,7 @@ private struct RoundButtonBody<L: View>: View {
     var touchPoint: Bool
     @State private var at = UnitPoint.center
     @State private var hl: Double = 0
+    @State private var place = FrameBox()
 
     var body: some View {
         let far = hypot(max(at.x, 1 - at.x), max(at.y, 1 - at.y)) * size      // CSS: circle … farthest-corner
@@ -250,10 +251,13 @@ private struct RoundButtonBody<L: View>: View {
             .overlay(Circle().strokeBorder(Color.w(filled ? 0.15 : 0), lineWidth: 1))
             .shadow(color: .black.opacity(filled ? 0.2 : 0), radius: 2.5, y: 2)
             .contentShape(Circle())
-            .simultaneousGesture(DragGesture(minimumDistance: 0).onChanged { v in
-                at = UnitPoint(x: v.startLocation.x / size, y: v.startLocation.y / size)
-            }, isEnabled: touchPoint)
+            // where the finger landed: read from the window's touch watcher, not from a gesture of our own (a drag
+            // gesture on the button swallowed its taps)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { r in if touchPoint { place.r = r } }
             .onChange(of: pressed) { _, p in
+                if p && touchPoint, let d = TouchWatch.lastDown, place.r.width > 0 {
+                    at = UnitPoint(x: max(0, min(1, (d.x - place.r.minX) / size)), y: max(0, min(1, (d.y - place.r.minY) / size)))
+                }
                 if p { withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.06)) { hl = 1 } }
                 else { withAnimation(Theme.ease) { hl = 0 } }
             }

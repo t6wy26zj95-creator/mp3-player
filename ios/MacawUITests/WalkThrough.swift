@@ -35,6 +35,7 @@ final class WalkThrough: XCTestCase {
     }
     func id(_ s: String) -> XCUIElement { app.descendants(matching: .any).matching(identifier: s).firstMatch }
     func text(_ s: String) -> XCUIElement { app.staticTexts[s].firstMatch }
+    func textContaining(_ s: String) -> XCUIElement { app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", s)).firstMatch }
     func button(containing s: String) -> XCUIElement { app.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", s)).firstMatch }
     func drag(_ from: CGVector, _ to: CGVector, hold: Double = 0, speed: XCUIGestureVelocity = .default) {
         let a = app.coordinate(withNormalizedOffset: from), b = app.coordinate(withNormalizedOffset: to)
@@ -61,14 +62,14 @@ final class WalkThrough: XCTestCase {
             shot("album")
             drag(CGVector(dx: 0.5, dy: 0.7), CGVector(dx: 0.5, dy: 0.45)); shot("album-scrolled")
             // swipe a song left (Play next), then right (its menu)
-            let row = text("Ocean Floor")
+            let row = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Ocean Floor")).firstMatch   // album rows read "4. Ocean Floor"
             if row.waitForExistence(timeout: 2) {
                 row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.05, thenDragTo: row.coordinate(withNormalizedOffset: CGVector(dx: -1.2, dy: 0.5)))
                 Thread.sleep(forTimeInterval: 1); shot("swiped-play-next")
                 row.press(forDuration: 0.8); Thread.sleep(forTimeInterval: 1); shot("song-menu")
                 app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap(); Thread.sleep(forTimeInterval: 1)
             } else { missed.append("song row") }
-            tap(text("Ocean Floor"), "play a song"); shot("played-from-album")
+            tap(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Ocean Floor")).firstMatch, "play a song"); shot("played-from-album")
             tap(button(containing: "Back"), "back to Library"); shot("library-again")
         }
         if tap(text("All Tracks"), "All Tracks") { shot("all-tracks"); tap(button(containing: "Back"), "back from All Tracks") }
@@ -120,7 +121,7 @@ final class WalkThrough: XCTestCase {
         tap(id("settings"), "Settings"); shot("settings")
         drag(CGVector(dx: 0.5, dy: 0.8), CGVector(dx: 0.5, dy: 0.25), speed: .fast); shot("settings-scrolled")
         drag(CGVector(dx: 0.5, dy: 0.8), CGVector(dx: 0.5, dy: 0.25), speed: .fast); shot("settings-bottom")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.03)).tap(); Thread.sleep(forTimeInterval: 1); shot("settings-closed")
+        tap(id("closeSettings"), "close Settings"); shot("settings-closed")
 
         // + Songs opens the Files picker
         if tap(id("addSongs"), "+ Songs", wait: 2) { shot("files-picker"); if app.buttons["Cancel"].exists { app.buttons["Cancel"].tap() } }
@@ -133,7 +134,7 @@ final class WalkThrough: XCTestCase {
         XCUIDevice.shared.orientation = .portrait; Thread.sleep(forTimeInterval: 1.5)
         tap(id("settings"), "Settings for Cover Flow")
         if tap(id("flowSwitch"), "Cover Flow switch") {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.03)).tap(); Thread.sleep(forTimeInterval: 1)
+            tap(id("closeSettings"), "close Settings 2")
             shot("flow")
             drag(CGVector(dx: 0.8, dy: 0.62), CGVector(dx: 0.2, dy: 0.62), speed: .fast); shot("flow-swiped")
             XCUIDevice.shared.orientation = .landscapeLeft; Thread.sleep(forTimeInterval: 2); shot("land-flow")
