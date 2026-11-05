@@ -146,6 +146,10 @@ jobs:
           [ -n "$x" ] || x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
           [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
           echo "Using $x"; sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
+          # room on disk for the walk-through's recording: the other Xcodes on the image aren't needed
+          df -h / | tail -1
+          for o in /Applications/Xcode*.app; do [ "$o" = "$x" ] || [ -L "$o" ] || sudo rm -rf "$o" & done; wait
+          df -h / | tail -1
           # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
           xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || sudo xcodebuild -downloadComponent MetalToolchain || true
           xcrun metal --version || true
@@ -254,9 +258,16 @@ jobs:
         timeout-minutes: 25
         run: |
           xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
-          (xcrun xctrace record --template "Time Profiler" --device "$SIM" --all-processes --time-limit 240s --output walk.trace > xctrace.log 2>&1 || true) &
+          # the profiler records the app only (all processes filled the disk), once the test has launched it
+          ( for i in $(seq 1 120); do
+              pid=$(xcrun simctl spawn "$SIM" launchctl list 2>/dev/null | awk '/UIKitApplication:app\.macaw\.player\[/{print $1; exit}')
+              if [ -n "$pid" ] && [ "$pid" != "-" ]; then
+                xcrun xctrace record --template "Time Profiler" --device "$SIM" --attach "$pid" --time-limit 200s --output walk.trace > xctrace.log 2>&1 || true
+                exit 0
+              fi
+              sleep 2
+            done ) &
           tr=$!
-          sleep 8
           cd ios
           xcodebuild test -project MacawP3.xcodeproj -scheme MacawP3 -destination "id=$SIM" -derivedDataPath simbuild \
             -resultBundlePath ../walk.xcresult CODE_SIGNING_ALLOWED=NO > ../walk.log 2>&1 || echo "the walk-through test reported a failure"
@@ -264,6 +275,7 @@ jobs:
           grep -E "error:|Test Case|passed|failed|\*\* TEST" walk.log | tail -40 || true
           kill -INT $tr 2>/dev/null || true; wait $tr || true
           cat xctrace.log | tail -5 || true
+          du -sh walk.trace 2>/dev/null || true; df -h / | tail -1
           mkdir -p walk
           xcrun xcresulttool export attachments --path walk.xcresult --output-path walk > /dev/null 2>&1 || true
           python3 - <<'PY'
