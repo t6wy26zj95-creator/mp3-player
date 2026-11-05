@@ -178,8 +178,11 @@ struct RoundButtonStyle: ButtonStyle {
     /// Light up exactly where the finger lands. Off for buttons inside scrolling lists (a touch-tracking gesture there
     /// would hold up the scroll); those light up from the middle.
     var touchPoint = false
+    /// told when the finger goes down and comes up (Play's hold-to-restart ring), without a second gesture on the button
+    var onPress: ((Bool) -> Void)? = nil
     func makeBody(configuration: Configuration) -> some View {
         RoundButtonBody(label: configuration.label, pressed: configuration.isPressed, size: size, filled: filled, touchPoint: touchPoint)
+            .onChange(of: configuration.isPressed) { _, p in onPress?(p) }
     }
 }
 

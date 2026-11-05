@@ -360,7 +360,7 @@ struct PlayButton: View {
                 .modifier(KFEffect(p: turn, scale: KF(stops: [(0, 0.72), (1, 1)], whole: Bezier(0.22, 1.35, 0.36, 1)),
                                    angle: KF(stops: [(0, turnFrom), (1, 0)], whole: Bezier(0.22, 1.35, 0.36, 1))))
         }
-        .buttonStyle(RoundButtonStyle(size: size, touchPoint: true))
+        .buttonStyle(RoundButtonStyle(size: size, touchPoint: true, onPress: { p in if p { if holdTask == nil { startHold() } } else { stopHold() } }))
         .modifier(Breath(index: 1, amount: 0.06))
         .overlay {
             ZStack {
@@ -383,9 +383,6 @@ struct PlayButton: View {
             cometB = Glow.shared.cometB
             replay($comet, duration: 1.5)
         }
-        .simultaneousGesture(DragGesture(minimumDistance: 0)
-            .onChanged { _ in if holdTask == nil { startHold() } }
-            .onEnded { _ in stopHold() })
         .onAppear { t = player.isPlaying ? 1 : 0 }
         .onChange(of: player.isPlaying) { _, p in
             withAnimation(.playMorph) { t = p ? 1 : 0 }
