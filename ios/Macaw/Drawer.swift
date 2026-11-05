@@ -75,7 +75,7 @@ struct SongRow: View {
     @State private var out = false               // Queue: the row leaving
     @State private var gone = false              // …and its gap closing
     @State private var width: CGFloat = 0
-    @State private var spot = FrameBox()          // where the row is on screen (for the menu); kept out of SwiftUI's sight so scrolling doesn't redraw the row
+    @State private var place = FrameBox()         // where the row is on screen (for the menu); kept out of SwiftUI's sight so scrolling doesn't redraw the row
     private var player: Player { .shared }
 
     struct Stage { var min: CGFloat; var f: CGFloat; var label: String; var icon: String; var tone: Color }
@@ -128,7 +128,7 @@ struct SongRow: View {
         // web .queue-container.dragging .q-row:not(.lifted): every other row dims while one is lifted
         .opacity(UIState.shared.tileDragging && !isLifted ? 0.5 : 1)
         .animation(Theme.easeN, value: UIState.shared.tileDragging)
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { spot.r = $0 }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { place.r = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if !out { rowH = $0 } }
         .frame(height: out ? (gone ? 0 : rowH) : nil, alignment: .top)
@@ -162,7 +162,7 @@ struct SongRow: View {
             .animation(Theme.easeQ, value: k)
             .overlay(alignment: left ? .trailing : .leading) { label }
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .frame(width: out ? frame.width : d)
+            .frame(width: out ? width : d)
             .padding(.vertical, 1)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: left ? .trailing : .leading)
     }
@@ -224,7 +224,7 @@ struct SongRow: View {
 
     private func openMenu() {
         Haptics.medium()
-        UIState.shared.menu = UIState.MenuState(kind: .song(track, inPlaylist: inPlaylist), anchor: spot.r)
+        UIState.shared.menu = UIState.MenuState(kind: .song(track, inPlaylist: inPlaylist), anchor: place.r)
     }
 }
 
