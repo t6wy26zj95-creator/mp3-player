@@ -174,18 +174,33 @@ struct MenuRowStyle: ButtonStyle {
 /// Choose cover: pick a photo; the middle square becomes the tile's 400×400 cover.
 struct CoverPicker: ViewModifier {
     @State private var item: PhotosPickerItem?
+    @State private var picked: UIImage?
+    @State private var key: String?
     private var ui: UIState { .shared }
     func body(content: Content) -> some View {
         content
-            .photosPicker(isPresented: Binding(get: { ui.coverPickFor != nil }, set: { if !$0 && item == nil { ui.coverPickFor = nil } }),
+            .photosPicker(isPresented: Binding(get: { ui.coverPickFor != nil && picked == nil }, set: { if !$0 && item == nil && picked == nil { ui.coverPickFor = nil } }),
                           selection: $item, matching: .images)
             .onChange(of: item) { _, it in
-                guard let it, let key = ui.coverPickFor else { return }
+                guard let it, let k = ui.coverPickFor else { return }
                 Task {
-                    if let data = try? await it.loadTransferable(type: Data.self), let img = UIImage(data: data), let jpeg = squareJPEG(img, side: 400) {
-                        AppModel.shared.setTileCover(key, jpeg: jpeg)
+                    if let data = try? await it.loadTransferable(type: Data.self), let img = UIImage(data: data) {
+                        // big photos are scaled down first (the crop never needs more than a few times 400 px)
+                        let m = max(img.size.width, img.size.height), s = min(1, 1600 / max(1, m))
+                        let small = s < 1 ? UIGraphicsImageRenderer(size: CGSize(width: img.size.width * s, height: img.size.height * s)).image { _ in
+                            img.draw(in: CGRect(x: 0, y: 0, width: img.size.width * s, height: img.size.height * s)) } : img
+                        key = k; picked = small
+                    } else { AppModel.shared.toast("That picture couldn't be opened"); ui.coverPickFor = nil }
+                    item = nil
+                }
+            }
+            .overlay {
+                if let picked {
+                    CoverCrop(image: picked) { jpeg in
+                        if let jpeg, let key { AppModel.shared.setTileCover(key, jpeg: jpeg) }
+                        self.picked = nil; key = nil; ui.coverPickFor = nil
                     }
-                    item = nil; ui.coverPickFor = nil
+                    .zIndex(30)
                 }
             }
     }

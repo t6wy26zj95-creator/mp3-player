@@ -139,6 +139,7 @@ struct SongRow: View {
         .gesture(HorizontalPan(changed: moved, ended: { _, _ in released() }))
         .onAppear {                                                     // the build's screenshots: hold the first row mid-swipe
             if let x = TestScreens.swipe, number != nil, !TestScreens.swipeShown { TestScreens.swipeShown = true; moved(x) }
+            else if case .queue = leftAction, Self.hintDue { hint() }
         }
     }
 
@@ -211,6 +212,21 @@ struct SongRow: View {
                 withTransaction(tr) { out = false; gone = false; d = 0; k = 0 }
             }
         case .none: back()
+        }
+    }
+
+    /// web swipeHint: once ever, the first song you see in a list peeks left to show what's behind it
+    @MainActor static var hintDue: Bool { Store.shared["hintSwipe"] != "1" && !hintTaken }
+    @MainActor static var hintTaken = false
+    private func hint() {
+        Self.hintTaken = true
+        Store.shared["hintSwipe"] = "1"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) {
+            var tr = Transaction(); tr.disablesAnimations = true
+            withTransaction(tr) { dir = -1; k = 1 }
+            withAnimation(Theme.ease) { d = 76 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { back() }
+            AppModel.shared.toast("Swipe a song left to queue it, right for more")
         }
     }
 
