@@ -852,8 +852,10 @@ struct XPLayer<C: View>: View {
     @Environment(\.xpPoses) private var poses
     var body: some View {
         let on = big ? poses.bigOn : poses.compactOn
+        // the big layer, while measured, is drawn all but invisibly: its pictures and glass are then ready on the
+        // motion's first frame instead of being made during it (that was the jump at the start of opening)
         content
-            .opacity(on ? 1 : 0)
+            .opacity(on ? 1 : (big && poses.measuring ? 0.001 : 0))
             .allowsHitTesting(on && !poses.moving)
     }
 }

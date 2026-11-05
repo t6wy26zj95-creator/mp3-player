@@ -61,7 +61,10 @@ final class XPMotion {
     private func measured() async {
         for _ in 0..<14 {
             try? await Task.sleep(nanoseconds: 7_000_000)
-            if b["b.art"] != nil && b["b.stack"] != nil { return }
+            if b["b.art"] != nil && b["b.stack"] != nil {
+                try? await Task.sleep(nanoseconds: 8_000_000)   // one more frame, so it has been drawn once
+                return
+            }
         }
     }
 
@@ -183,6 +186,7 @@ struct XPPoses: Equatable {
     var extra: Double = 1         // album · year write themselves in
     var chev: Double = 0          // the small artist line's " ›", riding along
     var moving = false
+    var measuring = false         // the big layer is being laid out unseen (drawn at 0.1 % so it's ready on the first frame)
     subscript(_ k: String) -> XPPose { map[k] ?? XPPose() }
 }
 
@@ -246,7 +250,7 @@ enum XPLayout {
         switch phase {
         case .compact: return out
         case .measuring:
-            out.bigOn = false
+            out.bigOn = false; out.measuring = true
             out.height = XPMotion.shared.c["c.stack"]?.height
             return out
         case .big:
