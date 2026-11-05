@@ -595,6 +595,7 @@ struct CoverGlowBack: View {
         }
         .frame(width: size, height: size)
         .allowsHitTesting(false)
+        .accessibilityHidden(true)                 // decoration: not for VoiceOver, never in the way of a touch
     }
 }
 
@@ -669,6 +670,7 @@ struct CoverGlass: View {
         // (the profiler found the circular rim gradients being shaded on the CPU every frame)
         .drawingGroup()
         .allowsHitTesting(false)
+        .accessibilityHidden(true)                 // decoration: not for VoiceOver, never in the way of a touch
     }
 }
 
@@ -692,23 +694,51 @@ struct EdgeBand: View {
 struct Breath: ViewModifier {
     var index: Int
     var amount: CGFloat
+    @State private var side: CGFloat = 0
     private var g: Glow { .shared }
     func body(content: Content) -> some View {
         let v = g.bp[index]
         content
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { if abs($0 - side) > 0.5 { side = $0 } }
             .background {
-                ZStack {
-                    // the coloured glow outside the rim (web: box-shadow 0 0 15px), cut away inside the button
-                    Circle().fill(g.c1.color.opacity(0.42)).blur(radius: 7.5)
-                        .mask { ZStack { Rectangle().padding(-30); Circle().blendMode(.destinationOut) }.compositingGroup() }
-                    Circle().strokeBorder(Color.w(0.26), lineWidth: 1)
-                    Circle().stroke(Color.w(0.2), lineWidth: 3).blur(radius: 3).clipShape(Circle())
+                // the glow is a picture drawn once per size and cover colour, then only faded: redrawing its blurs
+                // and cut-out every frame was the player's biggest cost while a song plays
+                if side > 0, let im = BreathArt.image(side: side, color: g.c1) {
+                    Image(uiImage: im).resizable()
+                        .frame(width: side + 2 + 2 * BreathArt.pad, height: side + 2 + 2 * BreathArt.pad)
+                        .opacity(v)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
-                .padding(-1)
-                    .opacity(v)
-                    .allowsHitTesting(false)
             }
             .scaleEffect(1 + v * amount)
+    }
+}
+
+/// The breathing glow round Prev / Play / Next, drawn once (web: box-shadow 0 0 15px in the cover's colour outside the
+/// rim, a faint rim, a soft inner light).
+@MainActor
+enum BreathArt {
+    static let pad: CGFloat = 30
+    private static var cache: [String: UIImage] = [:]
+    static func image(side: CGFloat, color: Glow.RGB) -> UIImage? {
+        let key = "\(Int(side.rounded()))|\(Int(color.r)),\(Int(color.g)),\(Int(color.b))"
+        if let im = cache[key] { return im }
+        let d = side + 2
+        let art = ZStack {
+            Circle().fill(color.color.opacity(0.42)).blur(radius: 7.5)
+                .mask { ZStack { Rectangle().padding(-pad); Circle().blendMode(.destinationOut) }.compositingGroup() }
+            Circle().strokeBorder(Color.w(0.26), lineWidth: 1)
+            Circle().stroke(Color.w(0.2), lineWidth: 3).blur(radius: 3).clipShape(Circle())
+        }
+        .frame(width: d, height: d)
+        .padding(pad)
+        let r = ImageRenderer(content: art)
+        r.scale = 3
+        guard let im = r.uiImage else { return nil }
+        if cache.count > 30 { cache.removeAll() }
+        cache[key] = im
+        return im
     }
 }
 
@@ -724,6 +754,7 @@ struct PanelTint: View {
             .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.9), value: g.c1)
             .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.9), value: a)
             .allowsHitTesting(false)
+        .accessibilityHidden(true)                 // decoration: not for VoiceOver, never in the way of a touch
     }
 }
 

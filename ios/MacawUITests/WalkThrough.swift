@@ -8,6 +8,7 @@ final class WalkThrough: XCTestCase {
     var app: XCUIApplication!
     var n = 0
     var missed: [String] = []
+    var forced: [String] = []
 
     override func setUp() {
         continueAfterFailure = true
@@ -28,8 +29,14 @@ final class WalkThrough: XCTestCase {
 
     @discardableResult
     func tap(_ e: XCUIElement, _ what: String, wait: Double = 1.2) -> Bool {
-        guard e.waitForExistence(timeout: 3), e.isHittable else { missed.append(what); NSLog("MacawMissed %@", what); return false }
-        e.tap()
+        guard e.waitForExistence(timeout: 3) else { missed.append(what); NSLog("MacawMissed %@", what); return false }
+        if e.isHittable { e.tap() } else {
+            // covered as far as accessibility goes: tap where it is on screen, as a finger would
+            let f = e.frame, w = app.frame
+            guard f.width > 0, w.width > 0 else { missed.append(what); return false }
+            forced.append(what); NSLog("MacawForced %@", what)
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.midX, dy: f.midY)).tap()
+        }
         Thread.sleep(forTimeInterval: wait)
         return true
     }
@@ -142,7 +149,8 @@ final class WalkThrough: XCTestCase {
         }
 
         NSLog("MacawMissedAll %@", missed.joined(separator: " | "))
-        let a = XCTAttachment(string: "Missed: " + (missed.isEmpty ? "nothing" : missed.joined(separator: ", ")))
+        let a = XCTAttachment(string: "Missed: " + (missed.isEmpty ? "nothing" : missed.joined(separator: ", "))
+                              + "\nTapped by position (not reachable for accessibility): " + (forced.isEmpty ? "nothing" : forced.joined(separator: ", ")))
         a.name = "missed"; a.lifetime = .keepAlways; add(a)
     }
 }
