@@ -167,7 +167,12 @@ jobs:
             id=$(xcrun simctl create "Macaw test" "com.apple.CoreSimulator.SimDeviceType.$t" "$rt" 2>/dev/null) && { echo "Using $t on $rt"; break; }
             id=""
           done
-          [ -n "$id" ] || id=$(xcrun simctl list devices available | grep -E "iPhone" | tail -1 | grep -oE '[0-9A-F-]{36}')
+          if [ -z "$id" ]; then
+            # none of those on this runtime: the newest plain "iPhone N Pro" it has (not a Fold: two screens break screenshots)
+            t=$(xcrun simctl list devicetypes -j | python3 -c "import json,sys,re; d=[x for x in json.load(sys.stdin)['devicetypes'] if re.fullmatch(r'iPhone \d+ Pro', x['name'])]; d.sort(key=lambda x:int(x['name'].split()[1])); print(d[-1]['identifier'] if d else '')")
+            [ -n "$t" ] && id=$(xcrun simctl create "Macaw test" "$t" "$rt" 2>/dev/null) && echo "Using $t on $rt"
+          fi
+          [ -n "$id" ] || id=$(xcrun simctl list devices available | grep -E "iPhone" | grep -v -i fold | tail -1 | grep -oE '[0-9A-F-]{36}')
           echo "SIM=$id" >> $GITHUB_ENV
           xcrun simctl boot "$id"
           xcrun simctl bootstatus "$id" -b
