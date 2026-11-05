@@ -160,19 +160,28 @@ jobs:
           # the newest iOS (Liquid Glass needs iOS 26; an iOS 18 simulator only shows the frosted fallback), on an
           # iPhone the size of Nick's 15 Pro (393 x 852 pt: the 16 Pro / 16 / 15 Pro)
           xcrun simctl list runtimes available
-          rt=$(xcrun simctl list runtimes available -j | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runtimes'] if x['platform']=='iOS' and x.get('isAvailable')]; r.sort(key=lambda x:[int(p) for p in x['version'].split('.')]); print(r[-1]['identifier'])")
-          echo "Runtime: $rt"
-          id=""
-          for t in iPhone-16-Pro iPhone-16 iPhone-15-Pro iPhone-17-Pro iPhone-17; do
-            id=$(xcrun simctl create "Macaw test" "com.apple.CoreSimulator.SimDeviceType.$t" "$rt" 2>/dev/null) && { echo "Using $t on $rt"; break; }
-            id=""
-          done
-          if [ -z "$id" ]; then
-            # none of those on this runtime: the newest plain "iPhone N Pro" it has (not a Fold: two screens break screenshots)
-            t=$(xcrun simctl list devicetypes -j | python3 -c "import json,sys,re; d=[x for x in json.load(sys.stdin)['devicetypes'] if re.fullmatch(r'iPhone \d+ Pro', x['name'])]; d.sort(key=lambda x:int(x['name'].split()[1])); print(d[-1]['identifier'] if d else '')")
-            [ -n "$t" ] && id=$(xcrun simctl create "Macaw test" "$t" "$rt" 2>/dev/null) && echo "Using $t on $rt"
-          fi
-          [ -n "$id" ] || id=$(xcrun simctl list devices available | grep -E "iPhone" | grep -v -i fold | tail -1 | grep -oE '[0-9A-F-]{36}')
+          # newest iOS runtime first; on each, an existing plain iPhone Pro (or a new one), never a two-screen Fold
+          id=$(python3 - <<'PY'
+          import json, re, subprocess
+          def j(*a): return json.loads(subprocess.run(["xcrun", "simctl", "list", *a, "-j"], capture_output=True, text=True).stdout)
+          rts = [r for r in j("runtimes", "available")["runtimes"] if r["platform"] == "iOS" and r.get("isAvailable")]
+          rts.sort(key=lambda r: [int(p) for p in r["version"].split(".")], reverse=True)
+          devs = j("devices", "available")["devices"]
+          good = lambda n: re.fullmatch(r"iPhone \d+( Pro)?", n) is not None
+          rank = lambda n: (" Pro" in n, int(n.split()[1]))
+          types = [t for t in j("devicetypes")["devicetypes"] if good(t["name"])]
+          types.sort(key=lambda t: rank(t["name"]), reverse=True)
+          for r in rts:
+              have = sorted([d for d in devs.get(r["identifier"], []) if good(d["name"])], key=lambda d: rank(d["name"]), reverse=True)
+              if have:
+                  print(have[0]["udid"]); import sys; print("Using", have[0]["name"], "on", r["name"], file=sys.stderr); raise SystemExit
+              for t in types:
+                  out = subprocess.run(["xcrun", "simctl", "create", "Macaw test", t["identifier"], r["identifier"]], capture_output=True, text=True).stdout.strip()
+                  if re.fullmatch(r"[0-9A-F-]{36}", out):
+                      print(out); import sys; print("Using new", t["name"], "on", r["name"], file=sys.stderr); raise SystemExit
+          PY
+          )
+          [ -n "$id" ] || { echo "No iPhone simulator"; exit 1; }
           echo "SIM=$id" >> $GITHUB_ENV
           xcrun simctl boot "$id"
           xcrun simctl bootstatus "$id" -b
