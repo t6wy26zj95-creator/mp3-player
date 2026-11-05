@@ -136,7 +136,7 @@ jobs:
   screens:
     if: github.ref == 'refs/heads/claude/project-thread-rbe9f3'
     runs-on: xcode-27
-    timeout-minutes: 40
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
 
@@ -241,25 +241,53 @@ jobs:
             sleep 14
             xcrun simctl io "$SIM" screenshot "screens/$f.png"
           }
-          shotx glass-clear-home -macawScreen home -macawWall 1 -macawGlass clear
-          shotx glass-dim-home -macawScreen home -macawWall 1 -macawGlass dim
-          shotx glass-web-home -macawScreen home -macawWall 1 -macawGlass web
           shotx glass-default-home -macawScreen home -macawWall 1
-          shotx glass-default-big -macawScreen big -macawWall 1
-          shotx glass-sub8-home -macawScreen home -macawGlass sub8
-          shotx glass-sub15-home -macawScreen home -macawGlass sub15
           shotx glass-default-dark -macawScreen home
-          shotx glass-gb0-dark -macawScreen home -macawGlass gb0
-          shotx glass-gt35-dark -macawScreen home -macawGlass gt35
-          shotx glass-sub15-dark -macawScreen home -macawGlass sub15
-          shotx glass-regular-dark -macawScreen home -macawGlass regular
-          shotx glass-regular-home -macawScreen home -macawWall 1 -macawGlass regular
-          shotx glass-clear-big -macawScreen big -macawWall 1 -macawGlass clear
-          shotx glass-regular-big -macawScreen big -macawWall 1 -macawGlass regular
           rm -f "$data/Documents/test-wall.jpg"
           xcrun simctl spawn "$SIM" log show --last 10m --style compact --predicate 'eventMessage CONTAINS "MacawBoot"' > screens/boot-log.txt || true
           cat screens/boot-log.txt
           ls -l screens
+
+      # a walk through the whole app like a person would use it (MacawUITests): a screenshot after every step and the
+      # speed meter's log, while Instruments' Time Profiler records where the app spends its time
+      - name: Walk through the app
+        timeout-minutes: 25
+        run: |
+          xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+          (xcrun xctrace record --template "Time Profiler" --device "$SIM" --all-processes --time-limit 240s --output walk.trace > xctrace.log 2>&1 || true) &
+          tr=$!
+          sleep 8
+          cd ios
+          xcodebuild test -project MacawP3.xcodeproj -scheme MacawP3 -destination "id=$SIM" -derivedDataPath simbuild \
+            -resultBundlePath ../walk.xcresult CODE_SIGNING_ALLOWED=NO > ../walk.log 2>&1 || echo "the walk-through test reported a failure"
+          cd ..
+          grep -E "error:|Test Case|passed|failed|\*\* TEST" walk.log | tail -40 || true
+          kill -INT $tr 2>/dev/null || true; wait $tr || true
+          cat xctrace.log | tail -5 || true
+          mkdir -p walk
+          xcrun xcresulttool export attachments --path walk.xcresult --output-path walk > /dev/null 2>&1 || true
+          python3 - <<'PY'
+          import json, os, shutil
+          try:
+              m = json.load(open("walk/manifest.json"))
+          except Exception as e:
+              print("no attachments", e); raise SystemExit
+          for t in m:
+              for a in t.get("attachments", []):
+                  n = a.get("suggestedHumanReadableName") or a.get("exportedFileName")
+                  src = os.path.join("walk", a["exportedFileName"])
+                  base = n.split("_")[0] if n else a["exportedFileName"]
+                  ext = os.path.splitext(a["exportedFileName"])[1]
+                  shutil.copy(src, os.path.join("screens", "walk-" + base + ext))
+          PY
+          xcrun simctl spawn "$SIM" log show --last 15m --style compact --predicate 'eventMessage CONTAINS "MacawPerf" OR eventMessage CONTAINS "MacawStep" OR eventMessage CONTAINS "MacawMissed"' > screens/walk-perf.txt || true
+          grep -c MacawPerf screens/walk-perf.txt || true
+          if [ -d walk.trace ]; then
+            xcrun xctrace export --input walk.trace --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' > tp.xml 2>/dev/null || true
+            python3 .github/scripts/profile.py tp.xml > screens/walk-profile.txt 2>&1 || true
+            head -60 screens/walk-profile.txt || true
+          fi
+          ls screens | head -100
 
       - uses: actions/upload-artifact@v4
         if: always()

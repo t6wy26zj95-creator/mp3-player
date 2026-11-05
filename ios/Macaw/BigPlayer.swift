@@ -59,6 +59,7 @@ struct BigPlayer: View {
                     .frame(width: 72, height: 20).contentShape(Rectangle())
             }
             .buttonStyle(PressStyle())
+            .accessibilityIdentifier("handle")
             .xp("b.handle")
             .padding(.top, 6)
 
@@ -93,7 +94,7 @@ struct BigPlayer: View {
             .padding(.top, 18.5)
 
             HStack(spacing: 0) {
-                ToggleButton(d: SVGIcon.shuffle, on: player.shuffle) { player.toggleShuffle() }.xp("b.shuf")
+                ToggleButton(d: SVGIcon.shuffle, on: player.shuffle) { player.toggleShuffle() }.accessibilityIdentifier("shuffle").xp("b.shuf")
                 Spacer(minLength: 0)
                 TransportButton(kind: .prev, size: 46).xp("b.prev")
                 Spacer(minLength: 0)
@@ -101,7 +102,7 @@ struct BigPlayer: View {
                 Spacer(minLength: 0)
                 TransportButton(kind: .next, size: 46).xp("b.next")
                 Spacer(minLength: 0)
-                ToggleButton(d: player.repeatMode == .one ? SVGIcon.repeatOne : SVGIcon.repeatAll, on: player.repeatMode != .off) { player.cycleRepeat() }.xp("b.rep")
+                ToggleButton(d: player.repeatMode == .one ? SVGIcon.repeatOne : SVGIcon.repeatAll, on: player.repeatMode != .off) { player.cycleRepeat() }.accessibilityIdentifier("repeat").xp("b.rep")
             }
             .padding(.horizontal, 26)
             .frame(height: 60)

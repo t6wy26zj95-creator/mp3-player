@@ -150,6 +150,7 @@ struct CompactPlayer: View {
                         .xp("c.art")
                 }
                 .buttonStyle(PressStyle())
+                .accessibilityIdentifier("cover")
                 .padding(.leading, 34)
                 VStack(alignment: .leading, spacing: 2) {
                     SlidingTitle(text: player.current?.title ?? "", size: 17, direction: player.songDirection, tag: "c.title", spark: true)
@@ -160,6 +161,7 @@ struct CompactPlayer: View {
                                 .shadow(color: .black.opacity(0.4), radius: 1.5, y: 1)
                         }
                         .buttonStyle(PressStyle())
+                        .accessibilityIdentifier("artistLink")
                         .songSwap((player.current?.key ?? "") + "|a", direction: player.songDirection, delay: 0.06)
                         if player.shuffle {
                             Image(systemName: "shuffle").font(.system(size: 9, weight: .bold)).foregroundStyle(Theme.teal)
@@ -326,6 +328,7 @@ struct SkipButton: View {
                 .modifier(KFEffect(p: nudge, dx: KF(stops: [(0, 0), (0.3, d * 4), (0.65, -d), (1, 0)], whole: .ease)))
         }
         .buttonStyle(RoundButtonStyle(size: size, touchPoint: true))
+        .accessibilityIdentifier(next ? "next" : "prev")
         .modifier(Breath(index: next ? 2 : 0, amount: 0.035))
     }
 }
@@ -361,6 +364,7 @@ struct PlayButton: View {
                                    angle: KF(stops: [(0, turnFrom), (1, 0)], whole: Bezier(0.22, 1.35, 0.36, 1))))
         }
         .buttonStyle(RoundButtonStyle(size: size, touchPoint: true, onPress: { p in if p { if holdTask == nil { startHold() } } else { stopHold() } }))
+        .accessibilityIdentifier("play")
         .modifier(Breath(index: 1, amount: 0.06))
         .overlay {
             ZStack {
@@ -549,6 +553,7 @@ struct Footer: View {
                     .frame(height: 34).contentShape(Rectangle())
             }
             .buttonStyle(PopStyle(deep: 0.88))
+            .accessibilityIdentifier("addSongs")
             Spacer()
             HStack(spacing: 24) {
                 tab(.queue, "QUEUE")
@@ -632,6 +637,7 @@ struct Footer: View {
                 .animation(Theme.easeN, value: lit)
         }
         .buttonStyle(PopStyle(deep: 0.88))
+        .accessibilityIdentifier("tab-\(t)")
     }
 }
 

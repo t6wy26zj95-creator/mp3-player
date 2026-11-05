@@ -36,6 +36,7 @@ struct RootView: View {
                         }
                         .buttonStyle(PopStyle())
                         .buttonGlass(classic: ui.classic)
+                        .accessibilityIdentifier("settings")
                         .opacity(0.75)
                         .padding(.trailing, 20).padding(.bottom, 20)
                     }
@@ -67,6 +68,11 @@ struct RootView: View {
                     .zIndex(6)
 
                 if let m = ui.menu { PopMenu(state: m).zIndex(10) }
+
+                if PerfMeter.shared.shown {
+                    PerfHUD().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .padding(.leading, 16).padding(.top, 2).zIndex(20)
+                }
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
@@ -125,6 +131,10 @@ enum Boot {
         u.glassTint = Double(st["glassTint"] ?? "") ?? 35
         u.glassRegular = st["glassRegular"] == "1"
         u.glassLight = st["glassLight"] == "1"
+        // the speed meter: the build's walk-through logs it (-macawPerf), Settings > Speed meter shows it
+        let perfLog = CommandLine.arguments.contains("-macawPerf")
+        PerfMeter.shared.shown = st["perfHUD"] == "1"
+        if perfLog || PerfMeter.shared.shown { PerfMeter.shared.start(log: perfLog) }
         UIState.shared.coverFlow = Store.shared["libView"] == "flow"
         UIState.shared.blur = Double(Store.shared["wallpaperBlur"] ?? "") ?? 0
         // the build's screenshots: a detailed test wallpaper, where the glass's bending shows (launch argument -macawWall)
@@ -141,6 +151,9 @@ enum Boot {
         if let i = CommandLine.arguments.firstIndex(of: "-macawScreen"), i + 1 < CommandLine.arguments.count {
             let name = CommandLine.arguments[i + 1]
             Task { try? await Task.sleep(nanoseconds: 300_000_000); await TestScreens.show(name) }   // after the app has shown
+        }
+        if CommandLine.arguments.contains("-macawUITest") {                   // the build's walk-through: a song ready, paused
+            Task { try? await Task.sleep(nanoseconds: 300_000_000); await TestScreens.show("ready") }
         }
     }
 }

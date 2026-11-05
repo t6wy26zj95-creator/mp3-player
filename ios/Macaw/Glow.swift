@@ -343,7 +343,7 @@ final class Glow {
     nonisolated private static let ciContext = CIContext(options: [.cacheIntermediates: false])
 }
 
-private final class LinkProxy: NSObject {
+final class LinkProxy: NSObject {
     let cb: @MainActor (CADisplayLink) -> Void
     init(_ cb: @escaping @MainActor (CADisplayLink) -> Void) { self.cb = cb }
     @objc func fire(_ l: CADisplayLink) { MainActor.assumeIsolated { cb(l) } }

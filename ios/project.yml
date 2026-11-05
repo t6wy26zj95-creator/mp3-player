@@ -13,7 +13,9 @@ settings:
 targets:
   MacawP3:
     type: application
-    scheme: {}
+    scheme:
+      testTargets:
+        - MacawUITests
     platform: iOS
     sources:
       - path: Macaw
@@ -31,3 +33,20 @@ targets:
         CODE_SIGNING_REQUIRED: "NO"
         CODE_SIGN_IDENTITY: ""
         ENABLE_BITCODE: "NO"
+  # the build machine's walk through the whole app (screenshots + the speed meter's log); not part of the app
+  MacawUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: MacawUITests
+    dependencies:
+      - target: MacawP3
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.macaw.player.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: MacawP3
+        SWIFT_VERSION: "5.0"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
