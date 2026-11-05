@@ -26,13 +26,6 @@ enum GlassStyle {
         if let i = a.firstIndex(of: "-macawGlass"), i + 1 < a.count { return a[i + 1] }
         return nil
     }()
-    /// The recipe in use: the screenshots' launch argument, else Settings > Glass test, else the default.
-    @MainActor static var current: String? { forced ?? (UIState.shared.glassTest.isEmpty ? nil : UIState.shared.glassTest) }
-    /// Settings > Glass test (temporary, to pick the look on a real iPhone, which draws Apple's glass differently from
-    /// the simulator): the value and what Settings calls it.
-    static let tests: [(String, String)] = [
-        ("", "A · Dark behind 30 %"), ("sub8", "B · A + grey taken out 8 %"), ("sub15", "C · A + grey taken out 15 %"),
-        ("sub25", "D · A + grey taken out 25 %"), ("gt35", "E · Apple tint 35 %"), ("gb0", "F · Apple clear, nothing")]
 }
 
 /// The panel's glass. On iOS 26 and later it is Apple's real Liquid Glass (it bends and lights what's behind it);
@@ -58,7 +51,7 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
     @ViewBuilder private func apple(_ content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
-            let f = GlassStyle.current
+            let f = GlassStyle.forced
             if f == "regular" {
                 content.glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
             } else if let f, f.hasPrefix("gt"), let n = Double(f.dropFirst(2)) {
@@ -86,13 +79,17 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
                     .background(shape.fill(under))
                     .glassEffect(interactive ? Glass.clear.interactive() : Glass.clear, in: shape)
             } else {
-                // the panel: Apple's clear glass over a see-through black, as Apple's docs advise for clear glass; the
-                // black sits BEHIND the glass, so the wallpaper comes through as clearly as on the web and the rim stays
-                // crisp (30 %, matched to the web on the same wallpaper; Dim glass 45 %)
-                let dim = f.map { $0 == "dim" } ?? UIState.shared.dimGlass
+                // the panel: Apple's clear glass over a see-through black BEHIND it, as Apple's docs advise for clear glass.
+                // Tuned on the phone with Settings > Glass lab: black behind (+15 with Dim glass), the grey the glass adds
+                // taken out evenly (plus-darker: result = glass − n %), Apple's own black tint, clear or regular glass.
+                let u = UIState.shared, dim = f.map { $0 == "dim" } ?? u.dimGlass
+                let behind = min(0.9, (u.glassBehind + (dim ? 15 : 0)) / 100), sub = u.glassSub / 100
+                let base = u.glassRegular ? Glass.regular : Glass.clear
+                let tinted = u.glassTint > 0 ? base.tint(Color.black.opacity(u.glassTint / 100)) : base
                 content
-                    .glassEffect(interactive ? Glass.clear.interactive() : Glass.clear, in: shape)
-                    .background(shape.fill(Color.black.opacity(dim ? 0.45 : 0.3)).animation(Theme.ease, value: dim))
+                    .background(shape.fill(Color(white: 1 - sub)).blendMode(.plusDarker).opacity(sub > 0 ? 1 : 0))
+                    .glassEffect(interactive ? tinted.interactive() : tinted, in: shape)
+                    .background(shape.fill(Color.black.opacity(behind)).animation(Theme.ease, value: dim))
             }
         } else { frosted(content) }
         #else

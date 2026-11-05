@@ -44,7 +44,7 @@ struct RootView: View {
 
                 // Settings: a floating card over the player (web: .set-ov + .floating-customizer), not a sheet
                 if ui.settingsOpen {
-                    Color(red: 3 / 255, green: 10 / 255, blue: 14 / 255).opacity(0.42)
+                    Color(red: 3 / 255, green: 10 / 255, blue: 14 / 255).opacity(ui.glassPeek ? 0 : 0.42)
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .onTapGesture { withAnimation(Theme.ease) { ui.settingsOpen = false } }
@@ -119,7 +119,11 @@ enum Boot {
         UIState.shared.classic = Store.shared["oldPanel"] == "1"
         UIState.shared.minimalLight = Store.shared["lightMin"] == "1"
         UIState.shared.dimGlass = Store.shared["glassDim"] == "1"
-        UIState.shared.glassTest = Store.shared["glassTest"] ?? ""
+        let st = Store.shared, u = UIState.shared
+        u.glassBehind = Double(st["glassBehind"] ?? "") ?? 30
+        u.glassSub = Double(st["glassSub"] ?? "") ?? 0
+        u.glassTint = Double(st["glassTint"] ?? "") ?? 0
+        u.glassRegular = st["glassRegular"] == "1"
         UIState.shared.coverFlow = Store.shared["libView"] == "flow"
         UIState.shared.blur = Double(Store.shared["wallpaperBlur"] ?? "") ?? 0
         // the build's screenshots: a detailed test wallpaper, where the glass's bending shows (launch argument -macawWall)

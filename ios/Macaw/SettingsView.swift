@@ -130,20 +130,27 @@ struct SettingsView: View {
                                 MacawSwitch(on: Binding(get: { ui.dimGlass }, set: { ui.setDimGlass($0) }))
                             }
                             divider
-                            // temporary: try each glass on the phone itself (tap to go to the next one)
-                            let tests = GlassStyle.tests, at = tests.firstIndex { $0.0 == ui.glassTest } ?? 0
-                            Button {
-                                Haptics.select()
-                                withAnimation(Theme.easeN) { ui.setGlassTest(tests[(at + 1) % tests.count].0) }
-                            } label: {
-                                row {
-                                    label("Glass test", "Tap to try the next one, then tell Claude which letter looks right")
-                                    Text(tests[at].1).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.teal)
-                                        .multilineTextAlignment(.trailing).frame(maxWidth: 150, alignment: .trailing)
+                            divider
+                            // temporary: tune Apple's glass on the phone itself (hold a slider and Settings fades away)
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("Glass lab").font(.system(size: 15, weight: .medium)).foregroundStyle(.white)
+                                    Spacer()
+                                    Button("Reset") { Haptics.light(); ui.setGlassLab(behind: 30, sub: 0, tint: 0, regular: false) }
+                                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.teal)
                                 }
-                                .contentShape(Rectangle())
+                                Text("Hold a slider and this card fades so you can see the player. Send Claude the numbers you like.")
+                                    .font(.system(size: 12)).foregroundStyle(Color.w(0.55)).fixedSize(horizontal: false, vertical: true)
+                                labSlider("Dark behind the glass", ui.glassBehind, 0...80) { ui.setGlassLab(behind: $0) }
+                                labSlider("Take out the grey", ui.glassSub, 0...40) { ui.setGlassLab(sub: $0) }
+                                labSlider("Apple's tint", ui.glassTint, 0...80) { ui.setGlassLab(tint: $0) }
+                                HStack {
+                                    Text("Frosted (regular) glass").font(.system(size: 13)).foregroundStyle(Color.w(0.8))
+                                    Spacer()
+                                    MacawSwitch(on: Binding(get: { ui.glassRegular }, set: { ui.setGlassLab(regular: $0) }))
+                                }
                             }
-                            .buttonStyle(.plain)
+                            .padding(.horizontal, 14).padding(.vertical, 12)
                         }
                         divider
                         row {
@@ -175,6 +182,7 @@ struct SettingsView: View {
             .strokeBorder(LinearGradient(colors: [.w(0.34), .w(0.14), .w(0.14)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
         .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
         .shadow(color: .black.opacity(0.45), radius: 30, y: 24)
+        .opacity(UIState.shared.glassPeek ? 0.1 : 1)             // Glass lab: a slider is held, the player shows through
         .preferredColorScheme(.dark)
         .onChange(of: photo) { _, it in
             guard let it else { return }
@@ -205,6 +213,18 @@ struct SettingsView: View {
     }
     private func row<C: View>(@ViewBuilder _ c: () -> C) -> some View {
         HStack(spacing: 12) { c() }.padding(.horizontal, 14).padding(.vertical, 8).frame(minHeight: 50)
+    }
+    private func labSlider(_ t: String, _ v: Double, _ r: ClosedRange<Double>, _ set: @escaping (Double) -> Void) -> some View {
+        VStack(spacing: 6) {
+            HStack {
+                Text(t).font(.system(size: 13)).foregroundStyle(Color.w(0.8))
+                Spacer()
+                Text("\(Int(v)) %").font(.system(size: 13).monospacedDigit()).foregroundStyle(Color.w(0.55))
+            }
+            MacawSlider(value: Binding(get: { v }, set: { set($0.rounded()) }), range: r, editing: { on in
+                withAnimation(Theme.easeN) { UIState.shared.glassPeek = on }
+            })
+        }
     }
     private func label(_ t: String, _ sub: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -290,6 +310,8 @@ struct EffectTick: View {
 struct MacawSlider: View {
     @Binding var value: Double
     var range: ClosedRange<Double>
+    var editing: ((Bool) -> Void)? = nil
+    @State private var held = false
     var body: some View {
         GeometryReader { g in
             let w = g.size.width, f = (value - range.lowerBound) / (range.upperBound - range.lowerBound), x = 11 + (w - 22) * f
@@ -304,7 +326,8 @@ struct MacawSlider: View {
             .gesture(DragGesture(minimumDistance: 0).onChanged { v in
                 let t = max(0, min(1, (v.location.x - 11) / max(1, w - 22)))
                 value = range.lowerBound + t * (range.upperBound - range.lowerBound)
-            })
+                if !held { held = true; editing?(true) }
+            }.onEnded { _ in held = false; editing?(false) })
         }
         .frame(height: 28)
     }
