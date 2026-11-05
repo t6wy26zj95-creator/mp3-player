@@ -223,6 +223,9 @@ jobs:
           shotx glass-web-home -macawScreen home -macawWall 1 -macawGlass web
           shotx glass-default-home -macawScreen home -macawWall 1
           shotx glass-default-big -macawScreen big -macawWall 1
+          shotx glass-sub8-home -macawScreen home -macawGlass sub8
+          shotx glass-sub15-home -macawScreen home -macawGlass sub15
+          shotx glass-default-dark -macawScreen home
           shotx glass-regular-home -macawScreen home -macawWall 1 -macawGlass regular
           shotx glass-clear-big -macawScreen big -macawWall 1 -macawGlass clear
           shotx glass-regular-big -macawScreen big -macawWall 1 -macawGlass regular

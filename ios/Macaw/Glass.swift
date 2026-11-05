@@ -63,6 +63,13 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
                 content
                     .glassEffect(interactive ? Glass.clear.interactive() : Glass.clear, in: shape)
                     .background(shape.fill(Color.black.opacity(n / 100)))
+            } else if let f, f.hasPrefix("sub"), let n = Double(f.dropFirst(3)) {
+                // test: the 30 % black behind, plus a layer under the text that subtracts the glass's grey lift evenly
+                // (plus-darker: result = glass − n %), so dark stays dark while the rim and its light stay bright
+                content
+                    .background(shape.fill(Color(white: 1 - n / 100)).blendMode(.plusDarker))
+                    .glassEffect(interactive ? Glass.clear.interactive() : Glass.clear, in: shape)
+                    .background(shape.fill(Color.black.opacity(0.3)))
             } else if let f, f == "clear" || f == "tint" || f == "dim-top" {
                 // older looks, for comparison screenshots only: nothing, a light tint, or the dark layer on top
                 let under: Color = f == "clear" ? .clear
