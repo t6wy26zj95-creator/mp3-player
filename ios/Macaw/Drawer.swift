@@ -299,6 +299,15 @@ struct QueueDrawer: View {
     private var model: AppModel { .shared }
 
     var body: some View {
+        content
+            .onAppear {                                                         // the build's screenshots: a song held up mid-move
+                guard TestScreens.lift else { return }
+                TestScreens.lift = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { ru.begin(0, count: min(30, player.contextUpcoming().count)); ru.moved(40) }
+            }
+    }
+
+    @ViewBuilder private var content: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
             if let cur = player.current {
                 let hist = Array(player.history.suffix(30))

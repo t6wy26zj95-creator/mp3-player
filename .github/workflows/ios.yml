@@ -194,6 +194,7 @@ jobs:
           shot library
           shot flow
           shot edit
+          shot lift
           shot swipe1
           shot swipe2
           shot artists
