@@ -235,6 +235,10 @@ jobs:
           shotx glass-sub8-home -macawScreen home -macawGlass sub8
           shotx glass-sub15-home -macawScreen home -macawGlass sub15
           shotx glass-default-dark -macawScreen home
+          shotx glass-gb0-dark -macawScreen home -macawGlass gb0
+          shotx glass-gt35-dark -macawScreen home -macawGlass gt35
+          shotx glass-sub15-dark -macawScreen home -macawGlass sub15
+          shotx glass-regular-dark -macawScreen home -macawGlass regular
           shotx glass-regular-home -macawScreen home -macawWall 1 -macawGlass regular
           shotx glass-clear-big -macawScreen big -macawWall 1 -macawGlass clear
           shotx glass-regular-big -macawScreen big -macawWall 1 -macawGlass regular
