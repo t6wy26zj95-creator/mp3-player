@@ -86,10 +86,12 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
                 let behind = min(0.9, (u.glassBehind + (dim ? 15 : 0)) / 100), sub = u.glassSub / 100
                 let base = u.glassRegular ? Glass.regular : Glass.clear
                 let tinted = u.glassTint > 0 ? base.tint(Color.black.opacity(u.glassTint / 100)) : base
+                // the grey is taken out over the finished glass (text included: 4 % off white is invisible). Under the
+                // text, inside the glass, the blend was lost the first time the panel grew and the glass turned white.
                 content
-                    .background(shape.fill(Color(white: 1 - sub)).blendMode(.plusDarker).opacity(sub > 0 ? 1 : 0))
                     .glassEffect(interactive ? tinted.interactive() : tinted, in: shape)
                     .environment(\.colorScheme, u.glassLight ? .light : .dark)
+                    .overlay { if sub > 0 { shape.fill(Color(white: 1 - sub)).blendMode(.plusDarker).allowsHitTesting(false) } }
                     .background(shape.fill(Color.black.opacity(behind)).anim(Theme.ease, value: dim))
             }
         } else { frosted(content) }
