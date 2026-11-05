@@ -141,11 +141,9 @@ enum Boot {
         UIState.shared.minimalLight = Store.shared["lightMin"] == "1"
         UIState.shared.dimGlass = Store.shared["glassDim"] == "1"
         let st = Store.shared, u = UIState.shared
-        u.glassBehind = Double(st["glassBehind"] ?? "") ?? 0
-        u.glassSub = Double(st["glassSub"] ?? "") ?? 0
-        u.glassTint = Double(st["glassTint"] ?? "") ?? 35
-        u.glassRegular = st["glassRegular"] == "1"
-        u.glassLight = st["glassLight"] == "1"
+        // the glass Nick picked on his phone with the Glass lab (5 Nov): nothing extra behind it, 4 % of the grey taken
+        // out, Apple's own tint at 14 % black
+        u.glassBehind = 0; u.glassSub = 4; u.glassTint = 14; u.glassRegular = false; u.glassLight = false
         // the speed meter: the build's walk-through logs it (-macawPerf), Settings > Speed meter shows it
         let perfLog = CommandLine.arguments.contains("-macawPerf")
         PerfMeter.shared.shown = st["perfHUD"] == "1"

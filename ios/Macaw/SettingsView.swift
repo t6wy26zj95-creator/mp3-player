@@ -131,33 +131,6 @@ struct SettingsView: View {
                                 label("Dim glass", "A light shade behind the glass, so text stays easy to read on bright wallpapers")
                                 MacawSwitch(on: Binding(get: { ui.dimGlass }, set: { ui.setDimGlass($0) }))
                             }
-                            divider
-                            divider
-                            // temporary: tune Apple's glass on the phone itself (hold a slider and Settings fades away)
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    Text("Glass lab").font(.system(size: 15, weight: .medium)).foregroundStyle(.white)
-                                    Spacer()
-                                    Button("Reset") { Haptics.light(); ui.setGlassLab(behind: 0, sub: 0, tint: 35, regular: false, light: false) }
-                                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.teal)
-                                }
-                                Text("Hold a slider and this card fades so you can see the player. Send Claude the numbers you like.")
-                                    .font(.system(size: 12)).foregroundStyle(Color.w(0.55)).fixedSize(horizontal: false, vertical: true)
-                                labSlider("Dark behind the glass", ui.glassBehind, 0...80) { ui.setGlassLab(behind: $0) }
-                                labSlider("Take out the grey", ui.glassSub, 0...40) { ui.setGlassLab(sub: $0) }
-                                labSlider("Apple's tint", ui.glassTint, 0...80) { ui.setGlassLab(tint: $0) }
-                                HStack {
-                                    Text("Frosted (regular) glass").font(.system(size: 13)).foregroundStyle(Color.w(0.8))
-                                    Spacer()
-                                    MacawSwitch(on: Binding(get: { ui.glassRegular }, set: { ui.setGlassLab(regular: $0) }))
-                                }
-                                HStack {
-                                    Text("Light-mode glass").font(.system(size: 13)).foregroundStyle(Color.w(0.8))
-                                    Spacer()
-                                    MacawSwitch(on: Binding(get: { ui.glassLight }, set: { ui.setGlassLab(light: $0) }))
-                                }
-                            }
-                            .padding(.horizontal, 14).padding(.vertical, 12)
                         }
                         divider
                         row {

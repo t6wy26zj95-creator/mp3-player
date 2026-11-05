@@ -113,7 +113,7 @@ struct ArtistGrid: View {
                         Color.clear.aspectRatio(1, contentMode: .fit)
                             .overlay { GeometryReader { g in ArtistPhoto(name: name, size: g.size.width) } }
                             .overlay { TileGlass(shape: Circle()) }
-                            .shadow(color: .black.opacity(0.3), radius: 7.5, y: 8)
+                            .softShadow(radius: 7.5, y: 8, opacity: 0.3, circle: true)
                         Text(name).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.8)).lineLimit(1)
                     }
                 }
@@ -354,7 +354,7 @@ struct ArtistPage: View {
                                             .shadow(color: Color(red: 0x2e / 255, green: 0xcc / 255, blue: 0x71 / 255), radius: 4).padding(6)
                                     }
                                 }
-                                .shadow(color: .black.opacity(0.3), radius: 7.5, y: 8)
+                                .softShadow(radius: 7.5, y: 8, opacity: 0.3, corner: 12)
                             Text(c.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.8)).lineLimit(1)
                             if !c.year.isEmpty { Text(c.year).font(.system(size: 10)).foregroundStyle(Color.w(0.5)).padding(.top, -4) }
                         }

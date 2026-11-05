@@ -549,7 +549,7 @@ struct TileView: View {
                     .overlay { cover }
                     .clipShape(shape)
                     .overlay { TileGlass(shape: shape) }
-                    .shadow(color: .black.opacity(lifted ? 0.55 : 0.3), radius: lifted ? 17 : 7.5, y: lifted ? 20 : 8)
+                    .softShadow(radius: lifted ? 17 : 7.5, y: lifted ? 20 : 8, opacity: lifted ? 0.55 : 0.3)
                     .modifier(Jiggle(on: editing && !lifted, j: j))
                     .overlay(alignment: .topLeading) { if case .all = tile {} else { DelBadge(on: editing && !lifted, j: j, action: badge) } }
                     .scaleEffect(lifted ? 1.08 : pressed ? 0.96 : 1)
@@ -602,9 +602,35 @@ struct TileView: View {
 /// light top-left, tinted by the playing cover's colours, a soft highlight and a little thickness.
 struct TileGlass<S: InsettableShape>: View {
     var shape: S
+    @State private var side: CGSize = .zero
     private var g: Glow { .shared }
     var body: some View {
-        let lc = g.c1.color, lc2 = g.c2.color
+        Color.clear
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { s in
+                if abs(s.width - side.width) > 0.5 || abs(s.height - side.height) > 0.5 { side = s }
+            }
+            .overlay {
+                // drawn once per size and cover colours, then reused by every tile (the live version shaded its
+                // circular rim on the CPU for each tile, every time a grid appeared or faded)
+                if side.width > 1, let im = art { Image(uiImage: im).resizable() }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    private var art: UIImage? {
+        let w = side.width.rounded(), h = side.height.rounded(), c1 = g.c1, c2 = g.c2, sh = shape
+        let key = "tg|\(w)|\(h)|\(String(describing: sh))|\(Int(c1.r)),\(Int(c1.g)),\(Int(c1.b))|\(Int(c2.r)),\(Int(c2.g)),\(Int(c2.b))"
+        return PerfArt.image(key) { AnyView(TileGlassLive(shape: sh, lc: c1.color, lc2: c2.color).frame(width: w, height: h)) }
+    }
+}
+
+/// The tile glass itself (drawn into TileGlass's cached picture).
+private struct TileGlassLive<S: InsettableShape>: View {
+    var shape: S
+    var lc: Color
+    var lc2: Color
+    var body: some View {
         ZStack {
             // ::after: radial-gradient(70% 60% at 25% 12%, white .1 → 0 at 60%), linear-gradient(168deg, white .05 → 0 at 45%)
             EllipticalGradient(colors: [.w(0.1), .w(0)], center: UnitPoint(x: 0.25, y: 0.12), startRadiusFraction: 0, endRadiusFraction: 0.6 * 0.7)
@@ -625,7 +651,6 @@ struct TileGlass<S: InsettableShape>: View {
                 center: .center, startAngle: .degrees(-130), endAngle: .degrees(230)), lineWidth: 1)
         }
         .clipShape(shape)
-        .allowsHitTesting(false)
     }
 }
 
