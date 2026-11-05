@@ -27,7 +27,7 @@ final class UIState {
     // Settings > Glass lab (temporary, to tune Apple's glass on the phone itself): % of black behind the glass, % of grey
     // taken out of it, % of Apple's own black tint, and regular (frosted) instead of clear glass
     var glassBehind: Double = 30
-    var glassSub: Double = 0
+    var glassSub: Double = 12
     var glassTint: Double = 0
     var glassRegular = false
     var glassLight = false              // the glass drawn in light mode (it adapts its own shading to the colour scheme)
