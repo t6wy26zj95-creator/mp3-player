@@ -43,15 +43,25 @@ final class XPMotion {
         }
         Haptics.light()
         p = 0
+        b["b.art"] = nil; b["b.stack"] = nil
         phase = .measuring                                          // the big layout is laid out (unseen) and measured first
         withAnimation(Theme.ease) { ui.expanded = true }
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            await self.measured()
             guard self.phase == .measuring else { return }
             self.phase = .moving
             withAnimation(Theme.ease) { self.p = 1 } completion: {
                 if self.p == 1 && self.phase == .moving { self.phase = .big }
             }
+        }
+    }
+
+    /// Waits only until the big layout has been laid out and measured (usually the very next frame), instead of a
+    /// fixed pause: the motion starts as soon as it can (at most ~100 ms on a slow first build).
+    private func measured() async {
+        for _ in 0..<14 {
+            try? await Task.sleep(nanoseconds: 7_000_000)
+            if b["b.art"] != nil && b["b.stack"] != nil { return }
         }
     }
 
@@ -78,10 +88,11 @@ final class XPMotion {
         if ui.tab != nil { open(); return false }                   // a section is open: it folds away and the player unfolds
         dragging = true; dragFrom = 0; pendingP = nil
         p = 0
+        b["b.art"] = nil; b["b.stack"] = nil
         phase = .measuring
         withAnimation(Theme.ease) { ui.expanded = true }
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            await self.measured()
             guard self.phase == .measuring else { return }
             self.phase = .moving
             if let q = self.pendingP { self.p = q }
