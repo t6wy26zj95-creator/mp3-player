@@ -5,6 +5,9 @@ import SwiftUI
 struct PlayerPanel: View {
     var room: CGFloat
     @State private var pull: CGFloat = 0
+    @State private var driving = false              // the pull is moving the big player open / closed
+    @State private var pullBase: CGFloat = 0
+    @State private var pullDead = false             // this touch was decided: not a pull
     @State private var lean: CGSize = .zero                 // the web player's pull: the panel leans after your finger...
     @State private var sx: CGFloat = 1                      // ...stretches a little along the drag, gives a hair across it,
     @State private var sy: CGFloat = 1                      // and sinks ~1 % while your finger is down
@@ -64,11 +67,11 @@ struct PlayerPanel: View {
             DragGesture(minimumDistance: 0)
                 .onChanged { v in
                     // the lean: anywhere on the compact panel except the drawer's lists and the progress bar
-                    if !ui.expanded && pull == 0 && player.scrubbing == nil && !(ui.tab != nil && v.startLocation.y > 228) {
+                    if !ui.expanded && !driving && pull == 0 && player.scrubbing == nil && !(ui.tab != nil && v.startLocation.y > 228) {
                         leanTo(v.translation)
                     } else if leaning { release() }
-                    guard hypot(v.translation.width, v.translation.height) > 14 || scrollFrom != nil || pull != 0 else { return }
-                    if scrollFrom == nil && pull == 0 {
+                    guard hypot(v.translation.width, v.translation.height) > 9 || scrollFrom != nil || driving else { return }
+                    if scrollFrom == nil && !driving && !pullDead {
                         guard abs(v.translation.height) > abs(v.translation.width), player.scrubbing == nil, !ui.lyricsOpen else { return }
                         // open: the handle and the cover fold it back; anywhere else scrolls down to the lyrics bubble
                         if ui.expanded && (v.startLocation.y + ui.lyricsScroll) >= foldZone { scrollFrom = ui.lyricsScroll }
@@ -78,9 +81,16 @@ struct PlayerPanel: View {
                         ui.lyricsScroll = s < 0 ? -rub(-s) : s > m ? m + rub(s - m) : s
                         return
                     }
-                    guard abs(v.translation.height) > abs(v.translation.width) || pull != 0 else { return }
-                    if !ui.expanded && ui.tab == nil && v.startLocation.y < 130 { pull = v.translation.height }
-                    else if ui.expanded && !ui.lyricsOpen && v.startLocation.y < foldZone { pull = v.translation.height }
+                    // the pull opens (or folds) the player under the finger: decided once, from the first few points
+                    if driving { motion.dragTo(Double(v.translation.height - pullBase)); return }
+                    if pullDead { return }
+                    let dx = v.translation.width, dy = v.translation.height
+                    if !ui.expanded && v.startLocation.y < 130 {
+                        // opening needs a clearly downward start (steeper than ~35° from vertical)
+                        if dy > 0 && dy > abs(dx) * 1.4, motion.dragBegin() { driving = true; pullBase = dy; release() } else { pullDead = true }
+                    } else if ui.expanded && !ui.lyricsOpen && v.startLocation.y < foldZone {
+                        if abs(dy) > abs(dx) * 1.1, motion.dragBegin() { driving = true; pullBase = dy } else { pullDead = true }
+                    } else { pullDead = true }
                 }
                 .onEnded { v in
                     release()
@@ -93,10 +103,9 @@ struct PlayerPanel: View {
                         withAnimation(.spring(response: 0.42, dampingFraction: 1)) { ui.lyricsScroll = t }
                         return
                     }
-                    if pull != 0 {
-                        if !ui.expanded && ui.tab == nil && v.startLocation.y < 130 && (dy > 50 || fling > 160) { open() }
-                        else if ui.expanded && v.startLocation.y < foldZone && (dy < -50 || fling < -160) { close() }
-                    }
+                    _ = dy; _ = fling
+                    pullDead = false
+                    if driving { driving = false; motion.dragEnd(Double(v.velocity.height)) }
                     withAnimation(Theme.ease) { pull = 0 }
                 }
         )

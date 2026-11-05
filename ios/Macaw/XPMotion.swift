@@ -55,6 +55,86 @@ final class XPMotion {
         }
     }
 
+    // MARK: pulled by the finger (web: the expand gesture, begin / pointermove / gEnd)
+
+    var dragging = false
+    @ObservationIgnored private var dragFrom: Double = 0
+    @ObservationIgnored private var pendingP: Double?
+
+    /// how far the finger travels for the whole motion: the panel's growth, at least 200 pt
+    private var travel: Double {
+        let h0 = c["c.stack"]?.height ?? 0, h1 = b["b.stack"]?.height ?? 0
+        return h1 > 0 ? Double(max(200, h1 - h0)) : 420
+    }
+
+    /// A pull starts: from the compact row (down) or from the big cover / handle (up). false: it isn't one.
+    func dragBegin() -> Bool {
+        if phase == .big {
+            guard !ui.lyricsOpen, ui.lyricsScroll < 0.5 else { return false }
+            dragging = true; dragFrom = 1; phase = .moving
+            return true
+        }
+        guard phase == .compact, Player.shared.current != nil else { return false }
+        if ui.tab != nil { open(); return false }                   // a section is open: it folds away and the player unfolds
+        dragging = true; dragFrom = 0; pendingP = nil
+        p = 0
+        phase = .measuring
+        withAnimation(Theme.ease) { ui.expanded = true }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard self.phase == .measuring else { return }
+            self.phase = .moving
+            if let q = self.pendingP { self.p = q }
+        }
+        return true
+    }
+
+    /// dy: how far the finger has gone since the pull started. Clamped to the two layouts.
+    func dragTo(_ dy: Double) {
+        guard dragging else { return }
+        let q = min(1, max(0, dragFrom + dy / travel))
+        if phase == .moving {
+            var t = Transaction(); t.disablesAnimations = true
+            withTransaction(t) { p = q }
+        } else { pendingP = q }
+    }
+
+    /// The finger lets go (vy: its speed, pt / s): a short quick flick is enough, a slow drag must go about a third of the way.
+    func dragEnd(_ vy: Double) {
+        guard dragging else { return }
+        dragging = false
+        let v = vy / travel
+        let go = {
+            let proj = self.p + max(-0.6, min(0.6, v * 0.16))
+            let t: Double = self.dragFrom < 0.5 ? (proj > 0.3 ? 1 : 0) : (proj < 0.72 ? 0 : 1)
+            if t != self.dragFrom { Haptics.light() }
+            self.settle(to: t, v: v)
+        }
+        if phase == .measuring {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 60_000_000)
+                if self.phase == .measuring { self.phase = .moving }
+                if let q = self.pendingP { self.p = q }
+                go()
+            }
+        } else { go() }
+    }
+
+    /// web animateTo: 0.4 s for the whole way (less for part of it) on the app's curve; a fast flick shortens it
+    private func settle(to t: Double, v: Double) {
+        let d = t - p, base = 0.4 * (0.45 + 0.55 * abs(d))
+        let fling = v * (d < 0 ? -1 : 1)
+        let D = fling > 0 ? max(0.2, min(base, 4.5 * abs(d) / fling)) : base
+        withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: D)) {
+            p = t
+            ui.expanded = t == 1
+            if t == 0 { ui.lyricsScroll = 0 }
+        } completion: {
+            guard self.p == t, self.phase == .moving, !self.dragging else { return }
+            self.phase = t == 1 ? .big : .compact
+        }
+    }
+
     func close(then: (() -> Void)? = nil) {
         guard phase == .big || phase == .moving || phase == .measuring else { ui.expanded = false; then?(); return }
         if ui.lyricsOpen || ui.lyricsScroll > 0.5 {                  // lyrics open, or scrolled down: back to the player first
