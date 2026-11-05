@@ -58,6 +58,7 @@ struct SongRow: View {
     var dim = false
     var leftAction: LeftAction = .queue
     var inPlaylist: String? = nil
+    var spot: ReorderSpot? = nil                 // in a list you can reorder: hold and move
     var tap: () -> Void
 
     enum LeftAction { case queue, remove(() -> Void), none }
@@ -82,6 +83,8 @@ struct SongRow: View {
     static let remove = Stage(min: 90, f: 0.35, label: "Remove", icon: SVGIcon.trash, tone: Color(red: 1, green: 99 / 255, blue: 99 / 255))
     static let more = Stage(min: 64, f: 0.2, label: "More", icon: SVGIcon.more, tone: Color(red: 160 / 255, green: 170 / 255, blue: 190 / 255))
 
+    private var isLifted: Bool { spot.map { $0.r.me == $0.i && !$0.r.landing } ?? false }
+
     private var stages: [Stage] {
         if dir > 0 { return [Self.more] }
         switch leftAction {
@@ -102,6 +105,9 @@ struct SongRow: View {
                     .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                     .padding(1)
                     .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.w(0.1), lineWidth: 1))
+                    .shadow(color: .black.opacity(isLifted ? 0.35 : 0), radius: 6, y: 4)
+                    .scaleEffect(isLifted ? 1.08 : 1)                                       // web .q-row.lifted .item-art
+                    .animation(Theme.easeN, value: isLifted)
                 VStack(alignment: .leading, spacing: 1) {
                     Text((number.map { "\($0). " } ?? "") + track.title)                      // web: up to 2 lines, line-height 1.25
                         .font(.system(size: 13, weight: .medium)).foregroundStyle(.white).lineLimit(2)
@@ -124,7 +130,7 @@ struct SongRow: View {
         .opacity(gone ? 0 : 1)
         .clipped()
         .onTapGesture { Haptics.light(); tap() }
-        .onLongPressGesture(minimumDuration: 0.38) { openMenu() }
+        .modifier(HoldToReorder(spot: spot, cover: track.path, menu: openMenu))
         .gesture(HorizontalPan(changed: moved, ended: { _, _ in released() }))
         .onAppear {                                                     // the build's screenshots: hold the first row mid-swipe
             if let x = TestScreens.swipe, number != nil, !TestScreens.swipeShown { TestScreens.swipeShown = true; moved(x) }
@@ -287,6 +293,8 @@ struct BackButton: View {
 
 struct QueueDrawer: View {
     @State private var showAll = false
+    @State private var rq = Reorder()            // your queue
+    @State private var ru = Reorder()            // the rest of the album
     private var player: Player { .shared }
     private var model: AppModel { .shared }
 
@@ -311,7 +319,9 @@ struct QueueDrawer: View {
                     SectionLabel(text: "Queue · \(player.queue.count)", button: "Clear") { player.clearQueue() }
                     ForEach(Array(player.queue.enumerated()), id: \.offset) { i, k in
                         if let t = model.byKey[k] {
-                            SongRow(track: t, leftAction: .remove({ player.removeFromQueue(at: IndexSet(integer: i)) })) { player.playFromQueue(index: i) }
+                            SongRow(track: t, leftAction: .remove({ player.removeFromQueue(at: IndexSet(integer: i)) }),
+                                    spot: ReorderSpot(r: rq, i: i, count: player.queue.count) { f, to in
+                                        player.moveQueue(from: IndexSet(integer: f), to: to > f ? to + 1 : to) }) { player.playFromQueue(index: i) }
                         }
                     }
                 }
@@ -319,9 +329,11 @@ struct QueueDrawer: View {
                     let up = player.contextUpcoming()
                     let n = showAll ? up.count : min(up.count, 30)
                     SectionLabel(text: "\(player.queue.isEmpty ? "Next" : "Then") from \(ctx.name)\(player.shuffle ? " · Shuffled" : "")")
-                    ForEach(Array(up.prefix(n).enumerated()), id: \.offset) { _, k in
+                    ForEach(Array(up.prefix(n).enumerated()), id: \.offset) { i, k in
                         if let t = model.byKey[k] {
-                            SongRow(track: t, leftAction: .remove({ player.removeUpcoming(k) })) { player.playFromContext(k) }
+                            SongRow(track: t, leftAction: .remove({ player.removeUpcoming(k) }),
+                                    spot: ReorderSpot(r: ru, i: i, count: n) { f, to in
+                                        player.moveUpcoming(from: IndexSet(integer: f), to: to > f ? to + 1 : to) }) { player.playFromContext(k) }
                         }
                     }
                     if up.count > n {
@@ -657,6 +669,7 @@ struct AlbumPage: View {
 
 struct PlaylistPage: View {
     var id: String
+    @State private var rp = Reorder()
     private var model: AppModel { .shared }
     private var player: Player { .shared }
     var body: some View {
@@ -673,8 +686,10 @@ struct PlaylistPage: View {
                         .font(.system(size: 11)).foregroundStyle(Color.w(0.4)).multilineTextAlignment(.center).padding(.vertical, 10)
                 }
                 LazyVStack(spacing: 0) {
-                    ForEach(ts) { t in
-                        SongRow(track: t, active: player.currentKey == t.key, inPlaylist: p.id) { player.start(ts, at: t, name: p.name) }
+                    ForEach(Array(ts.enumerated()), id: \.element.id) { i, t in
+                        SongRow(track: t, active: player.currentKey == t.key, inPlaylist: p.id,
+                                spot: ReorderSpot(r: rp, i: i, count: ts.count) { f, to in
+                                    model.movePlaylistSongs(p.id, from: IndexSet(integer: f), to: to > f ? to + 1 : to) }) { player.start(ts, at: t, name: p.name) }
                     }
                 }
             }
