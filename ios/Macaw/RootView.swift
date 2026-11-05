@@ -130,6 +130,7 @@ enum Boot {
         // the build's screenshots: a detailed test wallpaper, where the glass's bending shows (launch argument -macawWall)
         if CommandLine.arguments.contains("-macawWall"),
            let d = try? Data(contentsOf: Library.shared.songsFolder.appendingPathComponent("test-wall.jpg")) { Wallpaper.saveCustom(d) }
+        else if CommandLine.arguments.contains("-macawScreen") { Wallpaper.clearCustom() }   // the other screenshots: the default wallpaper
         UIState.shared.reloadWallpaper()
         _ = Player.shared
         Glow.shared.start()
