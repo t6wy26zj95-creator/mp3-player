@@ -620,7 +620,7 @@ struct TileGlass<S: InsettableShape>: View {
 
     private var art: UIImage? {
         let w = side.width.rounded(), h = side.height.rounded(), c1 = g.c1, c2 = g.c2, sh = shape
-        let key = "tg|\(w)|\(h)|\(String(describing: sh))|\(Int(c1.r)),\(Int(c1.g)),\(Int(c1.b))|\(Int(c2.r)),\(Int(c2.g)),\(Int(c2.b))"
+        let key = "tg|\(w)|\(h)|\(ObjectIdentifier(S.self).hashValue)|\(Int(c1.r)),\(Int(c1.g)),\(Int(c1.b))|\(Int(c2.r)),\(Int(c2.g)),\(Int(c2.b))"
         return PerfArt.image(key) { AnyView(TileGlassLive(shape: sh, lc: c1.color, lc2: c2.color).frame(width: w, height: h)) }
     }
 }

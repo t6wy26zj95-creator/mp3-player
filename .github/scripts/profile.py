@@ -53,3 +53,36 @@ for n, c in total.most_common(40):
 print("\n== the very top of the stack (any library) ==")
 for n, c in selfall.most_common(40):
     print(f"{100 * c / max(rows, 1):5.1f}%  {n}")
+
+# who calls the costliest library functions: the most common few frames above each (app frames marked *)
+print("\n== callers of the top library functions ==")
+want = [k for k, _ in selfall.most_common(12) if "mach_msg" not in k and "start_wqthread" not in k][:8]
+chains = {k: collections.Counter() for k in want}
+for row in root.iter("row"):
+    bt = None
+    for c in row:
+        if c.tag in ("backtrace", "tagged-backtrace"):
+            bt = res(c)
+            if bt.tag == "tagged-backtrace":
+                inner = bt.find("backtrace")
+                bt = res(inner) if inner is not None else bt
+    if bt is None:
+        continue
+    fr = []
+    for f in bt.iter("frame"):
+        f = res(f); b = f.find("binary"); bn = (res(b).get("name") if b is not None else "") or ""
+        fr.append(("*" if bn.startswith("MacawP3") else "") + (f.get("name") or "?")[:90])
+    if not fr:
+        continue
+    top = None
+    for k in want:
+        if k.startswith(fr[0].lstrip("*")[:60]):
+            top = k; break
+    if top is None:
+        continue
+    # skip runtime/AG plumbing, keep the first 6 frames that name something
+    chains[top][" <- ".join(fr[1:7])] += 1
+for k in want:
+    print(f"\n{k}")
+    for ch, n in chains[k].most_common(5):
+        print(f"   {n:6d}  {ch}")
