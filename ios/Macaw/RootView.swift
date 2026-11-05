@@ -22,6 +22,7 @@ struct RootView: View {
                                   : max(ui.land ? 110 : 160, geo.size.height - 24 - 228 - 70 - 15)
                     PlayerPanel(room: room)
                         .frame(maxWidth: lf ? geo.size.width - 32 : min(Theme.panelMaxWidth, geo.size.width - 32))
+                        .background(alignment: .top) { DrawerWarmUp().frame(height: room) }
                         .padding(.top, lf ? 12 : ui.land ? 12 : 24)
                         .onChange(of: room, initial: true) { _, r in if ui.room != r { ui.room = r } }
                         .onChange(of: geo.size, initial: true) { _, s in

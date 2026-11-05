@@ -832,3 +832,34 @@ struct DelBadge: View {
 /// A place to keep a view's position on screen without redrawing it each time it moves (it moves on every scroll frame).
 final class FrameBox { var r: CGRect = .zero }
 final class SlotBox { var s: [String: CGRect] = [:] }
+
+/// The drawer's pages drawn once, unseen, soon after launch, so the first time one opens its pictures (tile glass,
+/// shadows) and views already exist. Without it the first open of the Library hitched and its first frames were lost.
+struct DrawerWarmUp: View {
+    @State private var on = false
+    private var ui: UIState { .shared }
+    var body: some View {
+        ZStack(alignment: .top) {
+            if on {
+                ZStack(alignment: .top) {
+                    LibraryDrawer()
+                    QueueDrawer()
+                    ArtistsDrawer()
+                }
+                .padding(.horizontal, Theme.panelPad)
+                .opacity(0.001)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .clipped()
+        .task {
+            try? await Task.sleep(nanoseconds: 1_200_000_000)              // after the app has shown and settled
+            guard ui.tab == nil else { return }
+            on = true
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            on = false
+        }
+    }
+}
