@@ -89,6 +89,7 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
                 content
                     .background(shape.fill(Color(white: 1 - sub)).blendMode(.plusDarker).opacity(sub > 0 ? 1 : 0))
                     .glassEffect(interactive ? tinted.interactive() : tinted, in: shape)
+                    .environment(\.colorScheme, u.glassLight ? .light : .dark)
                     .background(shape.fill(Color.black.opacity(behind)).animation(Theme.ease, value: dim))
             }
         } else { frosted(content) }

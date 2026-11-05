@@ -30,6 +30,7 @@ final class UIState {
     var glassSub: Double = 0
     var glassTint: Double = 0
     var glassRegular = false
+    var glassLight = false              // the glass drawn in light mode (it adapts its own shading to the colour scheme)
     var glassPeek = false               // a glass slider is held: Settings fades so the panel shows
     var blur: Double = 0
     var wallpaper: UIImage?
@@ -83,7 +84,8 @@ final class UIState {
     func setClassic(_ on: Bool) { classic = on; Store.shared["oldPanel"] = on ? "1" : "" }
     func setCoverFlow(_ on: Bool) { coverFlow = on; Store.shared["libView"] = on ? "flow" : "grid" }
     func setDimGlass(_ on: Bool) { dimGlass = on; Store.shared["glassDim"] = on ? "1" : "" }
-    func setGlassLab(behind: Double? = nil, sub: Double? = nil, tint: Double? = nil, regular: Bool? = nil) {
+    func setGlassLab(behind: Double? = nil, sub: Double? = nil, tint: Double? = nil, regular: Bool? = nil, light: Bool? = nil) {
+        if let light { glassLight = light; Store.shared["glassLight"] = light ? "1" : "" }
         if let behind { glassBehind = behind; Store.shared["glassBehind"] = String(Int(behind)) }
         if let sub { glassSub = sub; Store.shared["glassSub"] = String(Int(sub)) }
         if let tint { glassTint = tint; Store.shared["glassTint"] = String(Int(tint)) }

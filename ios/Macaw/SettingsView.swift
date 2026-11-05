@@ -136,7 +136,7 @@ struct SettingsView: View {
                                 HStack {
                                     Text("Glass lab").font(.system(size: 15, weight: .medium)).foregroundStyle(.white)
                                     Spacer()
-                                    Button("Reset") { Haptics.light(); ui.setGlassLab(behind: 30, sub: 0, tint: 0, regular: false) }
+                                    Button("Reset") { Haptics.light(); ui.setGlassLab(behind: 30, sub: 0, tint: 0, regular: false, light: false) }
                                         .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.teal)
                                 }
                                 Text("Hold a slider and this card fades so you can see the player. Send Claude the numbers you like.")
@@ -148,6 +148,11 @@ struct SettingsView: View {
                                     Text("Frosted (regular) glass").font(.system(size: 13)).foregroundStyle(Color.w(0.8))
                                     Spacer()
                                     MacawSwitch(on: Binding(get: { ui.glassRegular }, set: { ui.setGlassLab(regular: $0) }))
+                                }
+                                HStack {
+                                    Text("Light-mode glass").font(.system(size: 13)).foregroundStyle(Color.w(0.8))
+                                    Spacer()
+                                    MacawSwitch(on: Binding(get: { ui.glassLight }, set: { ui.setGlassLab(light: $0) }))
                                 }
                             }
                             .padding(.horizontal, 14).padding(.vertical, 12)

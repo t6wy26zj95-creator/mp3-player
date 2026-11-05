@@ -124,6 +124,7 @@ enum Boot {
         u.glassSub = Double(st["glassSub"] ?? "") ?? 0
         u.glassTint = Double(st["glassTint"] ?? "") ?? 0
         u.glassRegular = st["glassRegular"] == "1"
+        u.glassLight = st["glassLight"] == "1"
         UIState.shared.coverFlow = Store.shared["libView"] == "flow"
         UIState.shared.blur = Double(Store.shared["wallpaperBlur"] ?? "") ?? 0
         // the build's screenshots: a detailed test wallpaper, where the glass's bending shows (launch argument -macawWall)
