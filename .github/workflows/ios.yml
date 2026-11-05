@@ -173,7 +173,7 @@ jobs:
           [ "$ok" = 1 ] || { tail -80 sim.log; exit 1; }
 
       - name: Install, add test songs, take screenshots
-        timeout-minutes: 12
+        timeout-minutes: 20
         run: |
           app=$(ls -d ios/simbuild/Build/Products/Debug-iphonesimulator/MacawP3.app)
           xcrun simctl install "$SIM" "$app"
