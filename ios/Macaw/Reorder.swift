@@ -87,7 +87,6 @@ struct HoldToReorder: ViewModifier {
             content
                 .background { if up { LiftCard(cover: cover, landing: r.landing) } }
                 .scaleEffect(up && !r.landing ? 1.03 : 1)
-                .opacity(busy && !up && !r.landing ? 0.5 : 1)
                 .offset(y: up ? r.cy : r.shift(spot.i))
                 .animation(up ? nil : Theme.easeN, value: r.shift(spot.i))
                 .animation(Theme.easeN, value: busy)

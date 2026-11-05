@@ -124,6 +124,9 @@ struct SongRow: View {
             .offset(x: out ? -frame.width : dir * d)
         }
         .clipShape(shape)
+        // web .queue-container.dragging .q-row:not(.lifted): every other row dims while one is lifted
+        .opacity(UIState.shared.tileDragging && !isLifted ? 0.5 : 1)
+        .animation(Theme.easeN, value: UIState.shared.tileDragging)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if !out { rowH = $0 } }
         .frame(height: out ? (gone ? 0 : rowH) : nil, alignment: .top)
