@@ -54,6 +54,9 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
             let f = GlassStyle.forced
             if f == "regular" {
                 content.glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
+            } else if let f, f.hasPrefix("gt"), let n = Double(f.dropFirst(2)) {
+                // Apple's own tint: darkens the glass itself instead of a sheet over it (gt20 = 20 % black)
+                content.glassEffect(Glass.clear.tint(Color.black.opacity(n / 100)), in: shape)
             } else {
                 // what goes under Apple's clear glass: nothing (clear), a light tint (tint), or the shade used so far
                 let dim = f.map { $0 == "dim" } ?? UIState.shared.dimGlass

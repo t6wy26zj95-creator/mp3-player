@@ -223,6 +223,9 @@ jobs:
           shotx glass-tint-home -macawScreen home -macawWall 1 -macawGlass tint
           shotx glass-web-home -macawScreen home -macawWall 1 -macawGlass web
           shotx glass-shade-home -macawScreen home -macawWall 1
+          shotx glass-gt20-home -macawScreen home -macawWall 1 -macawGlass gt20
+          shotx glass-gt35-home -macawScreen home -macawWall 1 -macawGlass gt35
+          shotx glass-gt50-home -macawScreen home -macawWall 1 -macawGlass gt50
           shotx glass-regular-home -macawScreen home -macawWall 1 -macawGlass regular
           shotx glass-clear-big -macawScreen big -macawWall 1 -macawGlass clear
           shotx glass-regular-big -macawScreen big -macawWall 1 -macawGlass regular
