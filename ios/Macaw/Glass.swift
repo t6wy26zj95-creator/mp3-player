@@ -57,6 +57,12 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
             } else if let f, f.hasPrefix("gt"), let n = Double(f.dropFirst(2)) {
                 // Apple's own tint: darkens the glass itself instead of a sheet over it (gt20 = 20 % black)
                 content.glassEffect(Glass.clear.tint(Color.black.opacity(n / 100)), in: shape)
+            } else if let f, f.hasPrefix("gb"), let n = Double(f.dropFirst(2)) {
+                // Apple's own recipe for clear glass: a see-through black BEHIND the glass (Glass.clear docs), so the glass
+                // bends a dimmed wallpaper and its rim and light stay crisp on top (gb30 = 30 % black)
+                content
+                    .glassEffect(interactive ? Glass.clear.interactive() : Glass.clear, in: shape)
+                    .background(shape.fill(Color.black.opacity(n / 100)))
             } else {
                 // what goes under Apple's clear glass: nothing (clear), a light tint (tint), or the shade used so far
                 let dim = f.map { $0 == "dim" } ?? UIState.shared.dimGlass

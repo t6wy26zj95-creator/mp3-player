@@ -226,6 +226,9 @@ jobs:
           shotx glass-gt20-home -macawScreen home -macawWall 1 -macawGlass gt20
           shotx glass-gt35-home -macawScreen home -macawWall 1 -macawGlass gt35
           shotx glass-gt50-home -macawScreen home -macawWall 1 -macawGlass gt50
+          shotx glass-gb15-home -macawScreen home -macawWall 1 -macawGlass gb15
+          shotx glass-gb25-home -macawScreen home -macawWall 1 -macawGlass gb25
+          shotx glass-gb35-home -macawScreen home -macawWall 1 -macawGlass gb35
           shotx glass-regular-home -macawScreen home -macawWall 1 -macawGlass regular
           shotx glass-clear-big -macawScreen big -macawWall 1 -macawGlass clear
           shotx glass-regular-big -macawScreen big -macawWall 1 -macawGlass regular
