@@ -66,11 +66,17 @@ struct CoverImage: View {
     @State private var loadedKey: String?
 
     private var key: String { (dataURL.map { "d:\($0.hashValue)" } ?? path ?? "") + "@\(px)" }
+    private var memo: UIImage? {
+        if let dataURL { return Covers.shared.cached("d:\(dataURL.hashValue)", px: px) }
+        if let path { return Covers.shared.cached(path, px: px) }
+        return nil
+    }
 
     var body: some View {
         ZStack {
-            if let img {
-                Image(uiImage: img).resizable().scaledToFill()
+            // already decoded (scrolling back, or the same cover elsewhere): shown at once, without a placeholder frame
+            if let shown = (loadedKey == key ? img : nil) ?? memo ?? img {
+                Image(uiImage: shown).resizable().scaledToFill()
             } else {
                 placeholder
             }

@@ -179,7 +179,7 @@ struct CompactPlayer: View {
                     TransportButton(kind: .play, size: 34).xp("c.play")
                     TransportButton(kind: .next, size: 34).xp("c.next")
                 }
-                Text(formatTime(player.scrubbing ?? player.time))
+                TimeText(kind: .elapsed)
                     .font(.system(size: 11).monospacedDigit()).foregroundStyle(Color.w(0.7))
                     .xp("c.cur")
                     .frame(minWidth: 24, alignment: .leading)
@@ -867,5 +867,16 @@ struct DoneButton: View {
         .scaleEffect(on ? 1 : 0.92).offset(y: on ? 0 : -4)
         .animation(Theme.easeN.delay(on ? 0.06 : 0), value: on)
         .allowsHitTesting(on)
+    }
+}
+
+/// The playing time on its own, so only this little label redraws as the song plays (not the whole player).
+struct TimeText: View {
+    enum Kind { case elapsed, left }
+    var kind: Kind
+    private var player: Player { .shared }
+    var body: some View {
+        let t = player.scrubbing ?? player.time
+        Text(kind == .elapsed ? formatTime(t) : "-" + formatTime(max(0, player.duration - t)))
     }
 }

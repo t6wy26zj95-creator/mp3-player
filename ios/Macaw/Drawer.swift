@@ -74,7 +74,8 @@ struct SongRow: View {
     @State private var rowH: CGFloat = 0
     @State private var out = false               // Queue: the row leaving
     @State private var gone = false              // …and its gap closing
-    @State private var frame: CGRect = .zero
+    @State private var width: CGFloat = 0
+    @State private var spot = FrameBox()          // where the row is on screen (for the menu); kept out of SwiftUI's sight so scrolling doesn't redraw the row
     private var player: Player { .shared }
 
     struct Stage { var min: CGFloat; var f: CGFloat; var label: String; var icon: String; var tone: Color }
@@ -93,7 +94,7 @@ struct SongRow: View {
         case .none: return []
         }
     }
-    private func at(_ st: Stage) -> CGFloat { max(st.min, st.f * frame.width) }
+    private func at(_ st: Stage) -> CGFloat { max(st.min, st.f * width) }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -121,13 +122,14 @@ struct SongRow: View {
             .overlay(shape.strokeBorder(Color.w(active ? 0.1 : 0), lineWidth: 1))
             .contentShape(shape)
             .opacity(dim ? 0.5 : 1)
-            .offset(x: out ? -frame.width : dir * d)
+            .offset(x: out ? -width : dir * d)
         }
         .clipShape(shape)
         // web .queue-container.dragging .q-row:not(.lifted): every other row dims while one is lifted
         .opacity(UIState.shared.tileDragging && !isLifted ? 0.5 : 1)
         .animation(Theme.easeN, value: UIState.shared.tileDragging)
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { spot.r = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if !out { rowH = $0 } }
         .frame(height: out ? (gone ? 0 : rowH) : nil, alignment: .top)
         .opacity(gone ? 0 : 1)
@@ -222,7 +224,7 @@ struct SongRow: View {
 
     private func openMenu() {
         Haptics.medium()
-        UIState.shared.menu = UIState.MenuState(kind: .song(track, inPlaylist: inPlaylist), anchor: frame)
+        UIState.shared.menu = UIState.MenuState(kind: .song(track, inPlaylist: inPlaylist), anchor: spot.r)
     }
 }
 
@@ -398,7 +400,9 @@ struct TileGrid: View {
     @State private var grab: CGSize = .zero              // where the finger holds the tile, from its slot's corner
     @State private var finger: CGPoint = .zero
     @State private var start: CGPoint = .zero
-    @State private var slots: [String: CGRect] = [:]
+    @State private var box = SlotBox()                    // each tile's slot on screen, out of SwiftUI's sight while scrolling
+    @State private var slotTick = 0                      // …except while a tile is held, when the lifted one must follow its slot
+    private var slots: [String: CGRect] { box.s }
     @State private var wasEditing = false
     @State private var pending = false
     @State private var going: Set<String> = []           // tiles shrinking away (hidden)
@@ -409,6 +413,7 @@ struct TileGrid: View {
         let cols = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: 3)
         let byKey = Dictionary(model.tiles.map { ($0.key, $0) }, uniquingKeysWith: { a, _ in a })
         let list = (keys ?? model.tiles.map(\.key)).compactMap { byKey[$0] }
+        let _ = slotTick
         LazyVGrid(columns: cols, alignment: .center, spacing: 14) {
             ForEach(list) { tile in
                 let k = tile.key, up = lifted == k
@@ -416,7 +421,7 @@ struct TileGrid: View {
                          hold: ui.editing ? 0.14 : 0.42,
                          onLift: { p in lift(k, p) }, onMove: { s0, p in move(k, s0, p) }, onDrop: { f in drop(k, f) }, badge: { remove(tile) })
                     .offset(up ? liftOffset(k) : .zero)
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { slots[k] = $0 }   // the slot, not the lifted tile
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { box.s[k] = $0; if lifted != nil { slotTick &+= 1 } }   // the slot, not the lifted tile
                     .zIndex(up ? 20 : 0)
             }
         }
@@ -514,7 +519,7 @@ struct TileView: View {
     var onMove: (CGPoint, CGPoint) -> Void = { _, _ in }
     var onDrop: (CGRect) -> Void = { _ in }
     var badge: () -> Void = {}
-    @State private var frame: CGRect = .zero
+    @State private var spot = FrameBox()
     private var pressed: Bool { false }
     private var model: AppModel { .shared }
     private var ui: UIState { .shared }
@@ -538,7 +543,7 @@ struct TileView: View {
         }
         .scaleEffect(going ? 0.7 : 1).opacity(going ? 0 : 1)
         .contentShape(Rectangle())
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { spot.r = $0 }
         .onTapGesture {
             if editing { return }                                               // web: while editing, a tap does nothing
             Haptics.light()
@@ -552,7 +557,7 @@ struct TileView: View {
             onLift(p)
         }, changed: { p in
             onMove(p, p)
-        }, ended: { onDrop(frame) }))
+        }, ended: { onDrop(spot.r) }))
     }
 
     private var title: String {
@@ -782,3 +787,7 @@ struct DelBadge: View {
         .accessibilityLabel("Hide")
     }
 }
+
+/// A place to keep a view's position on screen without redrawing it each time it moves (it moves on every scroll frame).
+final class FrameBox { var r: CGRect = .zero }
+final class SlotBox { var s: [String: CGRect] = [:] }

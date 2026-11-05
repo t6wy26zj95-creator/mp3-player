@@ -83,9 +83,9 @@ struct BigPlayer: View {
             VStack(spacing: 2) {
                 Scrubber(height: 4, bow: poses.moving ? poses.p : 0).xp("b.bar")
                 HStack {
-                    Text(formatTime(player.scrubbing ?? player.time)).xp("b.cur")
+                    TimeText(kind: .elapsed).xp("b.cur")
                     Spacer()
-                    Text("-" + formatTime(max(0, player.duration - (player.scrubbing ?? player.time)))).xp("b.left")
+                    TimeText(kind: .left).xp("b.left")
                 }
                 .font(.system(size: 11).monospacedDigit()).foregroundStyle(Color.w(0.6))
             }

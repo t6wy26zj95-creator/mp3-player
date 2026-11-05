@@ -20,6 +20,9 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- 120 Hz on ProMotion iPhones (without it every animation and scroll is held to 60) -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
