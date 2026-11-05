@@ -36,7 +36,8 @@ jobs:
           [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
           echo "Using $x"; sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
           # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
-          xcrun -f metal >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || true
+          xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || sudo xcodebuild -downloadComponent MetalToolchain || true
+          xcrun metal --version || true
 
       - name: Make the Xcode project
         run: |
@@ -146,7 +147,8 @@ jobs:
           [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
           echo "Using $x"; sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
           # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
-          xcrun -f metal >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || true
+          xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || sudo xcodebuild -downloadComponent MetalToolchain || true
+          xcrun metal --version || true
 
       - name: Make the Xcode project
         run: |
