@@ -12,6 +12,7 @@ final class Reorder {
     @ObservationIgnored var frames: [Int: CGRect] = [:]
     @ObservationIgnored var to = 0
     @ObservationIgnored var count = 0
+    @ObservationIgnored var y0: CGFloat = 0
 
     private func f(_ j: Int) -> CGRect { frames[j] ?? .zero }
     var H: CGFloat { me.map { f($0).height } ?? 0 }
@@ -94,14 +95,13 @@ struct HoldToReorder: ViewModifier {
                     if r.me == nil { r.frames[spot.i] = f }
                 }
                 .zIndex(up ? 5 : 0)
-                .gesture(LongPressGesture(minimumDuration: 0.38, maximumDistance: 8)
-                    .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
-                    .onChanged { v in
-                        guard case .second(true, let d) = v else { return }
-                        if r.me == nil { r.begin(spot.i, count: spot.count) }
-                        if let d, r.me == spot.i { r.moved(d.translation.height) }
-                    }
-                    .onEnded { _ in if r.me == spot.i { r.end(still: menu, drop: spot.drop) } })
+                .gesture(HoldPan(began: { p in
+                    if r.me == nil { r.y0 = p.y; r.begin(spot.i, count: spot.count) }
+                }, changed: { p in
+                    if r.me == spot.i { r.moved(p.y - r.y0) }
+                }, ended: {
+                    if r.me == spot.i && !r.landing { r.end(still: menu, drop: spot.drop) }
+                }))
         } else {
             content.onLongPressGesture(minimumDuration: 0.38) { menu() }
         }
@@ -136,5 +136,31 @@ private struct LiftCard: View {
         .onAppear { withAnimation(Theme.easeN) { glow = 1 } }
         .onChange(of: landing) { _, l in if l { withAnimation(Theme.easeN) { glow = 0 } } }
         .allowsHitTesting(false)
+    }
+}
+
+/// Hold, then move (UIKit's long press): unlike a SwiftUI long press followed by a drag, it leaves the list's scrolling
+/// alone until the hold has really happened. Points are in the screen's (global) space.
+struct HoldPan: UIGestureRecognizerRepresentable {
+    var duration: Double = 0.38
+    var began: (CGPoint) -> Void
+    var changed: (CGPoint) -> Void
+    var ended: () -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
+        let g = UILongPressGestureRecognizer()
+        g.minimumPressDuration = duration
+        g.allowableMovement = 8
+        return g
+    }
+    func updateUIGestureRecognizer(_ g: UILongPressGestureRecognizer, context: Context) { g.minimumPressDuration = duration }
+    func handleUIGestureRecognizerAction(_ g: UILongPressGestureRecognizer, context: Context) {
+        let p = context.converter.location(in: .global)
+        switch g.state {
+        case .began: began(p)
+        case .changed: changed(p)
+        case .ended, .cancelled, .failed: ended()
+        default: break
+        }
     }
 }

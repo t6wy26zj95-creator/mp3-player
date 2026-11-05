@@ -416,7 +416,7 @@ struct TileGrid: View {
                          hold: ui.editing ? 0.14 : 0.42,
                          onLift: { p in lift(k, p) }, onMove: { s0, p in move(k, s0, p) }, onDrop: { f in drop(k, f) }, badge: { remove(tile) })
                     .offset(up ? liftOffset(k) : .zero)
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("grid")) } action: { slots[k] = $0 }   // the slot, not the lifted tile
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { slots[k] = $0 }   // the slot, not the lifted tile
                     .zIndex(up ? 20 : 0)
             }
         }
@@ -515,7 +515,7 @@ struct TileView: View {
     var onDrop: (CGRect) -> Void = { _ in }
     var badge: () -> Void = {}
     @State private var frame: CGRect = .zero
-    @GestureState private var pressed = false
+    private var pressed: Bool { false }
     private var model: AppModel { .shared }
     private var ui: UIState { .shared }
 
@@ -548,15 +548,11 @@ struct TileView: View {
             case .album(let a): ui.push(.album(a.name))
             }
         }
-        .gesture(LongPressGesture(minimumDuration: hold, maximumDistance: 8)
-            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("grid")))
-            .updating($pressed) { v, st, _ in if case .first(true) = v { st = true } }
-            .onChanged { v in
-                guard case .second(true, let d) = v else { return }
-                onLift(d?.startLocation)
-                if let d { onMove(d.startLocation, d.location) }
-            }
-            .onEnded { _ in onDrop(frame) })
+        .gesture(HoldPan(duration: hold, began: { p in
+            onLift(p)
+        }, changed: { p in
+            onMove(p, p)
+        }, ended: { onDrop(frame) }))
     }
 
     private var title: String {

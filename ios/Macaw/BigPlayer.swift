@@ -375,16 +375,16 @@ struct UpNextStrip: View {
         .opacity(cardOpacity(gone: gone, up: up))
         .animation(Theme.easeN, value: shift(c, all))
         .zIndex(up ? 5 : 0)
-        .simultaneousGesture(LongPressGesture(minimumDuration: 0.38, maximumDistance: 9)
-            .sequenced(before: DragGesture(minimumDistance: 0))
-            .onChanged { v in
-                guard case .second(true, let d) = v, spot(c, all) != nil else { return }
-                liftHeld = true
-                liftMoved(c, all, d?.translation ?? .zero)
-            }
-            .onEnded { _ in if liftHeld { liftEnded(c, all); liftHeld = false } })
+        .gesture(HoldPan(began: { p in
+            guard spot(c, all) != nil else { return }
+            liftStart = p; liftHeld = true
+            liftMoved(c, all, .zero)
+        }, changed: { p in
+            if liftHeld { liftMoved(c, all, CGSize(width: p.x - liftStart.x, height: p.y - liftStart.y)) }
+        }, ended: { if liftHeld { liftEnded(c, all); liftHeld = false } }))
         .gesture(VerticalPan(changed: { dy in if !liftHeld { flickMoved(c, dy) } }, ended: { if !liftHeld { flickEnded(c) } }))
     }
+    @State private var liftStart: CGPoint = .zero
     @State private var liftHeld = false              // lifted by a hold (reorder), not by a flick
 
     private func cardOpacity(gone: Bool, up: Bool) -> Double {

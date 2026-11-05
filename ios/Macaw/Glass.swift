@@ -28,42 +28,38 @@ enum GlassStyle {
     }()
 }
 
-/// The panel's glass. On iOS 26 and later it is Apple's real Liquid Glass (it bends and lights what's behind it);
-/// before that, or with Classic panel on, the frosted glass the web player used.
+/// The panel's glass: the web player's own (the WebGL "glass" in index.html, ported to a Metal shader in Glass.metal).
+/// Not a frosted material: it is the wallpaper itself, exactly as it sits behind the panel, blurred only ~2 pt, a little
+/// more saturated, smoked down only where the wallpaper is bright (so white text stays readable), with a 10 % tint; at
+/// the rounded rim it bends what's just outside (with a slight colour split) under a thin lit edge. Dim glass: a
+/// stronger tint. Classic panel: the plain frosted glass. The build's screenshots can still ask for Apple's Liquid Glass
+/// with -macawGlass regular | clear.
 struct PanelGlass<S: InsettableShape>: ViewModifier {
     var shape: S
     var classic: Bool
     var interactive = false
 
     func body(content: Content) -> some View {
-        #if compiler(>=6.2)
-        if #available(iOS 26.0, *), !classic {
-            if GlassStyle.forced == "regular" {
-                content.glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
-            } else {
-                let dim = GlassStyle.forced.map { $0 == "dim" } ?? UIState.shared.dimGlass
-                content
-                    // Apple's clear glass lifts a dark wallpaper by about 40 levels on a phone (the dock: about 15). This shade
-                    // brings the panel back to the web player's darkness; Dim glass goes darker still.
-                    .background(shape.fill(Color.black.opacity(dim ? 0.65 : 0.5)).animation(Theme.ease, value: dim))
-                    .glassEffect(clear(), in: shape)
-            }
-        } else {
-            frosted(content)
+        if classic { frosted(content) }
+        else if let f = GlassStyle.forced, f == "regular" || f == "clear" { apple(content, f) }
+        else {
+            content
+                .background { WebGlass(dim: GlassStyle.forced.map { $0 == "dim" } ?? UIState.shared.dimGlass) }
+                .overlay { GlassRim().allowsHitTesting(false) }
+                .shadow(color: .black.opacity(0.3), radius: 25, y: 20)
+                .shadow(color: .black.opacity(0.15), radius: 7.5, y: 4)
         }
+    }
+
+    @ViewBuilder private func apple(_ content: Content, _ f: String) -> some View {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            content.glassEffect(f == "regular" ? Glass.regular : Glass.clear, in: shape)
+        } else { frosted(content) }
         #else
         frosted(content)
         #endif
     }
-
-    #if compiler(>=6.2)
-    @available(iOS 26.0, *)
-    private func clear() -> Glass {
-        // Apple's clear glass (as in the iOS 26 dock): hardly frosted, the wallpaper stays sharp in the middle and is
-        // bent and stretched at the rounded edges, with a thin bright rim
-        interactive ? Glass.clear.interactive() : Glass.clear
-    }
-    #endif
 
     private func frosted(_ content: Content) -> some View {
         content
@@ -74,6 +70,51 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
                     .shadow(color: .black.opacity(0.3), radius: 25, y: 20)
                     .shadow(color: .black.opacity(0.15), radius: 7.5, y: 4)
             }
+    }
+}
+
+/// The wallpaper behind the panel, through the web player's lens (Glass.metal).
+struct WebGlass: View {
+    var dim: Bool
+    private let m: CGFloat = 16                            // room round the panel for the rim to bend in what's outside it
+
+    var body: some View {
+        GeometryReader { g in
+            let f = g.frame(in: .global), screen = UIScreen.main.bounds
+            let R = min(Theme.panelRadius, f.width / 2, f.height / 2)
+            // the light from the top left (web: -.55, -.83, normalised)
+            let L = CGPoint(x: -0.55 / 0.9957, y: -0.83 / 0.9957)
+            WallpaperView()
+                .frame(width: screen.width, height: screen.height)
+                .offset(x: -f.minX + m, y: -f.minY + m)
+                .frame(width: f.width + 2 * m, height: f.height + 2 * m, alignment: .topLeading)
+                .clipped()
+                .blur(radius: 2.2, opaque: true)                // web: GLASS_BLUR 2 × 1.1
+                .layerEffect(ShaderLibrary.webGlass(.float2(f.size), .float(m), .float(R), .float(16), .float(12),
+                                                    .float2(L), .float(dim ? 0.3 : 0.1)),
+                             maxSampleOffset: CGSize(width: m, height: m))
+                .padding(-m)
+                .clipShape(RoundedRectangle(cornerRadius: R, style: .continuous))
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// web .bubble-svg: the rim (a white gradient line, brightest at the top) and four faint inner strokes
+struct GlassRim: View {
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.panelRadius, style: .continuous)
+        ZStack {
+            ForEach([16.0, 11, 7, 3.5], id: \.self) { w in
+                shape.stroke(LinearGradient(stops: [.init(color: .white, location: 0), .init(color: .white.opacity(0.45), location: 0.55),
+                                                    .init(color: .white.opacity(0.8), location: 1)], startPoint: .top, endPoint: .bottom),
+                             lineWidth: w).opacity(0.013)
+            }
+            .clipShape(shape)
+            shape.stroke(LinearGradient(stops: [.init(color: .w(0.5), location: 0), .init(color: .w(0.12), location: 0.3),
+                                                .init(color: .w(0.07), location: 0.8), .init(color: .w(0.26), location: 1)],
+                                        startPoint: .top, endPoint: UnitPoint(x: 0.2, y: 1)), lineWidth: 0.9)
+        }
     }
 }
 
