@@ -26,6 +26,13 @@ enum GlassStyle {
         if let i = a.firstIndex(of: "-macawGlass"), i + 1 < a.count { return a[i + 1] }
         return nil
     }()
+    /// The recipe in use: the screenshots' launch argument, else Settings > Glass test, else the default.
+    @MainActor static var current: String? { forced ?? (UIState.shared.glassTest.isEmpty ? nil : UIState.shared.glassTest) }
+    /// Settings > Glass test (temporary, to pick the look on a real iPhone, which draws Apple's glass differently from
+    /// the simulator): the value and what Settings calls it.
+    static let tests: [(String, String)] = [
+        ("", "A · Dark behind 30 %"), ("sub8", "B · A + grey taken out 8 %"), ("sub15", "C · A + grey taken out 15 %"),
+        ("sub25", "D · A + grey taken out 25 %"), ("gt35", "E · Apple tint 35 %"), ("gb0", "F · Apple clear, nothing")]
 }
 
 /// The panel's glass. On iOS 26 and later it is Apple's real Liquid Glass (it bends and lights what's behind it);
@@ -51,7 +58,7 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
     @ViewBuilder private func apple(_ content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
-            let f = GlassStyle.forced
+            let f = GlassStyle.current
             if f == "regular" {
                 content.glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
             } else if let f, f.hasPrefix("gt"), let n = Double(f.dropFirst(2)) {

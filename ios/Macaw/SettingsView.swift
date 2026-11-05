@@ -129,6 +129,21 @@ struct SettingsView: View {
                                 label("Dim glass", "A light shade behind the glass, so text stays easy to read on bright wallpapers")
                                 MacawSwitch(on: Binding(get: { ui.dimGlass }, set: { ui.setDimGlass($0) }))
                             }
+                            divider
+                            // temporary: try each glass on the phone itself (tap to go to the next one)
+                            let tests = GlassStyle.tests, at = tests.firstIndex { $0.0 == ui.glassTest } ?? 0
+                            Button {
+                                Haptics.select()
+                                withAnimation(Theme.easeN) { ui.setGlassTest(tests[(at + 1) % tests.count].0) }
+                            } label: {
+                                row {
+                                    label("Glass test", "Tap to try the next one, then tell Claude which letter looks right")
+                                    Text(tests[at].1).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.teal)
+                                        .multilineTextAlignment(.trailing).frame(maxWidth: 150, alignment: .trailing)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
                         }
                         divider
                         row {
