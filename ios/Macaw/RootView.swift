@@ -146,7 +146,7 @@ enum Boot {
         let st = Store.shared, u = UIState.shared
         // the glass Nick picked on his phone with the Glass lab (5 Nov): nothing extra behind it, 4 % of the grey taken
         // out, Apple's own tint at 14 % black
-        u.glassBehind = 0; u.glassSub = 4; u.glassTint = 14; u.glassRegular = false; u.glassLight = false
+        u.glassBehind = 0; u.glassSub = TestScreens.sub ?? 4; u.glassTint = 14; u.glassRegular = false; u.glassLight = false
         // the speed meter: the build's walk-through logs it (-macawPerf), Settings > Speed meter shows it
         let perfLog = CommandLine.arguments.contains("-macawPerf")
         PerfMeter.shared.shown = st["perfHUD"] == "1"
@@ -182,6 +182,12 @@ enum TestScreens {
     /// The build's slow-motion recording (-macawSlow N): every motion N times slower, so each step can be compared
     /// frame by frame with the web player's.
     @MainActor static let slow: Double = motionSlow
+    /// -macawSub N: the grey taken out of the glass, for comparison recordings
+    @MainActor static let sub: Double? = {
+        let a = CommandLine.arguments
+        if let i = a.firstIndex(of: "-macawSub"), i + 1 < a.count { return Double(a[i + 1]) }
+        return nil
+    }()
     @MainActor static func show(_ name: String) async {
         let ui = UIState.shared, model = AppModel.shared, player = Player.shared
         if player.current == nil, let t = model.tracks.first { player.start(model.tracks, at: t, name: "Library", wholeLibrary: true) }
@@ -229,6 +235,11 @@ enum TestScreens {
             await wait(1); NSLog("MacawSlow sub0"); ui.glassSub = 0; ui.open(.library)
             await wait(1); ui.open(.library)
             await wait(1)
+        case "firstopen":                   // the Library's first open after launch, slowed (is the glass white?)
+            let k = slow
+            func wait(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * k * 1_000_000_000)) }
+            await wait(0.4); ui.open(.library)
+            await wait(0.8); ui.open(.library)
         case "motion":                      // a fixed walk through the main motions, for the build's screen recording
             func wait(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * 1_000_000_000)) }
             await wait(2); player.next()
