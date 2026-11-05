@@ -223,6 +223,7 @@ struct UpNextStrip: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 6)
                 }
+                .scrollDisabled(lifted != nil && liftHeld)
                 .frame(height: 64)
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { stripW = $0 }
                 .onAppear { proxy.scrollTo("now", anchor: nowAnchor) }
@@ -232,10 +233,111 @@ struct UpNextStrip: View {
         }
     }
 
+    // web liftCard / flickCard: hold a card and move it sideways to reorder (within your queue, or within the album), or
+    // pull it up past the line (it turns red) and let go to remove it
+    @State private var lifted: String?
+    @State private var cx: CGFloat = 0
+    @State private var cy: CGFloat = 0
+    @State private var armed = false
+    @State private var leaving: String?             // the card lifting away before the queue changes
+    @State private var to = 0
+    @State private var landing = false
+    private let step: CGFloat = 138 + 8
+
+    /// a card's group (queue or album), its place in it and the group's size
+    private func spot(_ c: Card, _ all: [Card]) -> (g: Int, i: Int, n: Int)? {
+        switch c.kind {
+        case .queued(let i): return (0, i, player.queue.count)
+        case .album:
+            let al = all.filter { if case .album = $0.kind { return true }; return false }
+            guard let i = al.firstIndex(where: { $0.id == c.id }) else { return nil }
+            return (1, i, al.count)
+        default: return nil
+        }
+    }
+
+    /// how far another card of the lifted one's group steps aside
+    private func shift(_ c: Card, _ all: [Card]) -> CGFloat {
+        guard let lid = lifted, lid != c.id, !armed, let me = all.first(where: { $0.id == lid }),
+              let a = spot(me, all), let b = spot(c, all), a.g == b.g else { return 0 }
+        let L = CGFloat(a.i) * step + cx, R = L + 138, mid = CGFloat(b.i) * step + 69
+        if b.i < a.i && L < mid { return step }
+        if b.i > a.i && R > mid { return -step }
+        return 0
+    }
+
+    private func liftMoved(_ c: Card, _ all: [Card], _ t: CGSize) {
+        guard let a = spot(c, all), !landing else { return }
+        if lifted == nil { Haptics.medium(); withAnimation(Theme.easeN) { lifted = c.id }; to = a.i }
+        let up = min(0, t.height), arm = up < -36
+        if arm != armed { armed = arm; Haptics.select() }
+        let lo = -CGFloat(a.i) * step - 6, hi = CGFloat(a.n - 1 - a.i) * step + 6
+        withAnimation(.interactiveSpring(response: 0.12, dampingFraction: 0.95)) {
+            cx = max(lo, min(hi, t.width)); cy = arm ? up * 0.7 : up * 0.25
+        }
+        var nt = a.i
+        for o in all where o.id != c.id { let s = shift(o, all); if s > 0 { nt -= 1 } else if s < 0 { nt += 1 } }
+        if nt != to { to = nt; Haptics.select() }
+    }
+
+    private func liftEnded(_ c: Card, _ all: [Card]) {
+        guard lifted == c.id, let a = spot(c, all) else { return }
+        if armed { remove(c); return }
+        let land = CGFloat(to - a.i) * step
+        Haptics.light()
+        landing = true
+        withAnimation(Theme.easeN) { cx = land; cy = 0 }
+        let from = a.i, dest = to
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.29) {
+            if dest != from {
+                let ix = IndexSet(integer: from), t = dest > from ? dest + 1 : dest
+                if a.g == 0 { player.moveQueue(from: ix, to: t) } else { player.moveUpcoming(from: ix, to: t) }
+            }
+            var tr = Transaction(); tr.disablesAnimations = true
+            withTransaction(tr) { lifted = nil; cx = 0; cy = 0; landing = false }
+        }
+    }
+
+    /// web flickCard: the card follows the finger up (a little down), shrinks and fades; past 30 pt it turns red
+    private func flickMoved(_ c: Card, _ dy: CGFloat) {
+        guard spot(c, cards) != nil, lifted == nil || lifted == c.id else { return }
+        if lifted == nil { lifted = c.id }
+        let d = dy < 0 ? dy : dy * 0.2, arm = d < -30
+        if arm != armed { armed = arm; Haptics.select() }
+        var tr = Transaction(); tr.disablesAnimations = true
+        withTransaction(tr) { cx = 0; cy = d }
+    }
+    private func flickEnded(_ c: Card) {
+        guard lifted == c.id else { return }
+        if armed { remove(c); return }
+        withAnimation(Theme.easeN) { cy = 0; armed = false } completion: { if !armed { lifted = nil } }
+    }
+
+    /// web removeCard: the card lifts away, the gap closes, then the queue changes
+    private func remove(_ c: Card) {
+        Haptics.light()
+        withAnimation(Theme.easeQ) { leaving = c.id }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            withAnimation(Theme.easeN) {
+                switch c.kind {
+                case .queued(let i): player.removeFromQueue(at: IndexSet(integer: i))
+                case .album: player.removeUpcoming(c.track.key)
+                default: break
+                }
+                var tr = Transaction(); tr.disablesAnimations = true
+                withTransaction(tr) { lifted = nil; cx = 0; cy = 0; armed = false; leaving = nil }
+            }
+        }
+    }
+
     private func card(_ c: Card) -> some View {
+        let all = cards
         let now: Bool = { if case .now = c.kind { return true }; return false }()
         let played: Bool = { if case .played = c.kind { return true }; return false }()
         let queued: Int? = { if case .queued(let i) = c.kind { return i }; return nil }()
+        let up = lifted == c.id, rm = up && armed, gone = leaving == c.id
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        let lift = up && liftHeld && !landing
         return Button {
             Haptics.light()
             if let i = queued { player.playFromQueue(index: i) }
@@ -253,21 +355,59 @@ struct UpNextStrip: View {
             }
             .padding(7)
             .frame(width: 138, height: 52)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.w(now ? 0.16 : 0.08)))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.w(now ? 0.34 : 0.12), lineWidth: 1))
+            .background {
+                if rm { shape.fill(Color(red: 1, green: 99 / 255, blue: 99 / 255).opacity(0.42)) }
+                else if lift {                                               // web .xp-card.lifted
+                    shape.fill(Color(red: 19 / 255, green: 54 / 255, blue: 68 / 255).opacity(0.96))
+                        .overlay(shape.fill(LinearGradient(colors: [.w(0.2), .w(0.06)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                        .shadow(color: .black.opacity(0.35), radius: 13, y: 12)
+                } else { shape.fill(Color.w(now ? 0.16 : 0.08)) }
+            }
+            .overlay(shape.strokeBorder(rm ? Color(red: 1, green: 150 / 255, blue: 150 / 255).opacity(0.55) : Color.w(lift ? 0.3 : now ? 0.34 : 0.12), lineWidth: 1))
             .overlay(alignment: .topTrailing) {
                 if queued != nil { Circle().fill(Theme.teal).frame(width: 6, height: 6).padding(7) }
             }
             .opacity(played ? 0.45 : 1)
         }
         .buttonStyle(PressStyle())
-        .contextMenu {
-            Button("Play next", systemImage: "text.line.first.and.arrowtriangle.forward") { player.enqueue(c.track, last: false) }
-            if let i = queued {
-                Button("Remove from queue", systemImage: "minus.circle", role: .destructive) { player.removeFromQueue(at: IndexSet(integer: i)) }
-            } else if case .album = c.kind {
-                Button("Remove from up next", systemImage: "minus.circle", role: .destructive) { player.removeUpcoming(c.track.key) }
+        .scaleEffect(gone ? 0.9 : lift ? 1.06 : up && !liftHeld ? 1 - min(0.08, -min(0, cy) / 500) : 1)
+        .offset(x: up ? cx : shift(c, all), y: gone ? -34 : up ? cy : 0)
+        .opacity(gone ? 0 : up && !liftHeld ? max(0.45, 1 + min(0, cy) / 120) : lifted != nil && liftHeld && !up && !landing ? 0.55 : 1)
+        .animation(Theme.easeN, value: shift(c, all))
+        .zIndex(up ? 5 : 0)
+        .simultaneousGesture(LongPressGesture(minimumDuration: 0.38, maximumDistance: 9)
+            .sequenced(before: DragGesture(minimumDistance: 0))
+            .onChanged { v in
+                guard case .second(true, let d) = v, spot(c, all) != nil else { return }
+                liftHeld = true
+                liftMoved(c, all, d?.translation ?? .zero)
             }
+            .onEnded { _ in if liftHeld { liftEnded(c, all); liftHeld = false } })
+        .gesture(VerticalPan(changed: { dy in if !liftHeld { flickMoved(c, dy) } }, ended: { if !liftHeld { flickEnded(c) } }))
+    }
+    @State private var liftHeld = false              // lifted by a hold (reorder), not by a flick
+}
+
+/// A pull up on a card that only starts when the finger goes clearly up, so the strip still scrolls sideways.
+struct VerticalPan: UIGestureRecognizerRepresentable {
+    var changed: (CGFloat) -> Void
+    var ended: () -> Void
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let g = UIPanGestureRecognizer(); g.delegate = context.coordinator; return g
+    }
+    func handleUIGestureRecognizerAction(_ g: UIPanGestureRecognizer, context: Context) {
+        switch g.state {
+        case .changed: changed(g.translation(in: g.view).y)
+        case .ended, .cancelled, .failed: ended()
+        default: break
+        }
+    }
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+            guard let p = g as? UIPanGestureRecognizer else { return false }
+            let v = p.velocity(in: p.view)
+            return v.y < 0 && abs(v.y) > abs(v.x) * 1.3
         }
     }
 }
