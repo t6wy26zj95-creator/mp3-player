@@ -136,7 +136,7 @@ struct SettingsView: View {
                                 HStack {
                                     Text("Glass lab").font(.system(size: 15, weight: .medium)).foregroundStyle(.white)
                                     Spacer()
-                                    Button("Reset") { Haptics.light(); ui.setGlassLab(behind: 30, sub: 12, tint: 0, regular: false, light: false) }
+                                    Button("Reset") { Haptics.light(); ui.setGlassLab(behind: 0, sub: 0, tint: 35, regular: false, light: false) }
                                         .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.teal)
                                 }
                                 Text("Hold a slider and this card fades so you can see the player. Send Claude the numbers you like.")

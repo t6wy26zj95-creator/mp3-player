@@ -120,9 +120,9 @@ enum Boot {
         UIState.shared.minimalLight = Store.shared["lightMin"] == "1"
         UIState.shared.dimGlass = Store.shared["glassDim"] == "1"
         let st = Store.shared, u = UIState.shared
-        u.glassBehind = Double(st["glassBehind"] ?? "") ?? 30
-        u.glassSub = Double(st["glassSub"] ?? "") ?? 12
-        u.glassTint = Double(st["glassTint"] ?? "") ?? 0
+        u.glassBehind = Double(st["glassBehind"] ?? "") ?? 0
+        u.glassSub = Double(st["glassSub"] ?? "") ?? 0
+        u.glassTint = Double(st["glassTint"] ?? "") ?? 35
         u.glassRegular = st["glassRegular"] == "1"
         u.glassLight = st["glassLight"] == "1"
         UIState.shared.coverFlow = Store.shared["libView"] == "flow"
