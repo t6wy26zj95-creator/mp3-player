@@ -22,6 +22,14 @@ final class UIState {
     var minimalLight = false
     var editing = false                 // Library: rearranging tiles (they jiggle; Done replaces the tabs)
     var tileDragging = false
+    /// A phone on its side (web: orientation landscape, height under 500/560).
+    var land = false
+    /// The room the drawer's lists may take (web --room), set by RootView.
+    var room: CGFloat = 400
+    /// web --xs on its side: the big player's cover, as tall as the screen allows.
+    var landArt: CGFloat = 200
+    /// web html.cf-land: on its side with the Library open as Cover Flow, only the tabs and the row of covers show.
+    var landFlow: Bool { land && coverFlow && tab == .library && libraryPath.isEmpty && !expanded }
     var coverFlow = false               // Settings > Cover Flow: albums in one row instead of the grid
     var dimGlass = false                // Settings > Dim glass: a light shade behind the clear glass
     // Settings > Glass lab (temporary, to tune Apple's glass on the phone itself): % of black behind the glass, % of grey

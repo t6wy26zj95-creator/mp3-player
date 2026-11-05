@@ -67,6 +67,7 @@ struct SettingsView: View {
                         row {
                             label("Cover Flow", "Albums in one row that you flip through, instead of the grid")
                             MacawSwitch(on: Binding(get: { ui.coverFlow }, set: { ui.setCoverFlow($0) }))
+                                .accessibilityIdentifier("flowSwitch")
                         }
                         divider
                         Button { withAnimation(Theme.easeN) { hiddenOpen.toggle() } } label: {

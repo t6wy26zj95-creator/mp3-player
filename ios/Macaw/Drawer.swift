@@ -426,7 +426,7 @@ struct TileGrid: View {
 
     var body: some View {
         // web .albums-grid: three equal columns, 14 pt apart, 10 pt of padding all round
-        let cols = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: 3)
+        let cols = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: ui.land ? 5 : 3)   // web: five smaller covers a row on a phone on its side
         let byKey = Dictionary(model.tiles.map { ($0.key, $0) }, uniquingKeysWith: { a, _ in a })
         let list = (keys ?? model.tiles.map(\.key)).compactMap { byKey[$0] }
         let _ = slotTick

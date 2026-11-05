@@ -53,7 +53,9 @@ struct CoverFlow: View {
 
     var body: some View {
         let list = items
-        let W = (max(64, min(150, max(96, stageW * 0.34)))).rounded()
+        let land = ui.landFlow
+        // web measure(): the row's width sets the size; a short screen keeps the covers small enough to fit
+        let W = (max(64, min(land ? 260 : 150, max(96, stageW * (land ? 0.3 : 0.34)), (ui.room - 72) / 1.3))).rounded()
         let CG = W * 0.66, SP = W * 0.3, ft: CGFloat = 0.1
         VStack(spacing: 0) {
             TimelineView(.animation(paused: !sim.moving)) { tl in
@@ -99,8 +101,8 @@ struct CoverFlow: View {
             // web .cf-cap
             let cur = list.isEmpty ? nil : list[max(0, min(list.count - 1, Int(sim.c.rounded())))]
             VStack(spacing: 2) {
-                Text(cur?.name ?? "").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-                Text(cur?.sub ?? "").font(.system(size: 12)).foregroundStyle(Color.w(0.55)).lineLimit(1)
+                Text(cur?.name ?? "").font(.system(size: land ? 16 : 14, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                Text(cur?.sub ?? "").font(.system(size: land ? 13 : 12)).foregroundStyle(Color.w(0.55)).lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: 38, alignment: .top)
             .padding(.horizontal, 4)

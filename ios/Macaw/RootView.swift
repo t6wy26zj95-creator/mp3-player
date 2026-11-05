@@ -15,9 +15,20 @@ struct RootView: View {
                         .frame(maxWidth: min(Theme.panelMaxWidth, geo.size.width - 32))
                         .padding(.top, 24)
                 } else if booted && model.loaded {
-                    PlayerPanel(room: max(160, geo.size.height - 24 - 228 - 70 - 15))
-                        .frame(maxWidth: min(Theme.panelMaxWidth, geo.size.width - 32))
-                        .padding(.top, 24)
+                    // web fitRoom: the lists get the height left under the player (a phone on its side: much less;
+                    // on its side with Cover Flow open, only the tabs sit above the row, and the panel spans the screen)
+                    let lf = ui.landFlow
+                    let room = lf ? max(110, geo.size.height - 12 - 24 - 34 - 10 - 15 - 12)
+                                  : max(ui.land ? 110 : 160, geo.size.height - 24 - 228 - 70 - 15)
+                    PlayerPanel(room: room)
+                        .frame(maxWidth: lf ? geo.size.width - 32 : min(Theme.panelMaxWidth, geo.size.width - 32))
+                        .padding(.top, lf ? 12 : ui.land ? 12 : 24)
+                        .onChange(of: room, initial: true) { _, r in if ui.room != r { ui.room = r } }
+                        .onChange(of: geo.size, initial: true) { _, s in
+                            // web layout() on its side: S = max(110, min(panel × .4, 300, room under the top - 44))
+                            let a = (max(110, min(min(Theme.panelMaxWidth, s.width - 32) * 0.4, 300, s.height - 12 - 14 - 44))).rounded()
+                            if ui.landArt != a { ui.landArt = a }
+                        }
                 } else {
                     LoadingPanel(text: model.readingText)
                         .frame(maxWidth: min(Theme.panelMaxWidth, geo.size.width - 32))
@@ -75,6 +86,10 @@ struct RootView: View {
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
+            .onChange(of: geo.size, initial: true) { _, s in
+                let l = s.width > s.height && s.height < 560
+                if ui.land != l { withAnimation(Theme.ease) { ui.land = l } }
+            }
         }
         // behind everything and under the status bar, without making the layout itself taller than the screen
         .background { WallpaperView().ignoresSafeArea() }
@@ -211,6 +226,15 @@ enum TestScreens {
     }
 }
 
+/// web TILT.apply: the wallpaper drifts 6 pt against the tilt (scaled 4 % so its edges never show).
+struct WallTilt: ViewModifier {
+    private var g: Glow { .shared }
+    func body(content: Content) -> some View {
+        let on = g.tx != 0 || g.ty != 0
+        content.scaleEffect(on ? 1.04 : 1).offset(x: -6 * g.tx, y: -6 * g.ty)
+    }
+}
+
 /// The wallpaper behind everything: your photo (or the default), blurred by Settings > Blur, darkened a little on
 /// bright photos so white text stays readable.
 struct WallpaperView: View {
@@ -227,6 +251,7 @@ struct WallpaperView: View {
                         .frame(width: g.size.width + ui.blur * 4, height: g.size.height + ui.blur * 4)
                         .offset(x: -ui.blur * 2, y: -ui.blur * 2)
                         .blur(radius: ui.blur, opaque: true)
+                        .modifier(WallTilt())
                         .clipped()
                 }
                 .transition(.opacity)

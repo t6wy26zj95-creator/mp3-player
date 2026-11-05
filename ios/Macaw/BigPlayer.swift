@@ -53,68 +53,97 @@ struct BigPlayer: View {
     }
 
     private var home: some View {
-        VStack(spacing: 0) {
-            Button(action: close) {
-                Capsule().fill(Color.w(0.3)).frame(width: 36, height: 5)
-                    .frame(width: 72, height: 20).contentShape(Rectangle())
-            }
-            .buttonStyle(PressStyle())
-            .accessibilityIdentifier("handle")
-            .xp("b.handle")
-            .padding(.top, 6)
-
-            CoverArt(track: player.current, size: 191, radius: poses.artRadius ?? 18, glow: !ui.minimalLight, bump: bump)
-                .xp("b.art")
-                .padding(.top, 10)
-                .onTapGesture(perform: close)
-
-            // web .xp-meta: on a song change it comes in 26 pt from the side you skipped to (8 pt from below when picked)
-            // while the cover springs; nothing slides out
-            VStack(spacing: 5) {
-                BigTitle(text: player.current?.title ?? "", tag: "b.title")
-                subtitle
-            }
-            .modifier(KFEffect(p: meta, dx: KF(stops: [(0, Double(metaDir) * 26), (1, 0)], whole: .ease),
-                               dy: KF(stops: [(0, metaDir == 0 ? 8 : 0), (1, 0)], whole: .ease),
-                               opacity: KF(stops: [(0, 0), (1, 1)], whole: .ease)))
-            .padding(.horizontal, 22)
-            .padding(.top, 22)
-
-            // measured against the web screenshot at the same scale: bar 24 pt under the artist line, times 9 pt under the bar
-            VStack(spacing: 2) {
-                Scrubber(height: 4, bow: poses.moving ? poses.p : 0).xp("b.bar")
-                HStack {
-                    TimeText(kind: .elapsed).xp("b.cur")
-                    Spacer()
-                    TimeText(kind: .left).xp("b.left")
+        Group {
+            if ui.land {
+                // web .xp.land: the cover beside the title, bar and controls; the handle across the top
+                VStack(spacing: 0) {
+                    handle.padding(.top, 6)
+                    HStack(alignment: .top, spacing: 28) {
+                        art(size: ui.landArt).padding(.top, 4)
+                        VStack(spacing: 0) {
+                            metaBlock.padding(.top, 8)
+                            scrub.padding(.top, 14)
+                            ctrls.padding(.top, 8)
+                            UpNextStrip().xp("b.strip").padding(.top, 10).transition(.opacity)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 18)
                 }
-                .font(.system(size: 11).monospacedDigit()).foregroundStyle(Color.w(0.6))
+                .frame(maxWidth: .infinity)
+            } else {
+                VStack(spacing: 0) {
+                    handle.padding(.top, 6)
+                    art(size: 191).padding(.top, 10)
+                    metaBlock.padding(.horizontal, 22).padding(.top, 22)
+                    // measured against the web screenshot at the same scale: bar 24 pt under the artist line, times 9 pt under the bar
+                    scrub.padding(.horizontal, 22).padding(.top, 18.5)
+                    ctrls.padding(.horizontal, 26).padding(.top, 12.5)
+                    UpNextStrip()
+                        .xp("b.strip")
+                        .padding(.top, 40)
+                        .padding(.bottom, 18)
+                        .transition(.opacity)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 18.5)
-
-            HStack(spacing: 0) {
-                ToggleButton(d: SVGIcon.shuffle, on: player.shuffle) { player.toggleShuffle() }.accessibilityIdentifier("shuffle").xp("b.shuf")
-                Spacer(minLength: 0)
-                TransportButton(kind: .prev, size: 46).xp("b.prev")
-                Spacer(minLength: 0)
-                TransportButton(kind: .play, size: 60).xp("b.play")
-                Spacer(minLength: 0)
-                TransportButton(kind: .next, size: 46).xp("b.next")
-                Spacer(minLength: 0)
-                ToggleButton(d: player.repeatMode == .one ? SVGIcon.repeatOne : SVGIcon.repeatAll, on: player.repeatMode != .off) { player.cycleRepeat() }.accessibilityIdentifier("repeat").xp("b.rep")
-            }
-            .padding(.horizontal, 26)
-            .frame(height: 60)
-            .padding(.top, 12.5)
-
-            UpNextStrip()
-                .xp("b.strip")
-                .padding(.top, 40)
-                .padding(.bottom, 18)
-                .transition(.opacity)
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    private var handle: some View {
+        Button(action: close) {
+            Capsule().fill(Color.w(0.3)).frame(width: 36, height: 5)
+                .frame(width: 72, height: 20).contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityIdentifier("handle")
+        .xp("b.handle")
+    }
+
+    private func art(size: CGFloat) -> some View {
+        CoverArt(track: player.current, size: size, radius: poses.artRadius ?? 18, glow: !ui.minimalLight, bump: bump)
+            .xp("b.art")
+            .onTapGesture(perform: close)
+    }
+
+    // web .xp-meta: on a song change it comes in 26 pt from the side you skipped to (8 pt from below when picked)
+    // while the cover springs; nothing slides out
+    private var metaBlock: some View {
+        VStack(spacing: 5) {
+            BigTitle(text: player.current?.title ?? "", tag: "b.title")
+            subtitle
+        }
+        .modifier(KFEffect(p: meta, dx: KF(stops: [(0, Double(metaDir) * 26), (1, 0)], whole: .ease),
+                           dy: KF(stops: [(0, metaDir == 0 ? 8 : 0), (1, 0)], whole: .ease),
+                           opacity: KF(stops: [(0, 0), (1, 1)], whole: .ease)))
+    }
+
+    private var scrub: some View {
+        VStack(spacing: 2) {
+            Scrubber(height: 4, bow: poses.moving ? poses.p : 0).xp("b.bar")
+            HStack {
+                TimeText(kind: .elapsed).xp("b.cur")
+                Spacer()
+                TimeText(kind: .left).xp("b.left")
+            }
+            .font(.system(size: 11).monospacedDigit()).foregroundStyle(Color.w(0.6))
+        }
+    }
+
+    private var ctrls: some View {
+        HStack(spacing: 0) {
+            ToggleButton(d: SVGIcon.shuffle, on: player.shuffle) { player.toggleShuffle() }.accessibilityIdentifier("shuffle").xp("b.shuf")
+            Spacer(minLength: 0)
+            TransportButton(kind: .prev, size: 46).xp("b.prev")
+            Spacer(minLength: 0)
+            TransportButton(kind: .play, size: 60).xp("b.play")
+            Spacer(minLength: 0)
+            TransportButton(kind: .next, size: 46).xp("b.next")
+            Spacer(minLength: 0)
+            ToggleButton(d: player.repeatMode == .one ? SVGIcon.repeatOne : SVGIcon.repeatAll, on: player.repeatMode != .off) { player.cycleRepeat() }.accessibilityIdentifier("repeat").xp("b.rep")
+        }
+        .frame(height: 60)
     }
 
     private var subtitle: some View {
@@ -125,12 +154,29 @@ struct BigPlayer: View {
         let tail = rest.isEmpty ? "" : " · " + rest, fx = Retro.shared.mode != "off" ? " · " + Retro.shared.label : ""
         let n = tail.count + fx.count, K = 3.0, e = poses.extra
         func op(_ i: Int) -> Double { max(0, min(1, (e * Double(n) + e * K - Double(i)) / K)) }
-        func letters(_ s: String, from i0: Int, _ color: Color) -> Text {
+        func letters(_ s: String, _ i0: Int, _ color: Color) -> Text {
             if e >= 1 { return Text(s).foregroundColor(color) }
             return s.enumerated().reduce(Text("")) { acc, x in acc + Text(String(x.element)).foregroundColor(color.opacity(op(i0 + x.offset))) }
         }
         let gold = Color(red: 232 / 255, green: 196 / 255, blue: 140 / 255)
-        return HStack(spacing: 0) {
+        // web .xp-sub: up to 2 lines, centred; one line when it fits (then the artist alone is the link)
+        return ViewThatFits(in: .horizontal) {
+            oneLine(t: t, tail: tail, fx: fx, e: e, gold: gold, letters: letters)
+            (Text(t?.shownArtist ?? "").foregroundColor(Color.w(e >= 1 ? 0.85 : 0.6 + 0.25 * e))
+                + letters(tail, 0, Color.w(0.55)) + letters(fx, tail.count, gold))
+                .font(.system(size: 13.5)).lineSpacing(1.5)
+                .multilineTextAlignment(.center).lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentShape(Rectangle())
+                .onTapGesture { if let a = t?.shownArtist { ui.showArtist(a) } }
+                .xp("b.artistName")
+                .xp("b.artist")
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func oneLine(t: Track?, tail: String, fx: String, e: Double, gold: Color, letters: (String, Int, Color) -> Text) -> some View {
+        HStack(spacing: 0) {
             Button { if let a = t?.shownArtist { ui.showArtist(a) } } label: {
                 Text(t?.shownArtist ?? "").foregroundStyle(Color.w(e >= 1 ? 0.85 : 0.6 + 0.25 * e))
                     .overlay(alignment: .trailing) {
@@ -143,10 +189,10 @@ struct BigPlayer: View {
             }
             .buttonStyle(PressStyle())
             .xp("b.artistName")
-            if !tail.isEmpty || !fx.isEmpty { letters(tail, from: 0, Color.w(0.55)) + letters(fx, from: tail.count, gold) }
+            if !tail.isEmpty || !fx.isEmpty { letters(tail, 0, Color.w(0.55)) + letters(fx, tail.count, gold) }
         }
         .font(.system(size: 13.5))
-        .lineLimit(1)
+        .lineLimit(1).fixedSize(horizontal: true, vertical: false)
         .xp("b.artist")
         .frame(maxWidth: .infinity)
     }

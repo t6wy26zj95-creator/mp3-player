@@ -67,7 +67,7 @@ struct PlayerPanel: View {
             DragGesture(minimumDistance: 0)
                 .onChanged { v in
                     // the lean: anywhere on the compact panel except the drawer's lists and the progress bar
-                    if !ui.expanded && !driving && pull == 0 && player.scrubbing == nil && !(ui.tab != nil && v.startLocation.y > 228) {
+                    if !ui.expanded && !driving && pull == 0 && player.scrubbing == nil && !(ui.tab != nil && v.startLocation.y > (ui.landFlow ? 60 : 228)) {
                         leanTo(v.translation)
                     } else if leaning { release() }
                     guard hypot(v.translation.width, v.translation.height) > 9 || scrollFrom != nil || driving else { return }
@@ -85,7 +85,7 @@ struct PlayerPanel: View {
                     if driving { motion.dragTo(Double(v.translation.height - pullBase)); return }
                     if pullDead { return }
                     let dx = v.translation.width, dy = v.translation.height
-                    if !ui.expanded && v.startLocation.y < 130 {
+                    if !ui.expanded && !ui.landFlow && v.startLocation.y < 130 {
                         // opening needs a clearly downward start (steeper than ~35° from vertical)
                         if dy > 0 && dy > abs(dx) * 1.4, motion.dragBegin() { driving = true; pullBase = dy; release() } else { pullDead = true }
                     } else if ui.expanded && !ui.lyricsOpen && v.startLocation.y < foldZone {
@@ -143,6 +143,8 @@ struct CompactPlayer: View {
 
     var body: some View {
         VStack(spacing: 16) {
+          // web html.cf-land: on its side with Cover Flow open, the player rows step aside and only the tabs stay
+          if !ui.landFlow {
             // now playing: cover (centred over the three buttons), title, artist ›
             HStack(alignment: .center, spacing: 16) {
                 Button(action: open) {
@@ -194,6 +196,7 @@ struct CompactPlayer: View {
             }
             .padding(.horizontal, 10)
             .frame(height: 34)
+          }
 
             Footer()
                 .frame(height: 34)

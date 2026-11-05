@@ -3,6 +3,7 @@ import AVFoundation
 import CoreImage
 import QuartzCore
 import UIKit
+import CoreMotion
 
 /// The music glow, ported from the web player's decorative loop (pulseLoop, breathe, envelope, bandEvents, coverGlow and
 /// the cover-colour picker). Everything here runs at 30 fps and only feeds a few small views: the bloom and the light
@@ -27,6 +28,10 @@ final class Glow {
     var glassT: Double = 0
     var br: Double = 0.5
     var bp: [Double] = [0, 0, 0]
+    /// The phone's tilt, smoothed, -1…1 (web TILT.x / TILT.y): the cover's glow and light lean with it, the wallpaper
+    /// drifts the other way. Changes smaller than you can see aren't written, so a phone lying still costs nothing.
+    var tx: Double = 0
+    var ty: Double = 0
 
     // per song
     var c1: RGB = .neutral
@@ -59,6 +64,13 @@ final class Glow {
     @ObservationIgnored private var proxy: LinkProxy?
     @ObservationIgnored private var last: CFTimeInterval = 0
     @ObservationIgnored private var idleSlow = false
+    private let motion = CMMotionManager()
+    @ObservationIgnored private var rawX = 0.0
+    @ObservationIgnored private var rawY = 0.0
+    @ObservationIgnored private var sx = 0.0
+    @ObservationIgnored private var sy = 0.0
+    @ObservationIgnored private var bB: Double?
+    @ObservationIgnored private var bG = 0.0
 
     private init() {}
 
@@ -70,6 +82,26 @@ final class Glow {
         l.add(to: .main, forMode: .common)
         proxy = p; link = l
         light = Glow.makeLight(.neutral, .neutral); lastLight = "n|n"
+        startTilt()
+    }
+
+    /// web: deviceorientation → tx = (gamma - neutral) / 14, ty = (beta - neutral) / 14; the neutral pose slowly drifts
+    /// to however you hold the phone. No permission needed on iOS for this.
+    private func startTilt() {
+        guard motion.isDeviceMotionAvailable, !UIAccessibility.isReduceMotionEnabled,
+              !CommandLine.arguments.contains("-macawScreen") else { return }
+        motion.deviceMotionUpdateInterval = 1.0 / 30
+        motion.startDeviceMotionUpdates(to: .main) { [weak self] m, _ in
+            guard let self, let a = m?.attitude else { return }
+            MainActor.assumeIsolated {
+                let beta = a.pitch * 180 / .pi, gamma = a.roll * 180 / .pi
+                if self.bB == nil { self.bB = beta; self.bG = gamma }
+                var b = self.bB!; b += (beta - b) * 0.004; self.bB = b
+                self.bG += (gamma - self.bG) * 0.004
+                self.rawX = max(-1, min(1, (gamma - self.bG) / 14))
+                self.rawY = max(-1, min(1, (beta - b) / 14))
+            }
+        }
     }
 
     /// A new song is loading (web: analyze + the cover colours + flare = 1 once its artwork is in).
@@ -111,6 +143,9 @@ final class Glow {
         rimA = a
         sparkTick(playing, dt, now)
         glassT += dt
+        let k = 1 - pow(0.9, min(4, dt * 60))                 // web: the same smoothing at any frame rate
+        sx += (rawX - sx) * k; sy += (rawY - sy) * k
+        if abs(sx - tx) + abs(sy - ty) > 0.012 { tx = sx; ty = sy }
         br = 0.5 + 0.5 * sin(now / 2.6)
         if zip(nb, bp).contains(where: { abs($0 - $1) > 0.006 }) { bp = nb }
         // paused and settled: only the slow drift is left, 10 fps is plenty
@@ -537,6 +572,7 @@ struct CoverGlowBack: View {
                     .frame(width: 280 * k, height: 280 * k)
                     .scaleEffect(1 + g.pulse * 0.08 + g.br * 0.0333 + g.flare * 0.1467)
                     .opacity(0.32 + g.energy * 0.06 + g.pulse * 0.22 + g.br * 0.06 + g.flare * 0.22)
+                    .offset(x: g.tx * 12 * k, y: g.ty * 12 * k)                 // web: translate(--tx × 12px × --k)
                     .transition(.opacity.animation(Theme.easeN))
             }
             if let l = g.light {
@@ -561,7 +597,7 @@ struct CoverGlass: View {
     private var g: Glow { .shared }
     var body: some View {
         let u = size / 66, s = g.glassT
-        let la = g.rimA + 50, th = la * .pi / 180, rr = 30 + 6 * sin(s / 7.3)
+        let la = g.rimA + 50 + g.tx * 40 - g.ty * 12, th = la * .pi / 180, rr = 30 + 6 * sin(s / 7.3)
         let gx = (50 + rr * sin(th)) / 100, gy = (50 - rr * cos(th)) / 100
         let gi = min(1, 0.5 + g.energy * 0.12 + g.pulse * 0.14 + 0.06 * sin(s / 3.1))
         let sh = max(0, min(1, 0.5 + 0.45 * sin(s / 9.5)))

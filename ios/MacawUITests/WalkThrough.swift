@@ -125,6 +125,21 @@ final class WalkThrough: XCTestCase {
         // + Songs opens the Files picker
         if tap(id("addSongs"), "+ Songs", wait: 2) { shot("files-picker"); if app.buttons["Cancel"].exists { app.buttons["Cancel"].tap() } }
 
+        // a phone on its side: the Library grid (five a row), the big player (cover beside the controls), Cover Flow
+        XCUIDevice.shared.orientation = .landscapeLeft; Thread.sleep(forTimeInterval: 2); shot("land-home")
+        tap(id("tab-library"), "land Library"); shot("land-grid")
+        tap(id("cover"), "land big player", wait: 1.5); shot("land-big")
+        tap(id("handle"), "land close big", wait: 1.5)
+        XCUIDevice.shared.orientation = .portrait; Thread.sleep(forTimeInterval: 1.5)
+        tap(id("settings"), "Settings for Cover Flow")
+        if tap(id("flowSwitch"), "Cover Flow switch") {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.03)).tap(); Thread.sleep(forTimeInterval: 1)
+            shot("flow")
+            drag(CGVector(dx: 0.8, dy: 0.62), CGVector(dx: 0.2, dy: 0.62), speed: .fast); shot("flow-swiped")
+            XCUIDevice.shared.orientation = .landscapeLeft; Thread.sleep(forTimeInterval: 2); shot("land-flow")
+            XCUIDevice.shared.orientation = .portrait; Thread.sleep(forTimeInterval: 1.5)
+        }
+
         NSLog("MacawMissedAll %@", missed.joined(separator: " | "))
         let a = XCTAttachment(string: "Missed: " + (missed.isEmpty ? "nothing" : missed.joined(separator: ", ")))
         a.name = "missed"; a.lifetime = .keepAlways; add(a)
