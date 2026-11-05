@@ -220,9 +220,9 @@ extension View {
     func songSwap(_ key: String, direction d: Int, delay: Double = 0, center: Bool = false) -> some View {
         let dx = CGFloat(d) * 22
         let inT = AnyTransition.modifier(active: SongSwap(dx: dx, dy: d == 0 ? 10 : 0, fade: true), identity: SongSwap(dx: 0, dy: 0, fade: false))
-            .animation(Theme.ease.delay(0.15 + delay))
+            .animation(Theme.ease.delay(0.15 + delay).speed(1 / motionSlow))
         let outT = AnyTransition.modifier(active: SongSwap(dx: -dx, dy: d == 0 ? -10 : 0, fade: true), identity: SongSwap(dx: 0, dy: 0, fade: false))
-            .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.15))
+            .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.15).speed(1 / motionSlow))
         return ZStack(alignment: center ? .center : .leading) {
             self.id(key).transition(.asymmetric(insertion: inT, removal: outT))
         }
@@ -772,7 +772,7 @@ struct CoverArt: View {
         let my = job, d = Double(direction) * 22, same = shown?.path == track?.path
         withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.25)) { dip = 1 }           // dips: 250 ms
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 170_000_000)                                 // the web waits ≥ 170 ms for the dip
+            await motionPause(0.17)                                                            // the web waits ≥ 170 ms for the dip
             guard my == job else { return }
             var tr = Transaction(); tr.disablesAnimations = true
             withTransaction(tr) {

@@ -238,7 +238,7 @@ jobs:
           xcrun simctl io "$SIM" recordVideo --codec h264 --force screens/motion-slow.mp4 & rec=$!
           sleep 2
           xcrun simctl launch "$SIM" app.macaw.player -macawScreen slowmotion -macawSlow 10 -UIAnimationDragCoefficient 10
-          sleep 105
+          sleep 150
           kill -INT $rec; wait $rec || true
           # the panel's glass, side by side on a detailed wallpaper (the bending only shows on a picture with detail)
           cp .github/test-wall.jpg "$data/Documents/test-wall.jpg"

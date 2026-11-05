@@ -81,6 +81,19 @@ struct KFEffect: ViewModifier, Animatable {
 }
 
 /// Plays a one-off motion: jumps p to 0 and runs it to 1 over `duration` (linear: the curves live in the keyframes).
+/// The slow-motion recording's factor (-macawSlow N), else 1. Animations that bypass the root's slow hook (a
+/// transition's own animation, a pause between two steps) multiply by it so the whole motion slows together.
+let motionSlow: Double = {
+    let a = CommandLine.arguments
+    if let i = a.firstIndex(of: "-macawSlow"), i + 1 < a.count, let v = Double(a[i + 1]), v > 1 { return v }
+    return 1
+}()
+
+/// A pause inside a motion (stretched in the slow-motion recording).
+func motionPause(_ seconds: Double) async {
+    try? await Task.sleep(nanoseconds: UInt64(seconds * motionSlow * 1_000_000_000))
+}
+
 @MainActor func replay(_ p: Binding<Double>, duration: Double) {
     var jump = Transaction(); jump.disablesAnimations = true
     withTransaction(jump) { p.wrappedValue = 0 }

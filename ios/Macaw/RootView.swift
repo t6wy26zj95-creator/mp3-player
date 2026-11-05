@@ -180,11 +180,7 @@ enum TestScreens {
     @MainActor static var lift = false
     /// The build's slow-motion recording (-macawSlow N): every motion N times slower, so each step can be compared
     /// frame by frame with the web player's.
-    @MainActor static let slow: Double = {
-        let a = CommandLine.arguments
-        if let i = a.firstIndex(of: "-macawSlow"), i + 1 < a.count, let v = Double(a[i + 1]), v > 1 { return v }
-        return 1
-    }()
+    @MainActor static let slow: Double = motionSlow
     @MainActor static func show(_ name: String) async {
         let ui = UIState.shared, model = AppModel.shared, player = Player.shared
         if player.current == nil, let t = model.tracks.first { player.start(model.tracks, at: t, name: "Library", wholeLibrary: true) }
@@ -226,6 +222,12 @@ enum TestScreens {
             await wait(1); XPMotion.shared.open()
             await wait(1.2); XPMotion.shared.close()
             await wait(1.2)
+            // the drawer opened a second time, then once more without the grey taken out (is the white flash the plus-darker layer?)
+            NSLog("MacawSlow again"); ui.open(.library)
+            await wait(1); ui.open(.library)
+            await wait(1); NSLog("MacawSlow sub0"); ui.glassSub = 0; ui.open(.library)
+            await wait(1); ui.open(.library)
+            await wait(1)
         case "motion":                      // a fixed walk through the main motions, for the build's screen recording
             func wait(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * 1_000_000_000)) }
             await wait(2); player.next()
