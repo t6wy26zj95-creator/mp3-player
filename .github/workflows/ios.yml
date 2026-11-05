@@ -270,7 +270,10 @@ jobs:
             -resultBundlePath ../walk.xcresult CODE_SIGNING_ALLOWED=NO > ../walk.log 2>&1 || echo "the walk-through test reported a failure"
           cd ..
           grep -E "error:|Test Case|passed|failed|\*\* TEST" walk.log | tail -40 || true
-          kill -INT $tr 2>/dev/null || true; wait $tr || true
+          # stop the recording (it ends on its own after 200 s; never wait on it forever)
+          pkill -INT -f "xctrace record" 2>/dev/null || true
+          for i in $(seq 1 90); do pgrep -f "xctrace record" > /dev/null || break; sleep 1; done
+          pkill -9 -f "xctrace record" 2>/dev/null || true; kill $tr 2>/dev/null || true
           cat xctrace.log | tail -5 || true
           du -sh walk.trace 2>/dev/null || true; df -h / | tail -1
           mkdir -p walk
