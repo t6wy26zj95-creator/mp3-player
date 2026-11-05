@@ -89,8 +89,8 @@ struct HoldToReorder: ViewModifier {
                 .background { if up { LiftCard(cover: cover, landing: r.landing) } }
                 .scaleEffect(up && !r.landing ? 1.03 : 1)
                 .offset(y: up ? r.cy : r.shift(spot.i))
-                .animation(up ? nil : Theme.easeN, value: r.shift(spot.i))
-                .animation(Theme.easeN, value: busy)
+                .anim(up ? nil : Theme.easeN, value: r.shift(spot.i))
+                .anim(Theme.easeN, value: busy)
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { f in
                     if r.me == nil { r.frames[spot.i] = f }
                 }
@@ -132,7 +132,7 @@ private struct LiftCard: View {
                 .shadow(color: .black.opacity(0.18), radius: 4, y: 3)
                 .opacity(landing ? 0 : 1)
         }
-        .animation(Theme.easeN, value: landing)
+        .anim(Theme.easeN, value: landing)
         .onAppear { withAnimation(Theme.easeN) { glow = 1 } }
         .onChange(of: landing) { _, l in if l { withAnimation(Theme.easeN) { glow = 0 } } }
         .allowsHitTesting(false)

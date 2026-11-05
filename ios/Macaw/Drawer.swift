@@ -20,9 +20,9 @@ struct DrawerView: View {
         // web: the new view comes in 18 pt from the side you went (8 pt from below on a tab switch), 400 ms ease;
         // the old one fades out 12 pt the other way (4 pt up), 250 ms
         let inT = AnyTransition.modifier(active: SongSwap(dx: d * 18, dy: d == 0 ? 8 : 0, fade: true, blur: 0), identity: SongSwap(dx: 0, dy: 0, fade: false, blur: 0))
-            .animation(Theme.ease)
+            .animation(Theme.ease.slowed)
         let outT = AnyTransition.modifier(active: SongSwap(dx: -d * 12, dy: d == 0 ? -4 : 0, fade: true, blur: 0), identity: SongSwap(dx: 0, dy: 0, fade: false, blur: 0))
-            .animation(Theme.easeN)
+            .animation(Theme.easeN.slowed)
         ScrollView(.vertical, showsIndicators: false) {
             ZStack(alignment: .top) {
                 Group {
@@ -43,7 +43,7 @@ struct DrawerView: View {
         .scrollDisabled(UIState.shared.tileDragging)
         .scrollBounceBehavior(.basedOnSize)
         .frame(height: min(max(contentHeight, 40), room))
-        .animation(Theme.ease, value: contentHeight)                       // web: #view-host height, 400 ms ease
+        .anim(Theme.ease, value: contentHeight)                       // web: #view-host height, 400 ms ease
     }
 }
 
@@ -108,7 +108,7 @@ struct SongRow: View {
                     .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.w(0.1), lineWidth: 1))
                     .shadow(color: .black.opacity(isLifted ? 0.35 : 0), radius: 6, y: 4)
                     .scaleEffect(isLifted ? 1.08 : 1)                                       // web .q-row.lifted .item-art
-                    .animation(Theme.easeN, value: isLifted)
+                    .anim(Theme.easeN, value: isLifted)
                 VStack(alignment: .leading, spacing: 1) {
                     Text((number.map { "\($0). " } ?? "") + track.title)                      // web: up to 2 lines, line-height 1.25
                         .font(.system(size: 13, weight: .medium)).foregroundStyle(.white).lineLimit(2)
@@ -127,7 +127,7 @@ struct SongRow: View {
         .clipShape(shape)
         // web .queue-container.dragging .q-row:not(.lifted): every other row dims while one is lifted
         .opacity(UIState.shared.tileDragging && !isLifted ? 0.5 : 1)
-        .animation(Theme.easeN, value: UIState.shared.tileDragging)
+        .anim(Theme.easeN, value: UIState.shared.tileDragging)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { place.r = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if !out { rowH = $0 } }
@@ -150,7 +150,7 @@ struct SongRow: View {
         let label = HStack(spacing: 6) {
             if !left { SVGIcon(d: done != nil ? SVGIcon.check : st?.icon ?? "").fill(.white).frame(width: 18, height: 18) }
             Text(done ?? st?.label ?? "").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-                .opacity(done != nil || d >= labW - 2 ? 1 : 0).animation(Theme.easeQ, value: d >= labW - 2)
+                .opacity(done != nil || d >= labW - 2 ? 1 : 0).anim(Theme.easeQ, value: d >= labW - 2)
             if left { SVGIcon(d: done != nil ? SVGIcon.check : st?.icon ?? "").fill(.white).frame(width: 18, height: 18) }
         }
         .padding(.horizontal, 14)
@@ -160,7 +160,7 @@ struct SongRow: View {
         .modifier(KFEffect(p: pop, scale: KF(stops: [(0, 0.82), (0.6, 1.07), (1, 1)], each: .ease)))
         return RoundedRectangle(cornerRadius: 12, style: .continuous)
             .fill(k > 0 || done != nil ? (st?.tone ?? .white).opacity(0.34) : Color.w(0.07))
-            .animation(Theme.easeQ, value: k)
+            .anim(Theme.easeQ, value: k)
             .overlay(alignment: left ? .trailing : .leading) { label }
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .frame(width: out ? width : d)
@@ -553,8 +553,8 @@ struct TileView: View {
                     .modifier(Jiggle(on: editing && !lifted, j: j))
                     .overlay(alignment: .topLeading) { if case .all = tile {} else { DelBadge(on: editing && !lifted, j: j, action: badge) } }
                     .scaleEffect(lifted ? 1.08 : pressed ? 0.96 : 1)
-                    .animation(Theme.easeN, value: pressed)
-                    .animation(Theme.easeN, value: lifted)
+                    .anim(Theme.easeN, value: pressed)
+                    .anim(Theme.easeN, value: lifted)
                 Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.8)).lineLimit(1)
         }
         .scaleEffect(going ? 0.7 : 1).opacity(going ? 0 : 1)
@@ -823,7 +823,7 @@ struct DelBadge: View {
         .offset(x: -7, y: -7)
         .scaleEffect(on ? 1 : 0.3)
         .opacity(on ? 1 : 0)
-        .animation(Theme.ease.delay(on ? Double(j) * 0.022 : 0), value: on)
+        .anim(Theme.ease.delay(on ? Double(j) * 0.022 : 0), value: on)
         .allowsHitTesting(on)
         .accessibilityLabel("Hide")
     }

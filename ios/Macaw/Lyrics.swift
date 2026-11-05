@@ -200,7 +200,7 @@ struct LyricsBubble: View {
                 .fill(LinearGradient(colors: [Color.w(0.1), Color.w(0.05)], startPoint: .top, endPoint: .bottom)))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.w(0.13), lineWidth: 1))
             .shadow(color: .black.opacity(0.22), radius: 13, y: 10)
-            .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.44), value: l.b)
+            .anim(.timingCurve(0.22, 1, 0.36, 1, duration: 0.44), value: l.b)
         }
         .buttonStyle(PressStyle())
     }
@@ -286,8 +286,8 @@ struct LyricsPage: View {
                         .foregroundStyle(.white)
                         .opacity(synced ? (on ? 1 : past ? 0.22 : 0.32) : 0.85)
                         .scaleEffect(on ? 1.03 : 1, anchor: .leading)
-                        .animation(Theme.ease, value: on)
-                        .animation(Theme.ease, value: past)
+                        .anim(Theme.ease, value: on)
+                        .anim(Theme.ease, value: past)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                         .onTapGesture {

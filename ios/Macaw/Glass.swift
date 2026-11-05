@@ -90,7 +90,7 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
                     .background(shape.fill(Color(white: 1 - sub)).blendMode(.plusDarker).opacity(sub > 0 ? 1 : 0))
                     .glassEffect(interactive ? tinted.interactive() : tinted, in: shape)
                     .environment(\.colorScheme, u.glassLight ? .light : .dark)
-                    .background(shape.fill(Color.black.opacity(behind)).animation(Theme.ease, value: dim))
+                    .background(shape.fill(Color.black.opacity(behind)).anim(Theme.ease, value: dim))
             }
         } else { frosted(content) }
         #else
@@ -242,7 +242,7 @@ private struct RoundButtonBody<L: View>: View {
             .background {
                 ZStack {
                     Circle().fill(Color.w(filled ? (pressed ? 0.16 : 0.1) : (pressed ? 0.08 : 0)))
-                        .animation(Theme.easeN, value: pressed)
+                        .anim(Theme.easeN, value: pressed)
                     if filled {
                         Circle().fill(RadialGradient(colors: [.w(0.4 * hl), .w(0)], center: at, startRadius: 0, endRadius: far * 0.72))
                     }
@@ -276,13 +276,13 @@ struct PopStyle: ButtonStyle {
 /// Text links and rows: they dim a little while pressed (no size change, as in the web player).
 struct PressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.opacity(configuration.isPressed ? 0.6 : 1).animation(Theme.easeQ, value: configuration.isPressed)
+        configuration.label.opacity(configuration.isPressed ? 0.6 : 1).anim(Theme.easeQ, value: configuration.isPressed)
     }
 }
 
 /// Library and artist tiles: the picture dips to 96 % while pressed (web: .album-card:active).
 struct TileStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.scaleEffect(configuration.isPressed ? 0.96 : 1).animation(Theme.easeN, value: configuration.isPressed)
+        configuration.label.scaleEffect(configuration.isPressed ? 0.96 : 1).anim(Theme.easeN, value: configuration.isPressed)
     }
 }

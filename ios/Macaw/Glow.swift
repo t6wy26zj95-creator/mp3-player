@@ -583,7 +583,7 @@ struct CoverGlowBack: View {
                     .scaleEffect(1 + g.pulse * 0.08 + g.br * 0.0333 + g.flare * 0.1467)
                     .opacity(0.32 + g.energy * 0.06 + g.pulse * 0.22 + g.br * 0.06 + g.flare * 0.22)
                     .offset(x: g.tx * 12 * k, y: g.ty * 12 * k)                 // web: translate(--tx × 12px × --k)
-                    .transition(.opacity.animation(Theme.easeN))
+                    .transition(.opacity.animation(Theme.easeN.slowed))
             }
             if let l = g.light {
                 Image(uiImage: l).resizable().interpolation(.medium)
@@ -751,8 +751,8 @@ struct PanelTint: View {
                            center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
             .frame(width: 480, height: 380)
             .offset(x: 80 - 240, y: 70 - 190)
-            .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.9), value: g.c1)
-            .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.9), value: a)
+            .anim(.timingCurve(0.22, 1, 0.36, 1, duration: 0.9), value: g.c1)
+            .anim(.timingCurve(0.22, 1, 0.36, 1, duration: 0.9), value: a)
             .allowsHitTesting(false)
         .accessibilityHidden(true)                 // decoration: not for VoiceOver, never in the way of a touch
     }

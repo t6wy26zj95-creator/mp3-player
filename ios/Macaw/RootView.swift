@@ -60,7 +60,7 @@ struct RootView: View {
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .onTapGesture { withAnimation(Theme.ease) { ui.settingsOpen = false } }
-                        .transition(.opacity.animation(Theme.easeN))
+                        .transition(.opacity.animation(Theme.easeN.slowed))
                         .zIndex(4)
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
@@ -70,8 +70,8 @@ struct RootView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .transition(.asymmetric(
-                        insertion: .opacity.animation(Theme.easeN).combined(with: .modifier(active: CardIn(on: false), identity: CardIn(on: true)).animation(Theme.ease)),
-                        removal: .opacity.animation(Theme.easeN).combined(with: .modifier(active: CardIn(on: false), identity: CardIn(on: true)).animation(Theme.ease))))
+                        insertion: .opacity.animation(Theme.easeN.slowed).combined(with: .modifier(active: CardIn(on: false), identity: CardIn(on: true)).animation(Theme.ease.slowed)),
+                        removal: .opacity.animation(Theme.easeN.slowed).combined(with: .modifier(active: CardIn(on: false), identity: CardIn(on: true)).animation(Theme.ease.slowed))))
                     .zIndex(5)
                 }
 

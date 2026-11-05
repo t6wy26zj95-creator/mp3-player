@@ -89,6 +89,17 @@ let motionSlow: Double = {
     return 1
 }()
 
+extension Animation {
+    /// Stretched in the slow-motion recording (for animations the root's slow hook doesn't reach: a view's own
+    /// .animation(_:value:) and a transition's own animation override it).
+    var slowed: Animation { motionSlow > 1 ? speed(1 / motionSlow) : self }
+}
+
+extension View {
+    /// .animation(_:value:), stretched in the slow-motion recording.
+    func anim<V: Equatable>(_ a: Animation?, value: V) -> some View { animation(a?.slowed, value: value) }
+}
+
 /// A pause inside a motion (stretched in the slow-motion recording).
 func motionPause(_ seconds: Double) async {
     try? await Task.sleep(nanoseconds: UInt64(seconds * motionSlow * 1_000_000_000))

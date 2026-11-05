@@ -40,7 +40,7 @@ struct PlayerPanel: View {
                             DrawerView(tab: tab, room: room)
                                 .padding(.bottom, Theme.panelPad - 6 + 15)
                         }
-                        .transition(.opacity.animation(Theme.easeN))
+                        .transition(.opacity.animation(Theme.easeN.slowed))
                     } else {
                         Color.clear.frame(height: Theme.panelPad)
                     }
@@ -220,13 +220,13 @@ extension View {
     func songSwap(_ key: String, direction d: Int, delay: Double = 0, center: Bool = false) -> some View {
         let dx = CGFloat(d) * 22
         let inT = AnyTransition.modifier(active: SongSwap(dx: dx, dy: d == 0 ? 10 : 0, fade: true), identity: SongSwap(dx: 0, dy: 0, fade: false))
-            .animation(Theme.ease.delay(0.15 + delay).speed(1 / motionSlow))
+            .animation(Theme.ease.delay(0.15 + delay).slowed)
         let outT = AnyTransition.modifier(active: SongSwap(dx: -dx, dy: d == 0 ? -10 : 0, fade: true), identity: SongSwap(dx: 0, dy: 0, fade: false))
-            .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.15).speed(1 / motionSlow))
+            .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.15).slowed)
         return ZStack(alignment: center ? .center : .leading) {
             self.id(key).transition(.asymmetric(insertion: inT, removal: outT))
         }
-        .animation(Theme.ease, value: key)
+        .anim(Theme.ease, value: key)
     }
 }
 
@@ -529,7 +529,7 @@ struct Scrubber: View {
                     if let s = player.scrubbing { player.seek(to: s) }
                     player.scrubbing = nil; dragging = false
                 })
-            .animation(Theme.easeQ, value: dragging)
+            .anim(Theme.easeQ, value: dragging)
         }
         .frame(height: max(thumb, height) + 6)
     }
@@ -571,7 +571,7 @@ struct Footer: View {
             // web .player-footer.edit: while rearranging the Library the tabs step aside for Done
             .opacity(ui.editing ? 0 : 1).offset(y: ui.editing ? 4 : 0)
             .allowsHitTesting(!ui.editing)
-            .animation(Theme.easeN, value: ui.editing)
+            .anim(Theme.easeN, value: ui.editing)
             .overlay(alignment: .trailing) { DoneButton(on: ui.editing) }
         }
         .padding(.horizontal, 10)
@@ -637,7 +637,7 @@ struct Footer: View {
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("tabs")) } action: { frames[t] = $0 }
                 .frame(height: 34)
                 .contentShape(Rectangle().inset(by: -12))
-                .animation(Theme.easeN, value: lit)
+                .anim(Theme.easeN, value: lit)
         }
         .buttonStyle(PopStyle(deep: 0.88))
         .accessibilityIdentifier("tab-\(t)")
@@ -711,10 +711,10 @@ struct PillView: View {
                 .onChange(of: tl.date) { _, d in sim.step(d) }
         }
         .opacity(sim.on ? 1 : 0)
-        .animation(Theme.easeN, value: sim.on)                               // web: opacity var(--t-n) var(--ease)
+        .anim(Theme.easeN, value: sim.on)                               // web: opacity var(--t-n) var(--ease)
         .scaleEffect(sim.on ? (sim.held ? 1.1 : 1) : 0.55)
-        .animation(Theme.easePop, value: sim.on)                             //      scale var(--t-s) var(--ease-pop)
-        .animation(Theme.easePop, value: sim.held)
+        .anim(Theme.easePop, value: sim.on)                             //      scale var(--t-s) var(--ease-pop)
+        .anim(Theme.easePop, value: sim.held)
         .allowsHitTesting(false)
     }
 }
@@ -876,7 +876,7 @@ struct DoneButton: View {
         .buttonStyle(PopStyle())
         .opacity(on ? 1 : 0)
         .scaleEffect(on ? 1 : 0.92).offset(y: on ? 0 : -4)
-        .animation(Theme.easeN.delay(on ? 0.06 : 0), value: on)
+        .anim(Theme.easeN.delay(on ? 0.06 : 0), value: on)
         .allowsHitTesting(on)
     }
 }

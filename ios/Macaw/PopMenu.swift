@@ -90,7 +90,7 @@ struct PopMenu: View {
                             if on { Image(systemName: "checkmark").font(.system(size: 10, weight: .heavy)).foregroundStyle(Color(red: 15 / 255, green: 23 / 255, blue: 30 / 255)) }
                         }
                         .frame(width: 20, height: 20)
-                        .animation(Theme.easeN, value: on)
+                        .anim(Theme.easeN, value: on)
                     }
                     .padding(10).contentShape(Rectangle())
                 }

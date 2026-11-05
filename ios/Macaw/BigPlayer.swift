@@ -210,13 +210,13 @@ struct ToggleButton: View {
         Button(action: action) {
             SVGIcon(d: d).fill(on ? Self.lit : Color.w(0.55))
                 .frame(width: 20, height: 20)
-                .animation(Theme.easeN, value: on)
+                .anim(Theme.easeN, value: on)
                 .frame(width: 40, height: 40)
                 .overlay(alignment: .bottom) {
                     Circle().fill(on ? Self.lit : Color.w(0.55)).frame(width: 4, height: 4)
                         .padding(.bottom, 3)
                         .opacity(on ? 1 : 0)
-                        .animation(Theme.easeN, value: on)
+                        .anim(Theme.easeN, value: on)
                 }
         }
         .buttonStyle(RoundButtonStyle(size: 40, filled: false))
@@ -420,7 +420,7 @@ struct UpNextStrip: View {
         .scaleEffect(gone ? 0.9 : lift ? 1.06 : up && !liftHeld ? 1 - min(0.08, -min(0, cy) / 500) : 1)
         .offset(x: up ? cx : shift(c, all), y: gone ? -34 : up ? cy : 0)
         .opacity(cardOpacity(gone: gone, up: up))
-        .animation(Theme.easeN, value: shift(c, all))
+        .anim(Theme.easeN, value: shift(c, all))
         .zIndex(up ? 5 : 0)
         .gesture(HoldPan(began: { p in
             guard spot(c, all) != nil else { return }
