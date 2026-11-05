@@ -372,7 +372,7 @@ struct UpNextStrip: View {
         .buttonStyle(PressStyle())
         .scaleEffect(gone ? 0.9 : lift ? 1.06 : up && !liftHeld ? 1 - min(0.08, -min(0, cy) / 500) : 1)
         .offset(x: up ? cx : shift(c, all), y: gone ? -34 : up ? cy : 0)
-        .opacity(gone ? 0 : up && !liftHeld ? max(0.45, 1 + min(0, cy) / 120) : lifted != nil && liftHeld && !up && !landing ? 0.55 : 1)
+        .opacity(cardOpacity(gone: gone, up: up))
         .animation(Theme.easeN, value: shift(c, all))
         .zIndex(up ? 5 : 0)
         .simultaneousGesture(LongPressGesture(minimumDuration: 0.38, maximumDistance: 9)
@@ -386,6 +386,13 @@ struct UpNextStrip: View {
         .gesture(VerticalPan(changed: { dy in if !liftHeld { flickMoved(c, dy) } }, ended: { if !liftHeld { flickEnded(c) } }))
     }
     @State private var liftHeld = false              // lifted by a hold (reorder), not by a flick
+
+    private func cardOpacity(gone: Bool, up: Bool) -> Double {
+        if gone { return 0 }
+        if up && !liftHeld { return max(0.45, 1 + Double(min(0, cy)) / 120) }       // pulled up: it fades
+        if lifted != nil && liftHeld && !up && !landing { return 0.55 }             // web .xp-strip.dragging
+        return 1
+    }
 }
 
 /// A pull up on a card that only starts when the finger goes clearly up, so the strip still scrolls sideways.
