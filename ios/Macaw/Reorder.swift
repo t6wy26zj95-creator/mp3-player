@@ -116,7 +116,8 @@ private struct LiftCard: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 13, style: .continuous)
         ZStack {
-            CoverImage(path: cover, px: 120, placeholder: AnyView(Color.w(0.2)))
+            Color.clear                                                   // the cover, held to the row's size (inset 6 / 18)
+                .overlay { CoverImage(path: cover, px: 120, placeholder: AnyView(Color.w(0.2))) }
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.vertical, 6).padding(.horizontal, 18)
                 .saturation(1.7).blur(radius: 18)
