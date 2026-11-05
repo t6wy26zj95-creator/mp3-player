@@ -28,12 +28,10 @@ enum GlassStyle {
     }()
 }
 
-/// The panel's glass: the web player's own (the WebGL "glass" in index.html, ported to a Metal shader in Glass.metal).
-/// Not a frosted material: it is the wallpaper itself, exactly as it sits behind the panel, blurred only ~2 pt, a little
-/// more saturated, smoked down only where the wallpaper is bright (so white text stays readable), with a 10 % tint; at
-/// the rounded rim it bends what's just outside (with a slight colour split) under a thin lit edge. Dim glass: a
-/// stronger tint. Classic panel: the plain frosted glass. The build's screenshots can still ask for Apple's Liquid Glass
-/// with -macawGlass regular | clear.
+/// The panel's glass. On iOS 26 and later it is Apple's real Liquid Glass (it bends and lights what's behind it);
+/// before that, or with Classic panel on, the frosted glass the web player used.
+/// The build's screenshots can force a look with -macawGlass: clear (Apple's clear glass, nothing added), tint (with a
+/// light 10 % tint), dim, regular, or web (the web player's own lens, Glass.metal, for comparison).
 struct PanelGlass<S: InsettableShape>: ViewModifier {
     var shape: S
     var classic: Bool
@@ -41,20 +39,31 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
 
     func body(content: Content) -> some View {
         if classic { frosted(content) }
-        else if let f = GlassStyle.forced, f == "regular" || f == "clear" { apple(content, f) }
-        else {
+        else if GlassStyle.forced == "web" {
             content
-                .background { WebGlass(dim: GlassStyle.forced.map { $0 == "dim" } ?? UIState.shared.dimGlass) }
+                .background { WebGlass(dim: false) }
                 .overlay { GlassRim().allowsHitTesting(false) }
                 .shadow(color: .black.opacity(0.3), radius: 25, y: 20)
                 .shadow(color: .black.opacity(0.15), radius: 7.5, y: 4)
-        }
+        } else { apple(content) }
     }
 
-    @ViewBuilder private func apple(_ content: Content, _ f: String) -> some View {
+    @ViewBuilder private func apple(_ content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
-            content.glassEffect(f == "regular" ? Glass.regular : Glass.clear, in: shape)
+            let f = GlassStyle.forced
+            if f == "regular" {
+                content.glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
+            } else {
+                // what goes under Apple's clear glass: nothing (clear), a light tint (tint), or the shade used so far
+                let dim = f.map { $0 == "dim" } ?? UIState.shared.dimGlass
+                let under: Color = f == "clear" ? .clear
+                    : f == "tint" ? Color(red: 6 / 255, green: 18 / 255, blue: 26 / 255).opacity(0.1)
+                    : Color.black.opacity(dim ? 0.65 : 0.5)
+                content
+                    .background(shape.fill(under).animation(Theme.ease, value: dim))
+                    .glassEffect(interactive ? Glass.clear.interactive() : Glass.clear, in: shape)
+            }
         } else { frosted(content) }
         #else
         frosted(content)
