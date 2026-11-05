@@ -22,17 +22,21 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      # Real Liquid Glass needs Apple's iOS 26 tools (Xcode 26). Pick the newest Xcode 26 on the build machine.
+      # Nick's iPhone runs iOS 27, so the app is built with Xcode 27 (its iOS 27 SDK, and an iOS 27 simulator for the
+      # screenshots): Liquid Glass looks the way it does on his phone. Falls back to the newest Xcode 26.
       - name: Pick Xcode
         run: |
-          x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          x=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$x" ] || x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
           [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
           echo "Using $x"; sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
+          # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
+          xcrun -f metal >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || true
 
       - name: Make the Xcode project
         run: |
@@ -130,16 +134,19 @@ jobs:
   # can be compared with the web player before a build goes to a phone. (Native app branch only.)
   screens:
     if: github.ref == 'refs/heads/claude/project-thread-rbe9f3'
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
       - name: Pick Xcode
         run: |
-          x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          x=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$x" ] || x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
           [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
           echo "Using $x"; sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
+          # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
+          xcrun -f metal >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || true
 
       - name: Make the Xcode project
         run: |
