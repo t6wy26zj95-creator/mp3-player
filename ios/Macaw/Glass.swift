@@ -30,8 +30,8 @@ enum GlassStyle {
 
 /// The panel's glass. On iOS 26 and later it is Apple's real Liquid Glass (it bends and lights what's behind it);
 /// before that, or with Classic panel on, the frosted glass the web player used.
-/// The build's screenshots can force a look with -macawGlass: clear (Apple's clear glass, nothing added), tint (with a
-/// light 10 % tint), dim, regular, or web (the web player's own lens, Glass.metal, for comparison).
+/// The build's screenshots can force a look with -macawGlass: dim, regular, gtNN / gbNN (Apple's tint / black behind
+/// at NN %), clear, tint, dim-top (older looks), or web (the web player's own lens, Glass.metal, for comparison).
 struct PanelGlass<S: InsettableShape>: ViewModifier {
     var shape: S
     var classic: Bool
@@ -63,15 +63,22 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
                 content
                     .glassEffect(interactive ? Glass.clear.interactive() : Glass.clear, in: shape)
                     .background(shape.fill(Color.black.opacity(n / 100)))
-            } else {
-                // what goes under Apple's clear glass: nothing (clear), a light tint (tint), or the shade used so far
-                let dim = f.map { $0 == "dim" } ?? UIState.shared.dimGlass
+            } else if let f, f == "clear" || f == "tint" || f == "dim-top" {
+                // older looks, for comparison screenshots only: nothing, a light tint, or the dark layer on top
                 let under: Color = f == "clear" ? .clear
                     : f == "tint" ? Color(red: 6 / 255, green: 18 / 255, blue: 26 / 255).opacity(0.1)
-                    : Color.black.opacity(dim ? 0.65 : 0.5)
+                    : Color.black.opacity(0.5)
                 content
-                    .background(shape.fill(under).animation(Theme.ease, value: dim))
+                    .background(shape.fill(under))
                     .glassEffect(interactive ? Glass.clear.interactive() : Glass.clear, in: shape)
+            } else {
+                // the panel: Apple's clear glass over a see-through black, as Apple's docs advise for clear glass; the
+                // black sits BEHIND the glass, so the wallpaper comes through as clearly as on the web and the rim stays
+                // crisp (30 %, matched to the web on the same wallpaper; Dim glass 45 %)
+                let dim = f.map { $0 == "dim" } ?? UIState.shared.dimGlass
+                content
+                    .glassEffect(interactive ? Glass.clear.interactive() : Glass.clear, in: shape)
+                    .background(shape.fill(Color.black.opacity(dim ? 0.45 : 0.3)).animation(Theme.ease, value: dim))
             }
         } else { frosted(content) }
         #else
