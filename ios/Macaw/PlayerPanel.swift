@@ -158,16 +158,20 @@ struct CompactPlayer: View {
                     SlidingTitle(text: player.current?.title ?? "", size: 17, direction: player.songDirection, tag: "c.title", spark: true)
                     HStack(spacing: 6) {
                         Button { if let a = player.current?.shownArtist { ui.showArtist(a) } } label: {
-                            Text((player.current?.shownArtist ?? "") + " ›")
-                                .font(.system(size: 13)).foregroundStyle(Color.w(0.6)).lineLimit(1)
+                            // web .track-artist::after: the ' ›' at half the artist's brightness
+                            (Text(player.current?.shownArtist ?? "").foregroundStyle(Color.w(0.6)) + Text(" ›").foregroundStyle(Color.w(0.3)))
+                                .font(.system(size: 13)).lineLimit(1)
                                 .shadow(color: .black.opacity(0.4), radius: 1.5, y: 1)
                         }
                         .buttonStyle(PressStyle())
                         .accessibilityIdentifier("artistLink")
                         .songSwap((player.current?.key ?? "") + "|a", direction: player.songDirection, delay: 0.06)
-                        if player.shuffle {
-                            Image(systemName: "shuffle").font(.system(size: 9, weight: .bold)).foregroundStyle(Theme.teal)
-                        }
+                        // web .shuf-ind: the shuffle icon (13 pt, white at 85 %) grows in after the artist while shuffle is on
+                        SVGIcon(d: SVGIcon.shuffle).fill(Color.white.opacity(0.85))
+                            .frame(width: player.shuffle ? 13 : 0, height: 13)
+                            .opacity(player.shuffle ? 1 : 0)
+                            .padding(.leading, player.shuffle ? 0 : -6)
+                            .anim(Theme.easeN, value: player.shuffle)
                     }
                     .xp("c.artist")
                 }
