@@ -2,13 +2,13 @@
 # - Every push to main: a new release, "iOS app build N", with MacawP3.ipa attached.
 #   Always-current download link: https://github.com/<owner>/<repo>/releases/latest/download/MacawP3.ipa
 # - A push to any other branch (a pull request being tested): the "iOS app preview" pre-release is replaced with that build.
+#   (The native app's branch uses its own "ios-native-preview" pre-release, so it never replaces another test build.)
 # The .ipa is unsigned on purpose: AltStore signs it with your own Apple ID when it installs it.
 name: iOS app
 
 on:
   push:
     paths:
-      - index.html
       - ios/**
       - .github/workflows/ios.yml
   workflow_dispatch:
@@ -22,19 +22,22 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Put the player inside the app
+      # Nick's iPhone runs iOS 27, so the app is built with Xcode 27 (its iOS 27 SDK, and an iOS 27 simulator for the
+      # screenshots): Liquid Glass looks the way it does on his phone. Falls back to the newest Xcode 26.
+      - name: Pick Xcode
         run: |
-          mkdir -p ios/Macaw/www
-          cp index.html ios/Macaw/www/index.html
-          # the tag reader, kept in the app so songs added offline still get their names and covers
-          curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js \
-            || curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdn.jsdelivr.net/gh/aadsm/jsmediatags@v3.9.5/dist/jsmediatags.min.js
-          test -s ios/Macaw/www/jsmediatags.min.js
+          x=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$x" ] || x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $x"; sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
+          # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
+          xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || sudo xcodebuild -downloadComponent MetalToolchain || true
+          xcrun metal --version || true
 
       - name: Make the Xcode project
         run: |
@@ -79,7 +82,7 @@ jobs:
           now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
           ipa = f"https://github.com/{repo}/releases/download/ios-{run}/MacawP3.ipa"
           size = os.path.getsize("MacawP3.ipa")
-          version = {"version": f"1.0.{run}", "buildVersion": run, "date": now, "downloadURL": ipa, "size": size, "minOSVersion": "15.0",
+          version = {"version": f"1.0.{run}", "buildVersion": run, "date": now, "downloadURL": ipa, "size": size, "minOSVersion": "18.0",
                      "localizedDescription": f"Build {run}"}
           app = {"name": "MacawP3", "bundleIdentifier": "app.macaw.player", "developerName": "Nick", "subtitle": "Your music player",
                  "localizedDescription": "The MacawP3 music player. Songs stay in the app, play in the background and on the lock screen, and can come from your Telegram bot.",
@@ -109,7 +112,231 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete ios-preview --cleanup-tag --yes || true
-          gh release create ios-preview MacawP3.ipa --target "${{ github.sha }}" --prerelease \
-            --title "iOS app preview (${{ github.ref_name }})" \
-            --notes "Test build from the branch ${{ github.ref_name }}, not merged yet. Download MacawP3.ipa below and open it with AltStore."
+          tag=ios-preview; case "${{ github.ref_name }}" in claude/project-thread-rbe9f3) tag=ios-native-preview;; esac
+          notes="Test build from the branch ${{ github.ref_name }} (${{ github.sha }}), not merged yet. Download MacawP3.ipa below and open it with AltStore."
+          # replace the file in place, so the download link never goes missing while a new build lands
+          if gh release view "$tag" > /dev/null 2>&1; then
+            # upload under another name first, then swap names: the old file is only gone for a split second
+            cp MacawP3.ipa MacawP3-new.ipa
+            gh release upload "$tag" MacawP3-new.ipa --clobber
+            api="repos/${{ github.repository }}/releases"
+            rid=$(gh api "$api/tags/$tag" -q .id)
+            old=$(gh api "$api/$rid/assets" -q '.[] | select(.name=="MacawP3.ipa") | .id')
+            new=$(gh api "$api/$rid/assets" -q '.[] | select(.name=="MacawP3-new.ipa") | .id')
+            [ -n "$old" ] && gh api -X DELETE "$api/assets/$old"
+            gh api -X PATCH "$api/assets/$new" -f name=MacawP3.ipa > /dev/null
+            gh release edit "$tag" --title "iOS app preview (${{ github.ref_name }})" --notes "$notes"
+          else
+            gh release create "$tag" MacawP3.ipa --target "${{ github.sha }}" --prerelease \
+              --title "iOS app preview (${{ github.ref_name }})" --notes "$notes"
+          fi
+
+  # Runs the app in an iPhone simulator with a few test songs and takes screenshots of each screen, so the native app
+  # can be compared with the web player before a build goes to a phone. (Native app branch only.)
+  screens:
+    if: github.ref == 'refs/heads/claude/project-thread-rbe9f3'
+    runs-on: xcode-27
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick Xcode
+        run: |
+          x=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$x" ] || x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $x"; sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
+          df -h / | tail -1
+          # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
+          xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || sudo xcodebuild -downloadComponent MetalToolchain || true
+          xcrun metal --version || true
+
+      - name: Make the Xcode project
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Pick and start a simulator
+        run: |
+          # the newest iOS (Liquid Glass needs iOS 26; an iOS 18 simulator only shows the frosted fallback), on an
+          # iPhone the size of Nick's 15 Pro (393 x 852 pt: the 16 Pro / 16 / 15 Pro)
+          xcrun simctl list runtimes available
+          # newest iOS runtime first; on each, an existing plain iPhone Pro (or a new one), never a two-screen Fold
+          id=$(python3 - <<'PY'
+          import json, re, subprocess
+          def j(*a): return json.loads(subprocess.run(["xcrun", "simctl", "list", *a, "-j"], capture_output=True, text=True).stdout)
+          rts = [r for r in j("runtimes", "available")["runtimes"] if r["platform"] == "iOS" and r.get("isAvailable")]
+          rts.sort(key=lambda r: [int(p) for p in r["version"].split(".")], reverse=True)
+          devs = j("devices", "available")["devices"]
+          good = lambda n: re.fullmatch(r"iPhone \d+( Pro)?", n) is not None
+          rank = lambda n: (" Pro" in n, int(n.split()[1]))
+          types = [t for t in j("devicetypes")["devicetypes"] if good(t["name"])]
+          types.sort(key=lambda t: rank(t["name"]), reverse=True)
+          for r in rts:
+              have = sorted([d for d in devs.get(r["identifier"], []) if good(d["name"])], key=lambda d: rank(d["name"]), reverse=True)
+              if have:
+                  print(have[0]["udid"]); import sys; print("Using", have[0]["name"], "on", r["name"], file=sys.stderr); raise SystemExit
+              for t in types:
+                  out = subprocess.run(["xcrun", "simctl", "create", "Macaw test", t["identifier"], r["identifier"]], capture_output=True, text=True).stdout.strip()
+                  if re.fullmatch(r"[0-9A-F-]{36}", out):
+                      print(out); import sys; print("Using new", t["name"], "on", r["name"], file=sys.stderr); raise SystemExit
+          PY
+          )
+          [ -n "$id" ] || { echo "No iPhone simulator"; exit 1; }
+          echo "SIM=$id" >> $GITHUB_ENV
+          xcrun simctl boot "$id"
+          xcrun simctl bootstatus "$id" -b
+
+      - name: Build for the simulator
+        run: |
+          cd ios
+          xcodebuild -project MacawP3.xcodeproj -scheme MacawP3 -configuration Debug \
+            -destination "id=$SIM" -derivedDataPath simbuild CODE_SIGNING_ALLOWED=NO \
+            build > sim.log 2>&1 && ok=1 || ok=0
+          grep -E 'error:|\*\* BUILD' sim.log || true
+          [ "$ok" = 1 ] || { tail -80 sim.log; exit 1; }
+
+      - name: Install, add test songs, take screenshots
+        timeout-minutes: 20
+        run: |
+          app=$(ls -d ios/simbuild/Build/Products/Debug-iphonesimulator/MacawP3.app)
+          xcrun simctl install "$SIM" "$app"
+          xcrun simctl status_bar "$SIM" override --time 9:41 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+          data=$(xcrun simctl get_app_container "$SIM" app.macaw.player data)
+          mkdir -p "$data/Documents"
+          cp .github/test-songs/*.mp3 "$data/Documents/"
+          mkdir -p screens
+          shot() {
+            echo "shot $1 $(date +%T)"
+            xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+            xcrun simctl launch "$SIM" app.macaw.player -macawScreen "$1"
+            sleep "${2:-14}"
+            xcrun simctl io "$SIM" screenshot "screens/$1.png"
+          }
+          shot home 25
+          shot queue
+          shot library
+          shot flow
+          shot edit
+          shot lift
+          shot pull
+          shot swipe1
+          shot swipe2
+          shot artists
+          shot artistpage 20
+          shot catalog 30
+          shot big
+          shot lyrics 18
+          shot settings
+          # the motions, recorded (TestScreens "motion" walks through them)
+          xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+          xcrun simctl io "$SIM" recordVideo --codec h264 --force screens/motion.mp4 & rec=$!
+          sleep 2
+          xcrun simctl launch "$SIM" app.macaw.player -macawScreen motion
+          sleep 80
+          kill -INT $rec; wait $rec || true
+          # a song playing: the cover's light, glow and glass moving with the music (compared with the web's)
+          xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+          xcrun simctl io "$SIM" recordVideo --codec h264 --force screens/playing.mp4 & rec=$!
+          sleep 2
+          xcrun simctl launch "$SIM" app.macaw.player -macawScreen playing
+          sleep 16
+          kill -INT $rec; wait $rec || true
+          # the same motions 10 times slower, to compare frame by frame with the web player's
+          xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+          xcrun simctl io "$SIM" recordVideo --codec h264 --force screens/motion-slow.mp4 & rec=$!
+          sleep 2
+          xcrun simctl launch "$SIM" app.macaw.player -macawScreen slowmotion -macawSlow 10 -UIAnimationDragCoefficient 10
+          sleep 150
+          kill -INT $rec; wait $rec || true
+          # the Library's first open after launch, slowed, with and without the grey taken out of the glass
+          for sub in 0 4; do
+            xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+            xcrun simctl io "$SIM" recordVideo --codec h264 --force screens/first-open-sub$sub.mp4 & rec=$!
+            sleep 2
+            xcrun simctl launch "$SIM" app.macaw.player -macawScreen firstopen -macawSlow 10 -macawSub $sub -UIAnimationDragCoefficient 10
+            sleep 22
+            kill -INT $rec; wait $rec || true
+          done
+          # the panel's glass, side by side on a detailed wallpaper (the bending only shows on a picture with detail)
+          cp .github/test-wall.jpg "$data/Documents/test-wall.jpg"
+          shotx() {
+            xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+            f=$1; shift
+            xcrun simctl launch "$SIM" app.macaw.player "$@"
+            sleep 14
+            xcrun simctl io "$SIM" screenshot "screens/$f.png"
+          }
+          shotx glass-default-home -macawScreen home -macawWall 1
+          shotx glass-default-dark -macawScreen home
+          rm -f "$data/Documents/test-wall.jpg"
+          xcrun simctl spawn "$SIM" log show --last 10m --style compact --predicate 'eventMessage CONTAINS "MacawBoot"' > screens/boot-log.txt || true
+          cat screens/boot-log.txt
+          ls -l screens
+
+      # a walk through the whole app like a person would use it (MacawUITests): a screenshot after every step and the
+      # speed meter's log, while Instruments' Time Profiler records where the app spends its time
+      - name: Walk through the app
+        timeout-minutes: 25
+        run: |
+          xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+          # the profiler records the app only (all processes filled the disk), once the test has launched it
+          ( for i in $(seq 1 120); do
+              pid=$(xcrun simctl spawn "$SIM" launchctl list 2>/dev/null | awk '/UIKitApplication:app\.macaw\.player\[/{print $1; exit}')
+              if [ -n "$pid" ] && [ "$pid" != "-" ]; then
+                xcrun xctrace record --template "Time Profiler" --device "$SIM" --attach "$pid" --time-limit 200s --output walk.trace > xctrace.log 2>&1 || true
+                exit 0
+              fi
+              sleep 2
+            done ) &
+          tr=$!
+          cd ios
+          xcodebuild test -project MacawP3.xcodeproj -scheme MacawP3 -configuration Release -destination "id=$SIM" -derivedDataPath simbuild \
+            -resultBundlePath ../walk.xcresult CODE_SIGNING_ALLOWED=NO > ../walk.log 2>&1 || echo "the walk-through test reported a failure"
+          cd ..
+          grep -E "error:|Test Case|passed|failed|\*\* TEST" walk.log | tail -40 || true
+          # stop the recording (it ends on its own after 200 s; never wait on it forever)
+          pkill -INT -f "xctrace record" 2>/dev/null || true
+          for i in $(seq 1 90); do pgrep -f "xctrace record" > /dev/null || break; sleep 1; done
+          pkill -9 -f "xctrace record" 2>/dev/null || true; kill $tr 2>/dev/null || true
+          cat xctrace.log | tail -5 || true
+          du -sh walk.trace 2>/dev/null || true; df -h / | tail -1
+          mkdir -p walk
+          xcrun xcresulttool export attachments --path walk.xcresult --output-path walk > /dev/null 2>&1 || true
+          python3 - <<'PY'
+          import json, os, shutil
+          try:
+              m = json.load(open("walk/manifest.json"))
+          except Exception as e:
+              print("no attachments", e); raise SystemExit
+          for t in m:
+              for a in t.get("attachments", []):
+                  n = a.get("suggestedHumanReadableName") or a.get("exportedFileName")
+                  src = os.path.join("walk", a["exportedFileName"])
+                  base = n.split("_")[0] if n else a["exportedFileName"]
+                  ext = os.path.splitext(a["exportedFileName"])[1]
+                  shutil.copy(src, os.path.join("screens", "walk-" + base + ext))
+          PY
+          xcrun simctl spawn "$SIM" log show --last 30m --style compact --predicate 'subsystem == "app.macaw.player" OR eventMessage CONTAINS "MacawPerf" OR eventMessage CONTAINS "MacawStep" OR eventMessage CONTAINS "MacawMissed"' > screens/walk-perf.txt || true
+          grep -c MacawPerf screens/walk-perf.txt || true
+          if [ -d walk.trace ]; then
+            xcrun xctrace export --input walk.trace --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' > tp.xml 2>/dev/null || true
+            python3 .github/scripts/profile.py tp.xml > screens/walk-profile.txt 2>&1 || true
+            head -60 screens/walk-profile.txt || true
+          fi
+          ls screens | head -100
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screens
+          path: screens
+
+      - name: Publish the screenshots
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ios-native-screens --cleanup-tag --yes || true
+          gh release create ios-native-screens screens/* --target "${{ github.sha }}" --prerelease \
+            --title "Native app screenshots (simulator)" --notes "Screenshots from the simulator, built from ${{ github.sha }}."

@@ -1,10 +1,11 @@
 # The iOS app (for sideloading with AltStore). Xcode project generated from this file by XcodeGen on GitHub's Mac
-# build machine: see .github/workflows/ios.yml. The player itself is the repo's index.html, copied into Macaw/www.
+# build machine: see .github/workflows/ios.yml. The app is native SwiftUI (Macaw/*.swift); it looks like the web player
+# (index.html) but doesn't use it.
 name: MacawP3
 options:
   bundleIdPrefix: app.macaw
   deploymentTarget:
-    iOS: "15.0"
+    iOS: "18.0"
 settings:
   base:
     MARKETING_VERSION: "1.0"
@@ -12,16 +13,14 @@ settings:
 targets:
   MacawP3:
     type: application
-    scheme: {}
+    scheme:
+      testTargets:
+        - MacawUITests
     platform: iOS
     sources:
       - path: Macaw
         excludes:
-          - www
           - Info.plist
-      - path: Macaw/www
-        type: folder
-        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.macaw.player
@@ -34,3 +33,20 @@ targets:
         CODE_SIGNING_REQUIRED: "NO"
         CODE_SIGN_IDENTITY: ""
         ENABLE_BITCODE: "NO"
+  # the build machine's walk through the whole app (screenshots + the speed meter's log); not part of the app
+  MacawUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: MacawUITests
+    dependencies:
+      - target: MacawP3
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.macaw.player.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: MacawP3
+        SWIFT_VERSION: "5.0"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
