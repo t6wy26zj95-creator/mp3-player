@@ -11,6 +11,10 @@ import SwiftUI
 @MainActor @Observable
 final class XPMotion {
     static let shared = XPMotion()
+    /// iOS: a critically damped spring instead of the web's 0.4 s curve. That curve (.22, 1, .36, 1) covers about a sixth
+    /// of the way in its first frame, so on the phone the motion read as a jump and then a long crawl; a spring starts
+    /// from rest (or from the finger's speed) and eases out without the crawl.
+    static let curve = Animation.spring(duration: 0.4, bounce: 0)
     enum Phase { case compact, measuring, moving, big }
 
     var phase: Phase = .compact
@@ -19,6 +23,29 @@ final class XPMotion {
     /// Only taken while that layout is at rest and untouched by the motion.
     @ObservationIgnored var c: [String: CGRect] = [:]
     @ObservationIgnored var b: [String: CGRect] = [:]
+    /// The first line of the big title / artist line when it wraps (its width and height): centred text, so the morph
+    /// carries that line, not the block's corner, onto the small one-line copy (else the name jumps at the hand-over).
+    @ObservationIgnored var line1: [String: CGSize] = [:]
+
+    /// greedy word wrap, as Text lays it out: the first line's width and how many lines
+    nonisolated static func firstLine(_ s: String, font: UIFont, width: CGFloat) -> (w: CGFloat, lines: Int) {
+        func w(_ t: String) -> CGFloat { (t as NSString).size(withAttributes: [.font: font]).width }
+        guard width > 20 else { return (w(s), 1) }
+        var lines = 0, first: CGFloat = 0
+        for para in s.components(separatedBy: "\n") {
+            var cur = ""
+            for word in para.split(separator: " ", omittingEmptySubsequences: false).map(String.init) {
+                let t = cur.isEmpty ? word : cur + " " + word
+                if cur.isEmpty || w(t) <= width { cur = t } else {
+                    if lines == 0 { first = w(cur) }
+                    lines += 1; cur = word
+                }
+            }
+            if lines == 0 { first = min(width, w(cur)) }
+            lines += 1
+        }
+        return (first, lines)
+    }
 
     private var ui: UIState { .shared }
 
@@ -30,7 +57,7 @@ final class XPMotion {
 
     func open() {
         if phase == .moving && !ui.expanded {                       // tapped again while it folds: it turns round
-            withAnimation(Theme.ease) { p = 1; ui.expanded = true } completion: {
+            withAnimation(Self.curve) { p = 1; ui.expanded = true } completion: {
                 if self.p == 1 && self.phase == .moving { self.phase = .big }
             }
             return
@@ -50,7 +77,7 @@ final class XPMotion {
             await self.measured()
             guard self.phase == .measuring else { return }
             self.phase = .moving
-            withAnimation(Theme.ease) { self.p = 1 } completion: {
+            withAnimation(Self.curve) { self.p = 1 } completion: {
                 if self.p == 1 && self.phase == .moving { self.phase = .big }
             }
         }
@@ -136,10 +163,10 @@ final class XPMotion {
 
     /// web animateTo: 0.4 s for the whole way (less for part of it) on the app's curve; a fast flick shortens it
     private func settle(to t: Double, v: Double) {
-        let d = t - p, base = 0.4 * (0.45 + 0.55 * abs(d))
-        let fling = v * (d < 0 ? -1 : 1)
-        let D = fling > 0 ? max(0.2, min(base, 4.5 * abs(d) / fling)) : base
-        withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: D)) {
+        // carries on at the finger's speed (as a share of the way left per second), so letting go never jolts
+        let d = t - p, base = 0.4 * (0.6 + 0.4 * abs(d))
+        let rel = abs(d) > 0.001 ? max(0, min(10, v / d)) : 0
+        withAnimation(.interpolatingSpring(duration: base, bounce: 0, initialVelocity: rel)) {
             p = t
             ui.expanded = t == 1
             if t == 0 { ui.lyricsScroll = 0 }
@@ -159,7 +186,7 @@ final class XPMotion {
         Haptics.light()
         if phase == .measuring { phase = .compact; ui.expanded = false; then?(); return }
         phase = .moving
-        withAnimation(Theme.ease) { p = 0; ui.expanded = false; ui.lyricsScroll = 0 } completion: {
+        withAnimation(Self.curve) { p = 0; ui.expanded = false; ui.lyricsScroll = 0 } completion: {
             if self.p == 0 && self.phase == .moving { self.phase = .compact; then?() }
         }
     }
@@ -296,19 +323,24 @@ enum XPLayout {
             let ang = lerp(a0, a1, t * t), r = edge(ang, size / 2) + lerp(g0, g1, t)
             return (ccx + r * cos(ang), ccy + r * sin(ang))
         }
-        struct Line { var X = 0.0; var Y = 0.0; var k = 1.0; var r = 1.0; var h = 0.0; var swap = true }
+        struct Line { var X = 0.0; var Y = 0.0; var k = 1.0; var r = 1.0; var below = 0.0; var swap = true }
         var lead: Line?
         var artistLine: Line?
         for (name, ratio) in [("title", 20.0 / 17), ("artist", 13.5 / 13)] {
             guard let cb = c["c." + name], let xb = b["b." + name] else { continue }
-            let r = ratio, k = lerp(1, r, P), sc = k / r, oy = Double(xb.height) / 2
+            // the line that matches the small copy: the whole block, or its first line when the big text wraps
+            var L = xb
+            if let l1 = m.line1["b." + name], xb.height > l1.height * 1.5 {
+                L = CGRect(x: xb.midX - min(l1.width, xb.width) / 2, y: xb.minY, width: min(l1.width, xb.width), height: l1.height)
+            }
+            let r = ratio, k = lerp(1, r, P), sc = k / r, oy = Double(L.height) / 2
             let avail = W - Theme.panelPad - Double(cb.minX)
             let swap = Double(cb.width) < avail - 1                    // the small line isn't cut short: the big copy takes over in place
             let cOp = swap ? (P > 0 ? 0 : 1) : max(0, 1 - fade(P, 0.1, 0.22)), xOp = swap ? (P > 0 ? 1 : 0) : fade(P, 0.06, 0.2)
-            let (cx, cy) = orbit((Double(cb.minX), Double(cb.midY) - oy / r), (Double(xb.minX), Double(xb.minY)), P)
+            let (cx, cy) = orbit((Double(cb.minX), Double(cb.midY) - oy / r), (Double(L.minX), Double(L.minY)), P)
             var X = cx, Y = cy + oy * sc
             if P > 0 && P < 1 {
-                let full = Double(xb.width)
+                let full = Double(L.width)
                 let vis = name == "title" ? full : lerp(min(full, Double(b["b.artistName"]?.width ?? xb.width)), full, extra)
                 let f0 = fade(P, 0, 0.06)
                 X -= f0 * max(0, X + vis * sc - limit)                 // never past the right edge
@@ -316,12 +348,14 @@ enum XPLayout {
                 Y += wd * max(0, curY + size + 12 + oy * sc - Y)        // no room beside the cover: it goes under it
             }
             if let l = lead, P > 0 && P < 1 {                          // the artist line keeps below the title on the way
-                let leadBottom = l.Y + l.h / 2 * l.k / l.r, need = leadBottom + 2 - (Y - oy * sc)
+                let leadBottom = l.Y + l.below * l.k / l.r, need = leadBottom + 2 - (Y - oy * sc)
                 Y += max(0, need) * (l.swap ? fade(P, 0, 0.2) : fade(P, 0, 0.06))
             }
             map["c." + name] = XPPose(dx: X - Double(cb.minX), dy: Y - Double(cb.midY), scale: k, anchor: UnitPoint(x: 0, y: 0.5), opacity: cOp)
-            map["b." + name] = XPPose(dx: X - Double(xb.minX), dy: Y - Double(xb.midY), scale: sc, anchor: UnitPoint(x: 0, y: 0.5), opacity: xOp)
-            let line = Line(X: X, Y: Y, k: k, r: r, h: Double(xb.height), swap: swap)
+            // scaled round that line's left middle, which lands on (X, Y)
+            let anchor = UnitPoint(x: (L.minX - xb.minX) / max(1, xb.width), y: (L.midY - xb.minY) / max(1, xb.height))
+            map["b." + name] = XPPose(dx: X - Double(L.minX), dy: Y - Double(L.midY), scale: sc, anchor: anchor, opacity: xOp)
+            let line = Line(X: X, Y: Y, k: k, r: r, below: Double(xb.maxY - L.midY), swap: swap)
             if name == "title" { lead = line } else { artistLine = line }
         }
 
@@ -329,7 +363,7 @@ enum XPLayout {
         let hc = P * P
         var push = 0.0
         if let al = artistLine, let cbar = c["c.bar"], let xbar = b["b.bar"], let xart = b["b.artist"], P > 0 && P < 1 {
-            let subBottom = al.Y + al.h / 2 * al.k / al.r
+            let subBottom = al.Y + al.below * al.k / al.r
             let gapEnd = Double(xbar.minY) - Double(xart.maxY)
             let barTop = rowY(Double(cbar.midY), Double(xbar.midY)) - Double(xbar.height) / 2
             push = max(0, subBottom + gapEnd * 0.5 + 9 * sin(.pi * P) - barTop)

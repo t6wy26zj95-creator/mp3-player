@@ -4,11 +4,9 @@ import SwiftUI
 /// year, the bar with elapsed / remaining, Shuffle · Prev · Play · Next · Repeat and the Queue strip.
 struct BigPlayer: View {
     var close: () -> Void
-    @Environment(\.xpPoses) private var poses
     @State private var meta: Double = 1                   // the song-change motion of the title block (rest = 1)
     @State private var bump: Double = 1                   // ... and of the cover
     @State private var metaDir = 1
-    @State private var subW: CGFloat = 0                  // the artist · album line's width, for its balanced break
     private var ui: UIState { .shared }
     private var player: Player { .shared }
 
@@ -103,7 +101,7 @@ struct BigPlayer: View {
     }
 
     private func art(size: CGFloat) -> some View {
-        CoverArt(track: player.current, size: size, radius: poses.artRadius ?? 18, glow: !ui.minimalLight, big: (poses.artGrow ?? 1, poses.artScale ?? 1), bump: bump)
+        BigArt(size: size, bump: bump)
             .xp("b.art")
             .onTapGesture(perform: close)
     }
@@ -113,7 +111,7 @@ struct BigPlayer: View {
     private var metaBlock: some View {
         VStack(spacing: 5) {
             BigTitle(text: player.current?.title ?? "", tag: "b.title")
-            subtitle
+            BigSubtitle()
         }
         .modifier(KFEffect(p: meta, dx: KF(stops: [(0, Double(metaDir) * 26), (1, 0)], whole: .ease),
                            dy: KF(stops: [(0, metaDir == 0 ? 8 : 0), (1, 0)], whole: .ease),
@@ -122,7 +120,7 @@ struct BigPlayer: View {
 
     private var scrub: some View {
         VStack(spacing: 2) {
-            Scrubber(height: 4, bow: poses.moving ? poses.p : 0).xp("b.bar")
+            BigScrubber().xp("b.bar")
             HStack {
                 TimeText(kind: .elapsed).xp("b.cur")
                 Spacer()
@@ -147,6 +145,34 @@ struct BigPlayer: View {
         .frame(height: 60)
     }
 
+}
+
+/// The big cover, on its own: the only part of it that follows the motion's every frame is its corner, rim and shadow.
+struct BigArt: View {
+    var size: CGFloat
+    var bump: Double
+    @Environment(\.xpPoses) private var poses
+    var body: some View {
+        CoverArt(track: Player.shared.current, size: size, radius: poses.artRadius ?? 18, glow: !UIState.shared.minimalLight,
+                 big: (poses.artGrow ?? 1, poses.artScale ?? 1), bump: bump)
+    }
+}
+
+/// The big bar: it bends like a carried string while the player opens or closes.
+struct BigScrubber: View {
+    @Environment(\.xpPoses) private var poses
+    var body: some View { Scrubber(height: 4, bow: poses.moving ? poses.p : 0) }
+}
+
+/// The big artist · album · year line, on its own so that only it (not the whole big player) is redrawn on each frame
+/// of the open / close motion.
+struct BigSubtitle: View {
+    @Environment(\.xpPoses) private var poses
+    @State private var subW: CGFloat = 0                  // the line's width, for its balanced break
+    private var ui: UIState { .shared }
+    private var player: Player { .shared }
+    var body: some View { subtitle }
+
     private var subtitle: some View {
         let t = player.current
         let rest = [t?.album ?? "", t?.year ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
@@ -156,6 +182,8 @@ struct BigPlayer: View {
         // web text-wrap: balance: on 2 lines both lines come out about as wide (the album name stays whole when it can)
         let bal = Self.balanced([t?.shownArtist ?? "", tail0, fx0], width: subW, font: .systemFont(ofSize: 13.5))
         let tail = bal[1], fx = bal[2]
+        let fl = XPMotion.firstLine(bal.joined(), font: .systemFont(ofSize: 13.5), width: subW)
+        let _ = { XPMotion.shared.line1["b.artist"] = fl.lines > 1 ? CGSize(width: fl.w, height: UIFont.systemFont(ofSize: 13.5).lineHeight) : nil }()
         let n = tail.count + fx.count, K = 3.0, e = poses.extra
         func op(_ i: Int) -> Double { max(0, min(1, (e * Double(n) + e * K - Double(i)) / K)) }
         func letters(_ s: String, _ i0: Int, _ color: Color) -> Text {
@@ -517,6 +545,8 @@ struct BigTitle: View {
     }
     var body: some View {
         let size: CGFloat = lines(20) > 2 ? 17 : 20
+        let f = UIFont.systemFont(ofSize: size, weight: .semibold), fl = XPMotion.firstLine(text, font: f, width: w)
+        let _ = { XPMotion.shared.line1[tag] = fl.lines > 1 ? CGSize(width: fl.w, height: f.lineHeight) : nil }()
         Text(text)
             .font(.system(size: size, weight: .semibold))
             .lineSpacing(size * 1.25 - UIFont.systemFont(ofSize: size, weight: .semibold).lineHeight)

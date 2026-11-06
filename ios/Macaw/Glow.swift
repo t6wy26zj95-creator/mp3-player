@@ -122,6 +122,11 @@ final class Glow {
         let now = l.timestamp
         let dt = min(0.1, last > 0 ? now - last : 0.033)
         last = now
+        // while the big player opens or closes, the light, the glow and the breathing hold still (web: XP freezes them):
+        // each tick redraws the covers' glass and the buttons' glow, and on top of the motion's own frame that work
+        // dropped a frame every tick (every 6th frame while paused). They carry on from where they were, no jump.
+        let ph = XPMotion.shared.phase
+        if ph == .moving || ph == .measuring { return }
         let player = Player.shared
         let playing = player.isPlaying
         var target = 0.0
