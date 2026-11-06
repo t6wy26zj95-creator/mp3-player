@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var contentH: CGFloat = 600
     @State private var photo: PhotosPickerItem?
     @State private var hiddenOpen = false
+    @State private var hiddenH: CGFloat = 0
     private var ui: UIState { .shared }
     private var model: AppModel { .shared }
     private var tg: Telegram { .shared }
@@ -82,25 +83,50 @@ struct SettingsView: View {
                         }
                         .buttonStyle(PressStyle())
                         if hiddenOpen {
-                            ForEach(model.hidden, id: \.self) { name in
-                                divider
-                                row {
-                                    Text(name).font(.system(size: 14)).foregroundStyle(Color.w(0.85)).lineLimit(1)
-                                    Spacer()
-                                    Button { model.unhideAlbum(name) } label: { pill("Show") }.buttonStyle(PopStyle())
+                            // web .hidden-list: each album with its cover; tap it to open it, Unhide to bring it back
+                            divider
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    if model.hidden.isEmpty {
+                                        Text("No hidden albums").font(.system(size: 13)).foregroundStyle(Color.w(0.5))
+                                            .padding(.top, 8).padding(.bottom, 4)
+                                    }
+                                    ForEach(model.hidden, id: \.self) { name in
+                                        let a = model.album(named: name)
+                                        HStack(spacing: 12) {
+                                            CoverImage(path: a?.coverPath, dataURL: model.tileCovers[model.coverKey(name)], px: 120,
+                                                       placeholder: AnyView(ZStack { Color.w(0.06); SVGIcon(d: ListHeader.note).fill(Color.w(0.45)).frame(width: 18, height: 18) }))
+                                                .frame(width: 36, height: 36).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                            Text(name).font(.system(size: 14)).foregroundStyle(.white).lineLimit(1)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                            Button { Haptics.light(); withAnimation(Theme.easeN) { model.unhideAlbum(name) } } label: {
+                                                Text("Unhide").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                                                    .padding(.horizontal, 12).frame(height: 30)
+                                                    .background(Capsule().fill(Color.w(0.12)))
+                                                    .overlay(Capsule().strokeBorder(Color.w(0.2), lineWidth: 1))
+                                            }
+                                            .buttonStyle(PopStyle())
+                                        }
+                                        .padding(.vertical, 6)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture { close(); ui.openAlbum(name) }
+                                    }
                                 }
+                                .padding(.horizontal, 14).padding(.top, 2).padding(.bottom, 8)
+                                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { hiddenH = $0 }
                             }
+                            .scrollIndicators(.hidden)
+                            .frame(height: min(hiddenH, 216))
                         }
                         divider
                         row {
                             label("Telegram", tg.statusLine)
-                            Button { Haptics.light(); Task { await tg.linkOrUnlink() } } label: { pill(tg.key.isEmpty ? "Link" : "Unlink") }
+                            Button {
+                                Haptics.light()
+                                if tg.key.isEmpty { Task { await tg.linkOrUnlink() } }
+                                else { ui.confirm = UIState.Confirm(text: "Unlink Telegram? Songs already downloaded stay in the app.") { Task { await tg.linkOrUnlink() } } }
+                            } label: { pill(tg.key.isEmpty ? "Link" : "Unlink") }
                                 .buttonStyle(PopStyle())
-                        }
-                        divider
-                        row {
-                            label("Songs", "\(model.tracks.count) in the app. You can also copy music into the MacawP3 folder in the Files app")
-                            Button { close(); ui.importing = true } label: { pill("Add") }.buttonStyle(PopStyle())
                         }
                     }
 

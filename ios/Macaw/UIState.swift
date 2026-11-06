@@ -87,6 +87,12 @@ final class UIState {
             if tab == .artists { _ = artistsPath.popLast() } else { _ = libraryPath.popLast() }
         }
     }
+    /// Opens one of your albums in the Library (web: a hidden album tapped in Settings).
+    func openAlbum(_ name: String) {
+        if expanded { XPMotion.shared.close { self.openAlbum(name) }; return }
+        navDir = 1
+        withAnimation(Theme.ease) { tab = .library; libraryPath = [.album(name)] }
+    }
     /// Opens an artist's page (from the artist name under a song).
     func showArtist(_ name: String) {
         if expanded { XPMotion.shared.close { self.showArtist(name) }; return }
