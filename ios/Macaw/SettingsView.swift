@@ -160,14 +160,6 @@ struct SettingsView: View {
                         }
                         divider
                         row {
-                            label("Speed meter", "Frames per second and hitches in the corner, to check how smooth the app runs")
-                            MacawSwitch(on: Binding(get: { PerfMeter.shared.shown }, set: { on in
-                                PerfMeter.shared.shown = on; Store.shared["perfHUD"] = on ? "1" : ""
-                                if on { PerfMeter.shared.start(log: false) } else { PerfMeter.shared.stop() }
-                            }))
-                        }
-                        divider
-                        row {
                             label("Minimal light", "No coloured light behind the player, only the cover's own glow")
                             MacawSwitch(on: Binding(get: { ui.minimalLight }, set: { ui.setMinimalLight($0) }))
                         }

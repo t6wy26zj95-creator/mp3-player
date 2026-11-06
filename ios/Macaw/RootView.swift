@@ -152,9 +152,9 @@ enum Boot {
         // the glass Nick picked on his phone with the Glass lab (5 Nov): nothing extra behind it, 4 % of the grey taken
         // out, Apple's own tint at 14 % black
         u.glassBehind = 0; u.glassSub = TestScreens.sub ?? 4; u.glassTint = 14; u.glassRegular = false; u.glassLight = false
-        // the speed meter: the build's walk-through logs it (-macawPerf), Settings > Speed meter shows it
+        // the speed meter: only the build's walk-through uses it (-macawPerf); it's not in the web's Settings
         let perfLog = CommandLine.arguments.contains("-macawPerf")
-        PerfMeter.shared.shown = st["perfHUD"] == "1"
+        PerfMeter.shared.shown = false
         if perfLog || PerfMeter.shared.shown { PerfMeter.shared.start(log: perfLog) }
         UIState.shared.coverFlow = Store.shared["libView"] == "flow"
         UIState.shared.blur = Double(Store.shared["wallpaperBlur"] ?? "") ?? 0

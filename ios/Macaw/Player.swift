@@ -45,6 +45,7 @@ final class Player {
     private var pendingSeek: Double?
     private var restored = false
     private var failures = 0
+    private var curPlayed = false                // web curPlayed: this song has started playing
     private var lastPosSave = Date.distantPast
     private var saveWork: Task<Void, Never>?
 
@@ -186,7 +187,7 @@ final class Player {
         if currentKey == nil { ensureContext() }
         guard av.currentItem != nil else { if let k = currentKey { load(k, autoplay: true) }; return }
         try? AVAudioSession.sharedInstance().setActive(true)
-        av.play(); isPlaying = true
+        av.play(); isPlaying = true; curPlayed = true
         updateNowPlaying()
     }
     func pause() {
@@ -265,10 +266,12 @@ final class Player {
     }
 
     private func playKey(_ key: String, from: From, autoplay: Bool = true, recordHistory: Bool = true) {
-        if recordHistory, let cur = currentKey {
+        // web playId: the song you leave goes into History only if it really played (curPlayed), and not on Prev
+        if recordHistory, curPlayed, let cur = currentKey, cur != key {
             if history.last?.key != cur { history.append(HistoryEntry(key: cur, from: nowFrom)) }
-            if history.count > 200 { history.removeFirst(history.count - 200) }
+            if history.count > 100 { history.removeFirst(history.count - 100) }      // web HIST_MAX
         }
+        curPlayed = false
         if from == .context { context?.at = key }
         nowFrom = from
         load(key, autoplay: autoplay)
@@ -286,7 +289,7 @@ final class Player {
         attach(Retro.shared.fileFor(t))
         if autoplay {
             try? AVAudioSession.sharedInstance().setActive(true)
-            av.play(); isPlaying = true
+            av.play(); isPlaying = true; curPlayed = true
         } else { av.pause(); isPlaying = false }
         updateNowPlaying()
         Covers.shared.prefetch(t)

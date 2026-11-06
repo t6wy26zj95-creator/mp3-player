@@ -68,7 +68,7 @@ struct DrawerView: View {
         // page where you left it (albumOrigin.scroll, rememberTab)
         .onChange(of: viewKey) { old, new in
             Self.offsets.at[old] = Self.offsets.cur
-            if tab == .queue { DispatchQueue.main.async { sv.scrollTo("q-now", anchor: .top) }; return }   // web renderQueue(true)
+            if tab == .queue { toNow(sv); return }                                  // web renderQueue(true)
             let y = ui.navDir > 0 ? 0 : (Self.offsets.at[new] ?? 0)
             if ui.navDir > 0 { Self.offsets.at[new] = nil }
             Self.offsets.cur = y
@@ -76,10 +76,18 @@ struct DrawerView: View {
             withTransaction(tr) { pos.scrollTo(y: y) }
             DispatchQueue.main.async { withTransaction(tr) { pos.scrollTo(y: y) } }      // again once the new page is laid out
         }
-        .onAppear { if tab == .queue { DispatchQueue.main.async { sv.scrollTo("q-now", anchor: .top) } } }
+        .onAppear { if tab == .queue { toNow(sv) } }
         }
         }
         .anim(Theme.ease, value: contentHeight)                       // web: #view-host height, 400 ms ease
+    }
+
+    /// web renderQueue(true): Now Playing at the top, History above it. Done once the new page has been laid out.
+    private func toNow(_ sv: ScrollViewProxy) {
+        var tr = Transaction(); tr.disablesAnimations = true
+        for d in [0.0, 0.05, 0.2] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + d) { withTransaction(tr) { sv.scrollTo("q-now", anchor: .top) } }
+        }
     }
 
     /// The page's Back label (nil on a tab's first page): the same words the pages used to show at their top.
@@ -383,7 +391,8 @@ struct QueueDrawer: View {
     }
 
     @ViewBuilder private var content: some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
+        // a plain stack (at most 30 + your queue + 20 rows): every row exists, so the drawer can scroll to Now Playing
+        VStack(alignment: .leading, spacing: 0) {
             if let cur = player.current {
                 let hist = Array(player.history.suffix(30))
                 if !hist.isEmpty {
