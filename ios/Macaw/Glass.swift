@@ -7,8 +7,11 @@ enum Theme {
     static let panelRadius: CGFloat = 36
     static let panelPad: CGFloat = 21
     static let panelMaxWidth: CGFloat = 580
-    static let ease = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.4)         // --ease / --t-s
-    static let easeN = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.25)       // --t-n
+    // iOS: critically damped springs in place of the web's --ease (.22, 1, .36, 1). That curve does about a sixth of its
+    // move in the first frame, which on the phone reads as a jump and then a crawl; a spring starts from rest, and when a
+    // motion is interrupted it carries on from its current speed instead of restarting.
+    static let ease = Animation.spring(duration: 0.4, bounce: 0)                      // --ease / --t-s
+    static let easeN = Animation.spring(duration: 0.28, bounce: 0)                    // --t-n
     static let easePop = Animation.timingCurve(0.34, 1.56, 0.64, 1, duration: 0.4)   // --ease-pop over --t-s
     static let easeQ = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.15)       // --t-q
     static let scrim = Color(red: 6 / 255, green: 18 / 255, blue: 26 / 255)

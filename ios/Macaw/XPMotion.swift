@@ -14,7 +14,7 @@ final class XPMotion {
     /// iOS: a critically damped spring instead of the web's 0.4 s curve. That curve (.22, 1, .36, 1) covers about a sixth
     /// of the way in its first frame, so on the phone the motion read as a jump and then a long crawl; a spring starts
     /// from rest (or from the finger's speed) and eases out without the crawl.
-    static let curve = Animation.spring(duration: 0.4, bounce: 0)
+    static var curve: Animation { Theme.ease }
     enum Phase { case compact, measuring, moving, big }
 
     var phase: Phase = .compact
@@ -210,6 +210,7 @@ struct XPPoses: Equatable {
     var bigOn = false             // the whole big layer (hidden while it is measured)
     var p: Double = 0
     var artRadius: CGFloat?       // the big cover's corner while it grows (in its own size)
+    var titleReveal: CGFloat?     // a cut-short title: how much of the big one (from its start, big px) has written itself in
     var artGrow: Double?          // how far the big cover has grown, 0 (on the small one) … 1 (open)
     var artScale: Double?         // its current scale (its own px → screen px)
     var extra: Double = 1         // album · year write themselves in
@@ -336,12 +337,18 @@ enum XPLayout {
             let r = ratio, k = lerp(1, r, P), sc = k / r, oy = Double(L.height) / 2
             let avail = W - Theme.panelPad - Double(cb.minX)
             let swap = Double(cb.width) < avail - 1                    // the small line isn't cut short: the big copy takes over in place
-            let cOp = swap ? (P > 0 ? 0 : 1) : max(0, 1 - fade(P, 0.1, 0.22)), xOp = swap ? (P > 0 ? 1 : 0) : fade(P, 0.06, 0.2)
+            // cut short ("…") while the big one fits on one line: it still takes over in place, and the letters the small
+            // one hid write themselves in (a cross-fade of two different copies read as the text jumping)
+            let reveal = name == "title" && !swap && L == xb ? max(0, Double(cb.width) - 14) * r : 0
+            var shown = 0.0
+            if reveal > 0 { shown = lerp(reveal, Double(xb.width), fade(P, 0, 0.45)); out.titleReveal = name == "title" && P < 1 ? CGFloat(shown) : nil }
+            let inPlace = swap || reveal > 0
+            let cOp = inPlace ? (P > 0 ? 0 : 1) : max(0, 1 - fade(P, 0.1, 0.22)), xOp = inPlace ? (P > 0 ? 1 : 0) : fade(P, 0.06, 0.2)
             let (cx, cy) = orbit((Double(cb.minX), Double(cb.midY) - oy / r), (Double(L.minX), Double(L.minY)), P)
             var X = cx, Y = cy + oy * sc
             if P > 0 && P < 1 {
                 let full = Double(L.width)
-                let vis = name == "title" ? full : lerp(min(full, Double(b["b.artistName"]?.width ?? xb.width)), full, extra)
+                let vis = reveal > 0 ? shown : name == "title" ? full : lerp(min(full, Double(b["b.artistName"]?.width ?? xb.width)), full, extra)
                 let f0 = fade(P, 0, 0.06)
                 X -= f0 * max(0, X + vis * sc - limit)                 // never past the right edge
                 let wd = max(clamp01((vis * sc - (limit - (curX + size + 12)) + 40) / 80), clamp01((curX + size + 12 - X) / 16)) * f0

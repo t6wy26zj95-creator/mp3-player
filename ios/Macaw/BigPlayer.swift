@@ -537,6 +537,7 @@ struct BigTitle: View {
     var text: String
     var tag: String
     @State private var w: CGFloat = 300
+    @Environment(\.xpPoses) private var poses
     private func lines(_ size: CGFloat) -> Int {
         let f = UIFont.systemFont(ofSize: size, weight: .semibold)
         let r = (text as NSString).boundingRect(with: CGSize(width: max(1, w), height: .greatestFiniteMagnitude),
@@ -554,6 +555,13 @@ struct BigTitle: View {
             .multilineTextAlignment(.center)
             .lineLimit(3)
             .shadow(color: .black.opacity(0.45), radius: 3, y: 2)           // web: text-shadow 0 2px 6px rgba(0,0,0,.45)
+            .mask(alignment: .leading) {
+                // while it opens from a cut-short small title, the hidden end writes itself in (soft 22 pt edge)
+                if let a = poses.titleReveal {
+                    LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: a / (a + 22)), .init(color: .clear, location: 1)],
+                                   startPoint: .leading, endPoint: .trailing).frame(width: a + 22)
+                } else { Color.black.padding(-30) }
+            }
             .xp(tag)                                                         // the morph measures the text itself
             .frame(maxWidth: .infinity)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w = $0 }
