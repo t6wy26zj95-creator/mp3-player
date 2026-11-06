@@ -85,7 +85,7 @@ struct DrawerView: View {
     /// web renderQueue(true): Now Playing at the top, History above it. Done once the new page has been laid out.
     private func toNow(_ sv: ScrollViewProxy) {
         var tr = Transaction(); tr.disablesAnimations = true
-        for d in [0.0, 0.05, 0.2] {
+        for d in [0.0, 0.05, 0.2, 0.45, 0.6] {                       // the drawer grows for 400 ms: again once it has
             DispatchQueue.main.asyncAfter(deadline: .now() + d) { withTransaction(tr) { sv.scrollTo("q-now", anchor: .top) } }
         }
     }
