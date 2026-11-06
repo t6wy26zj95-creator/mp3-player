@@ -66,7 +66,7 @@ final class Glow {
     @ObservationIgnored private var link: CADisplayLink?
     @ObservationIgnored private var proxy: LinkProxy?
     @ObservationIgnored private var last: CFTimeInterval = 0
-    @ObservationIgnored private var rate = 0      // 10, 30 or 60 frames a second, see the end of frame()
+    @ObservationIgnored private var rate = 0      // 10, 30 or 120 frames a second, see the end of frame()
     @ObservationIgnored private var clock: Double = 0
     private let motion = CMMotionManager()
     @ObservationIgnored private var rawX = 0.0
@@ -95,7 +95,7 @@ final class Glow {
     private func startTilt() {
         guard motion.isDeviceMotionAvailable, !UIAccessibility.isReduceMotionEnabled,
               !CommandLine.arguments.contains("-macawScreen") else { return }
-        motion.deviceMotionUpdateInterval = 1.0 / 60
+        motion.deviceMotionUpdateInterval = 1.0 / 120
         motion.startDeviceMotionUpdates(to: .main) { [weak self] m, _ in
             guard let self, let a = m?.attitude else { return }
             MainActor.assumeIsolated {
@@ -170,12 +170,13 @@ final class Glow {
         if nbr != br { br = nbr }
         if zip(nb, bp).contains(where: { abs($0 - $1) > 0.006 }) { bp = nb }
         // paused and settled: only the slow drift is left, 10 fps is plenty
-        // while the phone is turning, the wallpaper and the glass follow it at the full 60 fps (at 10 fps it felt like lag)
+        // while the phone is turning, the wallpaper and the glass follow it at the screen's full rate, 120 fps on ProMotion
+        // iPhones (at 10 fps it felt like lag)
         let slow = !playing && e < 0.02 && f == 0 && p < 0.003
-        let want = turning ? 60 : slow ? 10 : 30
+        let want = turning ? 120 : slow ? 10 : 30
         if want != rate {
             rate = want
-            l.preferredFrameRateRange = want == 60 ? CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+            l.preferredFrameRateRange = want == 120 ? CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
                 : want == 10 ? CAFrameRateRange(minimum: 8, maximum: 10, preferred: 10) : CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
         }
     }
