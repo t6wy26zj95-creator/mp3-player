@@ -620,14 +620,17 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 /* while the player opens / closes, the buttons follow the motion exactly: their own press / fade easing would make them
    lag a beat behind (and the small and big ones show at once) */
 .player-wrapper.xp-anim .player-btn{transition:none}
-/* while it moves, the small title and artist travel with the big ones: their box must not clip them (that cut them off,
-   the name seemed to vanish for a moment). min-width keeps the layout exactly as it is */
-.player-wrapper.xp-anim .track-text{overflow:visible;min-width:0}
+/* the small title and artist travel with the big ones: their box must not clip them (that cut them off, the name seemed
+   to vanish for a moment). Always, not only while moving: switching it at the end changed the text's glow in the last
+   frame. min-width keeps the layout exactly as it is */
+.player-wrapper .track-text{overflow:visible;min-width:0}
 /* Speed (iPhone): while the big player opens or closes, everything that moves is a layer of its own (from the touch that
    may start it until it settles). A PC browser moves and fades plain elements without repainting anything; Safari
    repaints whatever they sit on, here the whole panel (which also changes height every frame), with all its text,
-   buttons and the queue, 60 times a second at 3x. As layers, they are drawn once and only moved and faded. */
-.player-wrapper.xp-lay :is(#player-main .title-box,#player-main .artist-row,#xp-title,.xp-sub,#prev-btn,#play-btn,#skip-btn,#progress-slider,
+   buttons and the queue, 60 times a second at 3x. As layers, they are drawn once and only moved and faded. They stay
+   layers at rest too: turning them into layers as a move began and back as it ended redrew their text and edges a hair
+   differently in that one frame, a small visible jump at both ends. */
+.player-wrapper :is(#player-main .title-box,#player-main .artist-row,#xp-title,.xp-sub,#prev-btn,#play-btn,#skip-btn,#progress-slider,
   #current-time,#total-duration,#xp-prev,#xp-play,#xp-next,#xp-progress,#xp-cur,#xp-left,#xp-shuffle,#xp-repeat,#footer-main,#xp-bottom,#xp-handle,#xp-bow){will-change:transform,opacity}
 .xp-top{position:absolute;left:0;right:0;top:0;padding:6px 22px 0;display:flex;flex-direction:column}
 .xp-handle{align-self:center;width:72px;height:20px;background:none;border:0;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -1166,7 +1169,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.3";
+const APP_VERSION = "v0.4";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -4829,6 +4832,11 @@ XP = (() => {
     el.style.webkitMaskImage = el.style.maskImage = m;
     el.style.webkitMaskComposite = a && b ? "source-in" : ""; el.style.maskComposite = a && b ? "intersect" : "";
   }
+  /* where a big copy takes over from its small one in place, it fades in on top of it over the first part of the way
+     (and out over the last part on the way back) instead of in one frame: the two sit on exactly the same spot, but a
+     scaled big text or button is drawn a hair differently from the small one, and swapping in one frame read as a jump */
+  const HAND = .2;
+  const breathK = el => el.classList.contains("player-btn") && !el.classList.contains("xp-tog") ? 1 + (el._bp || 0) * (el.id === "play-btn" ? .06 : .035) : 1;
   function render(p) {
     const m = st.m; if (!m) return;
     if (!m.originsOn) origins(m);
@@ -4865,7 +4873,7 @@ XP = (() => {
       /* a title that can't simply take over (cut short, or wrapping) cross-fades with it in place, quickly: never a moment
          with neither on screen */
       const inPlace = l.swap || l.reveal > 0;
-      const cOp = inPlace ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, .1, .22)), xOp = inPlace ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .06, .2));
+      const cOp = inPlace ? (P >= HAND ? .001 : 1) : Math.max(.001, 1 - fade(P, .1, .22)), xOp = inPlace ? Math.max(.001, fade(P, 0, HAND)) : Math.max(.001, fade(P, .06, .2));
       /* each line circles round the growing cover by the top-left corner of its whole text block (see orbit): the text
          hangs right and down from that corner, so going round the cover's right side and under it, no part of it (a long
          wrapped second line included) can cross the cover */
@@ -4948,16 +4956,20 @@ XP = (() => {
          meet), then slides across, which makes a rounded path. The times slide only once the buttons are below them. */
       const tx = st.land ? fade(P, .2, 1) : 1 - Math.cos(fade(P, q.time ? .3 : .1, 1) * Math.PI / 2);   // on its side: the rows part first (above), then slide across
       const X = lerp(q.c0[0], q.x1[0], tx), Y = rowY(q.c0[1], q.x1[1]) + push2, k = lerp(1, q.r, hc);
-      q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
+      /* the buttons keep breathing while they move: their breathing size is a transform too, which the move's own transform
+         replaced, so each button was its resting size during the move and grew back to its breathing size in the last frame */
+      const bc = breathK(q.c), bx = breathK(q.x);
+      q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${(k * bc).toFixed(4)})` : "";
       /* the scrubber stretches from the small one's length to its own (its dot is kept round), so it is one bar all along */
       const kx = q.track ? lerp(q.cw, q.xw, hc) / q.xw : k / q.r, ky = q.track ? lerp(q.ky0, 1, hc) : k / q.r;
-      q.x.style.transform = `translate(${(X - q.x1[0]).toFixed(2)}px,${(Y - q.x1[1]).toFixed(2)}px) scale(${kx.toFixed(4)},${ky.toFixed(4)})`;
+      q.x.style.transform = `translate(${(X - q.x1[0]).toFixed(2)}px,${(Y - q.x1[1]).toFixed(2)}px) scale(${(kx * bx).toFixed(4)},${(ky * bx).toFixed(4)})`;
       if (q.track) bow(q, X, Y, kx, ky, P);
       if (q.icon && q.ik !== 1) q.icon.style.transform = P > 0 && P < 1 ? `scale(${lerp(q.ik, 1, hc).toFixed(4)})` : "";   // icons match the small ones' size at first
       /* same as the lines: the big copy takes over in place; a time whose text differs ("4:22" / "-2:04") swaps over quickly */
       const sw = q.same && !(st.land && q.time);                   // on its side the times cross the buttons' path: they fade out and back in instead
-      setOp(q.c, sw ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, st.land ? .08 : .12)));   // hidden, but kept painted (.001), so it is back the instant it's needed
-      setOp(q.x, sw ? (P > 0 ? 1 : .001) : Math.max(.001, st.land && q.time ? fade(P, .6, .9) : fade(P, .12, .32)));
+      setOp(q.c, sw ? (P >= HAND ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, st.land ? .08 : .12)));   // hidden, but kept painted (.001), so it is back the instant it's needed
+      setOp(q.x, sw ? Math.max(.001, fade(P, 0, HAND)) : Math.max(.001, st.land && q.time ? fade(P, .6, .9) : fade(P, .12, .32)));
+      if (q.track) setOp(BOW, +(q.x.style.opacity || 1));        // the bent line stands in for the big bar: it shows exactly as much as the big bar would (it doubled the small bar near either end)
       if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; playY = Y; tail0 = st.h0 - q.c0[1]; tail1 = st.h1 - q.x1[1]; }
     }
     /* the panel is carried by what's in it: its bottom edge keeps to the controls (the same distance below them as at
@@ -5027,7 +5039,9 @@ XP = (() => {
         st.v = dt ? (st.p - prev) / dt : 0;
         st.over *= Math.exp(-dt / .07); if (st.over < .2) st.over = 0;
         render(st.p);
-        if (Math.abs(y) < .0015 && Math.abs((w0 - W * (y0 + w0 * t)) * ex) < .05 && !st.over) { st.p = target; settle(target); return; }
+        /* it ends only once nothing has any distance left to go (under a hundredth of a px): stopping earlier left everything
+           a third of a px short, and it all clicked into place in the last frame */
+        if (Math.abs(y) < .00001 && Math.abs((w0 - W * (y0 + w0 * t)) * ex) < .0005 && !st.over) { st.p = target; settle(target); return; }
         st.raf = requestAnimationFrame(spring);
       };
       st.raf = requestAnimationFrame(spring);
