@@ -61,7 +61,7 @@ final class XPMotion {
 
     func open() {
         if phase == .moving && !ui.expanded {                       // tapped again while it folds: it turns round
-            withAnimation(Self.curve) { p = 1; ui.expanded = true } completion: {
+            withAnimation(Self.curve, completionCriteria: .removed) { p = 1; ui.expanded = true } completion: {
                 if self.p == 1 && self.phase == .moving { self.phase = .big }
             }
             return
@@ -81,7 +81,7 @@ final class XPMotion {
             await self.measured()
             guard self.phase == .measuring else { return }
             self.phase = .moving
-            withAnimation(Self.curve) { self.p = 1 } completion: {
+            withAnimation(Self.curve, completionCriteria: .removed) { self.p = 1 } completion: {
                 if self.p == 1 && self.phase == .moving { self.phase = .big }
             }
         }
@@ -170,7 +170,7 @@ final class XPMotion {
         // carries on at the finger's speed (as a share of the way left per second), so letting go never jolts
         let d = t - p, base = 0.4 * (0.6 + 0.4 * abs(d))
         let rel = abs(d) > 0.001 ? max(0, min(10, v / d)) : 0
-        withAnimation(.interpolatingSpring(duration: base, bounce: 0, initialVelocity: rel)) {
+        withAnimation(.interpolatingSpring(duration: base, bounce: 0, initialVelocity: rel), completionCriteria: .removed) {
             p = t
             ui.expanded = t == 1
             if t == 0 { ui.lyricsScroll = 0 }
@@ -190,7 +190,7 @@ final class XPMotion {
         Haptics.light()
         if phase == .measuring { phase = .compact; ui.expanded = false; then?(); return }
         phase = .moving
-        withAnimation(Self.curve) { p = 0; ui.expanded = false; ui.lyricsScroll = 0 } completion: {
+        withAnimation(Self.curve, completionCriteria: .removed) { p = 0; ui.expanded = false; ui.lyricsScroll = 0 } completion: {
             if self.p == 0 && self.phase == .moving { self.phase = .compact; then?() }
         }
     }
