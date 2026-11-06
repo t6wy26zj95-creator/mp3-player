@@ -66,6 +66,8 @@ final class Glow {
     @ObservationIgnored private var link: CADisplayLink?
     @ObservationIgnored private var proxy: LinkProxy?
     @ObservationIgnored private var last: CFTimeInterval = 0
+    @ObservationIgnored private var held0 = false
+    @ObservationIgnored private var catchUp: Double = 0
     @ObservationIgnored private var rate = 0      // 10, 30 or 120 frames a second, see the end of frame()
     @ObservationIgnored private var clock: Double = 0
     private let motion = CMMotionManager()
@@ -126,7 +128,9 @@ final class Glow {
         // each tick redraws the covers' glass and the buttons' glow, and on top of the motion's own frame that work
         // dropped a frame every tick (every 6th frame while paused). They carry on from where they were, no jump.
         let ph = XPMotion.shared.phase
-        if ph == .moving || ph == .measuring { return }
+        if ph == .moving || ph == .measuring { held0 = true; return }
+        // just after it: the tilt glides to where the phone is now over ~0.3 s instead of jumping there
+        if held0 { held0 = false; catchUp = now + 0.5 }
         let player = Player.shared
         let playing = player.isPlaying
         var target = 0.0
@@ -160,7 +164,7 @@ final class Glow {
         sparkTick(playing, dt, now)
         if !held { glassT += dt; clock += dt }
         // the tilt follows the phone closely (~0.06 s): any slower and the glass seemed to lag behind your hand
-        let k = 1 - exp(-dt / 0.06)
+        let k = 1 - exp(-dt / (now < catchUp ? 0.3 : 0.06))
         let turning = abs(rawX - sx) + abs(rawY - sy) > 0.006
         sx += (rawX - sx) * k; sy += (rawY - sy) * k
         if abs(sx - tx) + abs(sy - ty) > 0.003 { tx = sx; ty = sy }
