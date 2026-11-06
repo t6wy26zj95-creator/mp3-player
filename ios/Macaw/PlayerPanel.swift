@@ -729,6 +729,8 @@ struct CoverArt: View {
     var size: CGFloat
     var radius: CGFloat
     var glow = true
+    /// The open big player's cover (web: .xp-sh.big shadow, glass details at 1.6x the small cover's px, no dark outline).
+    var big = false
     /// The compact player's song-change motion (web: songOut / coverIn): the cover dips (250 ms) to 88 %, darker, a little
     /// towards the side you skipped from; the new artwork then comes in from the other side, bright, overshoots to 103.5 %
     /// and settles (400 ms ease).
@@ -752,13 +754,13 @@ struct CoverArt: View {
                 Color.black.opacity(0.22)
                 CoverImage(path: t?.path, px: Int(size * 3), placeholder: AnyView(NotesPlaceholder()))
                     .frame(width: size, height: size)
-                if glow { CoverGlass(path: t?.path, size: size, radius: radius) }
+                if glow { CoverGlass(path: t?.path, size: size, radius: radius, u: big ? 1.6 : nil) }
             }
             .frame(width: size, height: size)
             .clipShape(shape)
-            .overlay(shape.stroke(.black.opacity(0.45), lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.18), radius: 2.5 * size / 66, y: 2 * size / 66)
-            .shadow(color: .black.opacity(0.32), radius: 9 * size / 66, y: 7 * size / 66)
+            .overlay(shape.stroke(.black.opacity(big ? 0 : 0.45), lineWidth: 0.5))
+            .shadow(color: .black.opacity(big ? 0.2 : 0.18), radius: big ? 6 : 2.5 * size / 66, y: big ? 4 : 2 * size / 66)
+            .shadow(color: .black.opacity(big ? 0.34 : 0.32), radius: big ? 20 : 9 * size / 66, y: big ? 18 : 7 * size / 66)
             .modifier(CoverMotion(arrive: arrive, dip: dip, bump: bump, d: Double(direction) * 22, fromDx: fromDx, fromScale: fromScale, shape: shape))
         }
         .frame(width: size, height: size)

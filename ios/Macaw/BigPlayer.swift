@@ -8,6 +8,7 @@ struct BigPlayer: View {
     @State private var meta: Double = 1                   // the song-change motion of the title block (rest = 1)
     @State private var bump: Double = 1                   // ... and of the cover
     @State private var metaDir = 1
+    @State private var subW: CGFloat = 0                  // the artist · album line's width, for its balanced break
     private var ui: UIState { .shared }
     private var player: Player { .shared }
 
@@ -102,7 +103,7 @@ struct BigPlayer: View {
     }
 
     private func art(size: CGFloat) -> some View {
-        CoverArt(track: player.current, size: size, radius: poses.artRadius ?? 18, glow: !ui.minimalLight, bump: bump)
+        CoverArt(track: player.current, size: size, radius: poses.artRadius ?? 18, glow: !ui.minimalLight, big: true, bump: bump)
             .xp("b.art")
             .onTapGesture(perform: close)
     }
@@ -151,7 +152,10 @@ struct BigPlayer: View {
         let rest = [t?.album ?? "", t?.year ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
         // while it opens, album · year (and the sound effect) write themselves in letter by letter (web: letters()),
         // the artist starts as dim as the small line, and the small line's " ›" rides along and fades
-        let tail = rest.isEmpty ? "" : " · " + rest, fx = Retro.shared.mode != "off" ? " · " + Retro.shared.label : ""
+        let tail0 = rest.isEmpty ? "" : " · " + rest, fx0 = Retro.shared.mode != "off" ? " · " + Retro.shared.label : ""
+        // web text-wrap: balance: on 2 lines both lines come out about as wide (the album name stays whole when it can)
+        let bal = Self.balanced([t?.shownArtist ?? "", tail0, fx0], width: subW, font: .systemFont(ofSize: 13.5))
+        let tail = bal[1], fx = bal[2]
         let n = tail.count + fx.count, K = 3.0, e = poses.extra
         func op(_ i: Int) -> Double { max(0, min(1, (e * Double(n) + e * K - Double(i)) / K)) }
         func letters(_ s: String, _ i0: Int, _ color: Color) -> Text {
@@ -162,7 +166,7 @@ struct BigPlayer: View {
         // web .xp-sub: up to 2 lines, centred; one line when it fits (then the artist alone is the link)
         return ViewThatFits(in: .horizontal) {
             oneLine(t: t, tail: tail, fx: fx, e: e, gold: gold, letters: letters)
-            (Text(t?.shownArtist ?? "").foregroundColor(Color.w(e >= 1 ? 0.85 : 0.6 + 0.25 * e))
+            (Text(bal[0]).foregroundColor(Color.w(e >= 1 ? 0.85 : 0.6 + 0.25 * e))
                 + letters(tail, 0, Color.w(0.55)) + letters(fx, tail.count, gold))
                 .font(.system(size: 13.5)).lineSpacing(1.5)
                 .multilineTextAlignment(.center).lineLimit(2)
@@ -173,6 +177,32 @@ struct BigPlayer: View {
                 .xp("b.artist")
                 .frame(maxWidth: .infinity)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { if abs($0 - subW) > 0.5 { subW = $0 } }
+    }
+
+    /// Puts the line break where both lines come out closest in width (web/Safari text-wrap: balance on 2 lines), by
+    /// turning that one space into a newline. Unchanged when it fits on one line or the width isn't known yet.
+    static func balanced(_ parts: [String], width: CGFloat, font: UIFont) -> [String] {
+        let full = parts.joined()
+        func w(_ s: Substring) -> CGFloat { (String(s) as NSString).size(withAttributes: [.font: font]).width }
+        guard width > 20, w(full[...]) > width else { return parts }
+        var best: (Int, CGFloat)?
+        for (i, ch) in full.enumerated() where ch == " " {
+            let a = full.prefix(i), b = full.dropFirst(i + 1)
+            let wa = w(a), wb = w(b)
+            guard wa <= width, wb <= width else { continue }
+            let m = max(wa, wb)
+            if best == nil || m < best!.1 { best = (i, m) }
+        }
+        guard let k = best?.0 else { return parts }
+        var out = parts, at = k
+        for j in out.indices {
+            if at < out[j].count {
+                var c = Array(out[j]); c[at] = "\n"; out[j] = String(c); break
+            }
+            at -= out[j].count
+        }
+        return out
     }
 
     private func oneLine(t: Track?, tail: String, fx: String, e: Double, gold: Color, letters: (String, Int, Color) -> Text) -> some View {
@@ -377,6 +407,12 @@ struct UpNextStrip: View {
         }
     }
 
+    /// a word wider than the card's text column (138 − 6 − 10 − 38 art − 8 gap)
+    static func longWord(_ title: String) -> Bool {
+        let f = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        return title.split(separator: " ").contains { (String($0) as NSString).size(withAttributes: [.font: f]).width > 76 }
+    }
+
     private func card(_ c: Card) -> some View {
         let all = cards
         let now: Bool = { if case .now = c.kind { return true }; return false }()
@@ -395,12 +431,14 @@ struct UpNextStrip: View {
                     .frame(width: 38, height: 38)
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(c.track.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white).lineLimit(2)
+                    // web .xp-card-title: up to 2 lines; a word too long for the card puts it on one line with "…"
+                    Text(c.track.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                        .lineLimit(Self.longWord(c.track.title) ? 1 : 2)
                     Text(c.track.shownArtist).font(.system(size: 10.5)).foregroundStyle(Color.w(0.5)).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(7)
+            .padding(.leading, 6).padding(.trailing, 10)                      // web: padding 0 10px 0 6px
             .frame(width: 138, height: 52)
             .background {
                 if rm { shape.fill(Color(red: 1, green: 99 / 255, blue: 99 / 255).opacity(0.42)) }

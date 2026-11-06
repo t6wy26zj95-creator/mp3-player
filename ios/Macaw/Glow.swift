@@ -33,6 +33,8 @@ final class Glow {
     /// drifts the other way. Changes smaller than you can see aren't written, so a phone lying still costs nothing.
     var tx: Double = 0
     var ty: Double = 0
+    /// How tilted the phone is, 0…1, eased over ~0.35 s (web: tilt): 0 lying still, the glass then runs on its own motion.
+    var tilt: Double = 0
 
     // per song
     var c1: RGB = .neutral
@@ -155,6 +157,8 @@ final class Glow {
         let k = 1 - pow(0.9, min(4, dt * 60))                 // web: the same smoothing at any frame rate
         sx += (rawX - sx) * k; sy += (rawY - sy) * k
         if abs(sx - tx) + abs(sy - ty) > 0.012 { tx = sx; ty = sy }
+        let nt = tilt + (min(1, hypot(sx, sy)) - tilt) * (1 - exp(-dt / 0.35))
+        if abs(nt - tilt) > 0.004 { tilt = nt }
         let nbr = 0.5 + 0.5 * sin(clock / 2.6)
         if nbr != br { br = nbr }
         if zip(nb, bp).contains(where: { abs($0 - $1) > 0.006 }) { bp = nb }
@@ -605,14 +609,17 @@ struct CoverGlass: View {
     var path: String?
     var size: CGFloat
     var radius: CGFloat
+    /// Width of the fine details in pt per web px (web --u): the small cover's own scale, 1.6 on the open big cover.
+    var u: CGFloat? = nil
     private var g: Glow { .shared }
     var body: some View {
-        let u = size / 66, s = g.glassT
+        let u = self.u ?? size / 66, s = g.glassT
         let la = g.rimA + 50 + g.tx * 40 - g.ty * 12, th = la * .pi / 180, rr = 30 + 6 * sin(s / 7.3)
-        let gx = (50 + rr * sin(th)) / 100, gy = (50 - rr * cos(th)) / 100
-        let gi = min(1, 0.5 + g.energy * 0.12 + g.pulse * 0.14 + 0.06 * sin(s / 3.1))
-        let sh = max(0, min(1, 0.5 + 0.45 * sin(s / 9.5)))
-        let rx = 1.1 * sin(s / 8.7) * u, ry = 1.1 * cos(s / 11.3) * u
+        // moving the phone shifts the light, as if you moved while looking at the glass (web: tilt terms)
+        let gx = (50 + rr * sin(th) - g.tx * 12) / 100, gy = (50 - rr * cos(th) - g.ty * 12) / 100
+        let gi = min(1, 0.5 + g.energy * 0.12 + g.pulse * 0.14 + g.tilt * 0.35 + 0.06 * sin(s / 3.1))
+        let sh = max(0, min(1, 0.5 + 0.45 * sin(s / 9.5) + g.tx * 0.4))
+        let rx = (1.1 * sin(s / 8.7) + g.tx * 2.6) * u, ry = (1.1 * cos(s / 11.3) + g.ty * 2.6) * u
         let gl = 1.25 - 0.6 * g.lum
         let c1 = g.c1.color, c2 = g.c2.color
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -632,13 +639,13 @@ struct CoverGlass: View {
                                    .init(color: .black.opacity(0), location: 1 - 9 * u / size), .init(color: .black.opacity(0.2), location: 1)],
                            startPoint: .top, endPoint: .bottom)
             // surface: a hotspot on the side the light comes from + a faint sky reflection at the top
-            RadialGradient(stops: [.init(color: .white.opacity(0.19 * gl), location: 0), .init(color: .white.opacity(0.06 * gl), location: 0.34),
+            RadialGradient(stops: [.init(color: .white.opacity(0.19 * gl * (1 + 0.7 * g.tilt)), location: 0), .init(color: .white.opacity(0.06 * gl), location: 0.34),
                                    .init(color: .white.opacity(0), location: 0.7)],
                            center: UnitPoint(x: gx, y: gy), startRadius: 0, endRadius: size * 0.62)
             LinearGradient(stops: [.init(color: .white.opacity(0.08), location: 0), .init(color: .white.opacity(0.02), location: 0.38), .init(color: .white.opacity(0), location: 0.52)],
                            startPoint: UnitPoint(x: 0.377, y: -0.080), endPoint: UnitPoint(x: 0.623, y: 1.080))
             // a long reflection that glides across now and then
-            LinearGradient(stops: [.init(color: .white.opacity(0), location: 0.40), .init(color: .white.opacity(0.13 * gl), location: 0.47),
+            LinearGradient(stops: [.init(color: .white.opacity(0), location: 0.40), .init(color: .white.opacity(0.13 * gl * (1 + g.tilt)), location: 0.47),
                                    .init(color: .white.opacity(0.03), location: 0.50), .init(color: .white.opacity(0.07 * gl), location: 0.53),
                                    .init(color: .white.opacity(0), location: 0.57)],
                            startPoint: UnitPoint(x: 0.0123, y: -0.092), endPoint: UnitPoint(x: 0.9877, y: 1.092))
