@@ -1156,7 +1156,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v65";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v66";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -3378,6 +3378,7 @@ audio.addEventListener("ended", onEnded);
      springs back in once the new artwork is ready, and the cover light flares.
    Web Animations and small rAF loops only; nothing moves with reduced motion turned on. */
 const RM = matchMedia("(prefers-reduced-motion:reduce)").matches;
+const PHONE_SPRING = matchMedia("(pointer:coarse)").matches;          // touch screens: the big player opens / closes on a spring
 const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.done-btn,.gear-btn,.set-pill,.set-x,.q-sec button,.artist-more,.switch,.xp-next-h button,.lyr-close";
 const curScale = el => { const v = parseFloat(getComputedStyle(el).scale); return isFinite(v) ? v : 1; };
 function pressDown(el) {
@@ -4962,6 +4963,27 @@ XP = (() => {
     const p0 = st.p, d = target - p0, base = .4 * (.45 + .55 * Math.abs(d));
     const fling = (v0 || 0) * Math.sign(d), D = fling > 0 ? Math.max(.2, Math.min(base, 4.5 * Math.abs(d) / fling)) : base;   // a fast flick shortens it to match its speed
     let t0 = 0, last = 0;
+    /* Phones: a critically damped spring instead. The app's curve covers about a sixth of the way in its first frame,
+       which on a phone (fewer frames, slower paints) read as a jump and then a long crawl; the spring starts from rest
+       (or from the finger's speed when let go) and eases out without the crawl. PC keeps the curve. */
+    if (PHONE_SPRING) {
+      const W = 2 * Math.PI / .4, y0 = p0 - target, w0 = (v0 || 0) + W * y0;   // y(t) = (y0 + (v0 + W·y0)·t)·e^(−W·t)
+      const spring = now => {
+        if (!t0) t0 = now - 16;
+        const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
+        PERF.frame(now);
+        const t = (now - t0) / 1000, ex = Math.exp(-W * t), y = (y0 + w0 * t) * ex;
+        const prev = st.p;
+        st.p = clamp01(target + y);
+        st.v = dt ? (st.p - prev) / dt : 0;
+        st.over *= Math.exp(-dt / .07); if (st.over < .2) st.over = 0;
+        render(st.p);
+        if (Math.abs(y) < .0015 && Math.abs((w0 - W * (y0 + w0 * t)) * ex) < .05 && !st.over) { st.p = target; settle(target); return; }
+        st.raf = requestAnimationFrame(spring);
+      };
+      st.raf = requestAnimationFrame(spring);
+      return;
+    }
     const step = now => {
       if (!t0) t0 = now - 16;
       const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
