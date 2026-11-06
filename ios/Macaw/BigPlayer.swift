@@ -157,19 +157,32 @@ struct BigArt: View {
     }
 }
 
-/// The big cover where it is on screen, with its shadow drawn after the scaling, in screen px: the small cover's
-/// shadow blending into the open one's as it grows (web .xp-sh small → .xp-sh.big).
+/// The big cover where it is on screen, with its shadow drawn separately in screen px: the small cover's shadow blending
+/// into the open one's as it grows (web .xp-sh small → .xp-sh.big). Drawn inside the scaled cover it came out black and
+/// tight at small sizes; drawn over the whole cover it also darkened the colour glow around it, so at the hand-over to
+/// the small cover the glow seemed to light up. Here it is two soft squares under the cover, following its pose.
 struct BigArtFrame: View {
     var size: CGFloat
     var bump: Double
     @Environment(\.xpPoses) private var poses
     var body: some View {
-        let g = poses.artGrow ?? 1
+        let p = poses["b.art"], g = poses.artGrow ?? 1, r = poses.artRadius ?? 18
         func l(_ a: Double, _ b: Double) -> Double { a + (b - a) * g }
-        return BigArt(size: size, bump: bump)
-            .xp("b.art")
-            .shadow(color: .black.opacity(l(0.18, 0.2)), radius: l(2.5, 6), y: l(2, 4))
-            .shadow(color: .black.opacity(l(0.32, 0.34)), radius: l(9, 20), y: l(7, 18))
+        func soft(_ o: Double, _ blur: Double, _ y: Double) -> some View {
+            RoundedRectangle(cornerRadius: r, style: .continuous)
+                .fill(Color.black.opacity(o))
+                .frame(width: size, height: size)
+                .scaleEffect(p.scale, anchor: p.anchor)
+                .offset(x: p.dx, y: p.dy + y)
+                .blur(radius: blur)
+                .opacity(p.opacity)
+        }
+        return ZStack {
+            soft(l(0.32, 0.34), l(9, 20), l(7, 18))
+            soft(l(0.18, 0.2), l(2.5, 6), l(2, 4))
+            BigArt(size: size, bump: bump).xp("b.art")
+        }
+        .frame(width: size, height: size)
     }
 }
 
