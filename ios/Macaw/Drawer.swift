@@ -8,8 +8,7 @@ struct DrawerView: View {
     var room: CGFloat
     @State private var contentHeight: CGFloat = 0
     @State private var backHeight: CGFloat = 0
-    @State private var pos = ScrollPosition(edge: .top)
-    private static let offsets = OffsetBox()
+    static let offsets = OffsetBox()
     private var ui: UIState { .shared }
 
     /// What the drawer shows now: a new key = a new view, which slides in (web: showOnly / .v-in).
@@ -27,6 +26,9 @@ struct DrawerView: View {
         let outT = AnyTransition.modifier(active: SongSwap(dx: -d * 12, dy: d == 0 ? -4 : 0, fade: true, blur: 0), identity: SongSwap(dx: 0, dy: 0, fade: false, blur: 0))
             .animation(Theme.easeN.slowed)
         let back = backTitle
+        let key = viewKey
+        let _ = { Self.offsets.shown = key }()
+        let start = ui.navDir > 0 ? 0 : (Self.offsets.at[key] ?? 0)
         VStack(spacing: 0) {
         // web: the Back button sits outside the scrolling list (#playlist-wrapper / #artist-wrapper), so it stays at the
         // top however far down you've scrolled
@@ -40,54 +42,23 @@ struct DrawerView: View {
         .padding(.horizontal, Theme.panelPad)
         .padding(.top, back == nil ? 0 : 14)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { backHeight = $0 }
-        ScrollViewReader { sv in
-        ScrollView(.vertical, showsIndicators: false) {
-            ZStack(alignment: .top) {
-                Group {
-                    switch tab {
-                    case .queue: QueueDrawer()
-                    case .library: LibraryDrawer()
-                    case .artists: ArtistsDrawer()
-                    }
+        // web: every view is its own scrolling element (#playlist-ui, #artist-ui, #queue-ui...), so the page you leave
+        // keeps its place while it fades out, a page you open starts at its top, and Back finds the page where you left it
+        ZStack(alignment: .top) {
+            DrawerPage(key: key, startY: start, toNow: tab == .queue, padTop: back == nil ? 14 : 0,
+                       onHeight: { k, h in if k == Self.offsets.shown { contentHeight = h } }) {
+                switch tab {
+                case .queue: QueueDrawer()
+                case .library: LibraryDrawer()
+                case .artists: ArtistsDrawer()
                 }
-                .id(viewKey)
-                .transition(.asymmetric(insertion: inT, removal: outT))
             }
-            .padding(.horizontal, Theme.panelPad)
-            .padding(.top, back == nil ? 14 : 0)                                // web #view-host: padding-top 14px
-            .padding(.bottom, 6)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+            .id(key)
+            .transition(.asymmetric(insertion: inT, removal: outT))
         }
-        .scrollDisabled(UIState.shared.tileDragging)
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(height: min(max(contentHeight, 40), max(40, room - (back == nil ? 0 : backHeight))))
-        // web renderQueue(true): opening the Queue shows Now Playing at the top, the history scrolled away above it
-        .scrollPosition($pos)
-        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in Self.offsets.cur = y }
-        // web: a page you open starts at its top (renderPlaylist + scrollTop = 0); Back, or coming back to a tab, finds the
-        // page where you left it (albumOrigin.scroll, rememberTab)
-        .onChange(of: viewKey) { old, new in
-            Self.offsets.at[old] = Self.offsets.cur
-            if tab == .queue { toNow(sv); return }                                  // web renderQueue(true)
-            let y = ui.navDir > 0 ? 0 : (Self.offsets.at[new] ?? 0)
-            if ui.navDir > 0 { Self.offsets.at[new] = nil }
-            Self.offsets.cur = y
-            var tr = Transaction(); tr.disablesAnimations = true
-            withTransaction(tr) { pos.scrollTo(y: y) }
-            DispatchQueue.main.async { withTransaction(tr) { pos.scrollTo(y: y) } }      // again once the new page is laid out
-        }
-        .onAppear { if tab == .queue { toNow(sv) } }
-        }
+        .frame(height: min(max(contentHeight, 40), max(40, room - (back == nil ? 0 : backHeight))), alignment: .top)
         }
         .anim(Theme.ease, value: contentHeight)                       // web: #view-host height, 400 ms ease
-    }
-
-    /// web renderQueue(true): Now Playing at the top, History above it. Done once the new page has been laid out.
-    private func toNow(_ sv: ScrollViewProxy) {
-        var tr = Transaction(); tr.disablesAnimations = true
-        for d in [0.0, 0.05, 0.2, 0.45, 0.6] {                       // the drawer grows for 400 ms: again once it has
-            DispatchQueue.main.asyncAfter(deadline: .now() + d) { withTransaction(tr) { sv.scrollTo("q-now", anchor: .top) } }
-        }
     }
 
     /// The page's Back label (nil on a tab's first page): the same words the pages used to show at their top.
@@ -103,6 +74,50 @@ struct DrawerView: View {
         case .artists:
             if ui.artistsPath.isEmpty { return nil }
             return ui.artistsPath.count <= 1 ? "Back to Artists" : "Back"
+        }
+    }
+}
+
+/// One page of the drawer with its own scroll (web: each view is its own scrolling element).
+struct DrawerPage<C: View>: View {
+    var key: String
+    var startY: CGFloat
+    var toNow: Bool
+    var padTop: CGFloat
+    var onHeight: (String, CGFloat) -> Void
+    @ViewBuilder var content: () -> C
+    @State private var pos = ScrollPosition(edge: .top)
+
+    var body: some View {
+        ScrollViewReader { sv in
+            ScrollView(.vertical, showsIndicators: false) {
+                content()
+                    .padding(.horizontal, Theme.panelPad)
+                    .padding(.top, padTop)                                // web #view-host: padding-top 14px
+                    .padding(.bottom, 6)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onHeight(key, $0) }
+            }
+            .scrollDisabled(UIState.shared.tileDragging)
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollPosition($pos)
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+                // only the page on show: one fading out may be squeezed by the drawer resizing to the new page
+                if DrawerView.offsets.shown == key { DrawerView.offsets.at[key] = y }
+            }
+            .onAppear {
+                // the drawer grows for 400 ms: placed again as it does, so the spot holds once it has
+                var tr = Transaction(); tr.disablesAnimations = true
+                if toNow {                                                  // web renderQueue(true): Now Playing at the top
+                    for d in [0.0, 0.05, 0.2, 0.45, 0.6] {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + d) { withTransaction(tr) { sv.scrollTo("q-now", anchor: .top) } }
+                    }
+                } else if startY > 0 {
+                    let y = startY
+                    for d in [0.0, 0.05, 0.2, 0.45] {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + d) { withTransaction(tr) { pos.scrollTo(y: y) } }
+                    }
+                }
+            }
         }
     }
 }
@@ -1115,7 +1130,7 @@ struct DelBadge: View {
 final class FrameBox { var r: CGRect = .zero }
 final class SlotBox { var s: [String: CGRect] = [:] }
 /// Where each drawer page was scrolled to (web: every view keeps its own scrollTop), out of SwiftUI's sight.
-final class OffsetBox { var cur: CGFloat = 0; var at: [String: CGFloat] = [:] }
+final class OffsetBox { var shown = ""; var at: [String: CGFloat] = [:] }
 
 /// The drawer's pages drawn once, unseen, soon after launch, so the first time one opens its pictures (tile glass,
 /// shadows) and views already exist. Without it the first open of the Library hitched and its first frames were lost.

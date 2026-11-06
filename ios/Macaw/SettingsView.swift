@@ -180,7 +180,7 @@ struct SettingsView: View {
         .background {
             ZStack {
                 Rectangle().fill(.ultraThinMaterial)
-                Color(red: 10 / 255, green: 24 / 255, blue: 32 / 255).opacity(0.72)
+                Color(red: 10 / 255, green: 24 / 255, blue: 32 / 255).opacity(max(0.72, ui.scrim))     // web: max(.72, --scrim)
             }
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         }

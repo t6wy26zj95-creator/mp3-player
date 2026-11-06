@@ -104,7 +104,7 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
         content
             .background {
                 shape.fill(.ultraThinMaterial)
-                    .overlay(shape.fill(Theme.scrim.opacity(0.13)))
+                    .overlay(shape.fill(Theme.scrim.opacity(max(0.13, UIState.shared.scrim))))      // web: max(.13, --scrim)
                     .overlay(shape.strokeBorder(LinearGradient(colors: [.w(0.4), .w(0.12), .w(0.12)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
                     .shadow(color: .black.opacity(0.3), radius: 25, y: 20)
                     .shadow(color: .black.opacity(0.15), radius: 7.5, y: 4)

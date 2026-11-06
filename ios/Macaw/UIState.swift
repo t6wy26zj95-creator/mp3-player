@@ -44,6 +44,8 @@ final class UIState {
     var blur: Double = 0
     var wallpaper: UIImage?
     var wallpaperVersion = 0
+    /// web wallTone (--scrim): how much darker the Classic panel and Settings get over a bright wallpaper
+    var scrim: Double = 0
 
     struct MenuState: Identifiable {
         let id = UUID()
@@ -118,7 +120,30 @@ final class UIState {
     func reloadWallpaper() {
         Task {
             let img = await Wallpaper.load()
-            withAnimation(Theme.easeN) { wallpaper = img; wallpaperVersion += 1 }
+            let scr = UIScreen.main.bounds.size
+            let sc = await Task.detached(priority: .utility) { img.map { UIState.tone($0, scr) } ?? 0 }.value
+            withAnimation(Theme.easeN) { wallpaper = img; wallpaperVersion += 1; scrim = sc }
         }
+    }
+
+    /// web wallTone: the bright parts of the wallpaper as you see it (the 85th percentile of a 40-wide copy, cover-fitted
+    /// to the screen), and the tint that keeps white text readable over them
+    nonisolated static func tone(_ im: UIImage, _ scr: CGSize) -> Double {
+        let W = 40, H = max(20, Int((40 * scr.height / max(1, scr.width)).rounded()))
+        guard let cg = im.cgImage else { return 0 }
+        var px = [UInt8](repeating: 0, count: W * H * 4)
+        guard let ctx = CGContext(data: &px, width: W, height: H, bitsPerComponent: 8, bytesPerRow: W * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return 0 }
+        let iw = CGFloat(cg.width), ih = CGFloat(cg.height), k = max(CGFloat(W) / iw, CGFloat(H) / ih)
+        ctx.interpolationQuality = .medium
+        ctx.draw(cg, in: CGRect(x: (CGFloat(W) - iw * k) / 2, y: (CGFloat(H) - ih * k) / 2, width: iw * k, height: ih * k))
+        var ls: [Double] = []
+        ls.reserveCapacity(W * H)
+        for i in stride(from: 0, to: px.count, by: 4) {
+            ls.append((0.2126 * Double(px[i]) + 0.7152 * Double(px[i + 1]) + 0.0722 * Double(px[i + 2])) / 255 * 0.94)
+        }
+        ls.sort()
+        let hi = ls[Int(Double(ls.count) * 0.85)]
+        return max(0, min(0.72, 1 - 0.34 / max(hi, 0.01)))
     }
 }
