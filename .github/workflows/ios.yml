@@ -223,6 +223,8 @@ jobs:
           shot swipe1
           shot swipe2
           shot artists
+          shot artistpage 20
+          shot catalog 30
           shot big
           shot lyrics 18
           shot settings

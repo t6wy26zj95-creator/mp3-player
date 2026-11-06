@@ -210,6 +210,16 @@ enum TestScreens {
             try? await Task.sleep(nanoseconds: 500_000_000)
             if let a = model.albums.first(where: { $0.tracks.contains { $0.num > 0 } }) ?? model.albums.first { ui.push(.album(a.name)) }
         case "artists": ui.open(.artists)
+        case "artistpage", "catalog":       // an artist's page (their albums you don't have greyed), then one of those albums
+            ui.open(.artists)
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            ui.push(.artist("The Cure"))
+            if name == "catalog" {
+                for _ in 0..<40 where ArtistInfo.shared.get("The Cure")?.albums?.isEmpty ?? true { try? await Task.sleep(nanoseconds: 300_000_000) }
+                if let all = ArtistInfo.shared.get("The Cure")?.albums, let a = all.first(where: { $0.title.lowercased().contains("disintegration") }) ?? all.first {
+                    ui.push(.catalog(CatRef(id: a.id, title: a.title, artist: "The Cure", cover: a.cover, year: a.year)))
+                }
+            }
         case "big": XPMotion.shared.open()
         case "lyrics":
             XPMotion.shared.open()

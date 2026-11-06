@@ -84,8 +84,9 @@ final class AppModel {
             let bot = botOf[e.path]
             if let bot, let a = tg.albums[bot], !a.isEmpty { t.album = a }          // a bot song keeps the album the server gave it
             if let bot, let d = tg.durations[bot], d > 0 { t.duration = d }
+            let code = bot.flatMap { tg.isrcs[$0] } ?? t.isrc ?? ""
             out.append(Track(path: e.path, size: e.size, title: t.title, artist: t.artist, album: t.album, albumArtist: t.albumArtist,
-                             num: t.num, disc: t.disc, year: t.year, duration: t.duration, botId: bot))
+                             num: t.num, disc: t.disc, year: t.year, duration: t.duration, botId: bot, isrc: code))
         }
         readingText = nil
         let added = first ? [] : out.filter { byPath[$0.path] == nil }
@@ -96,6 +97,25 @@ final class AppModel {
         loaded = true
         if added.count == 1 { toast("Added “\(added[0].title)”") } else if added.count > 1 { toast("Added \(added.count) songs") }
         Player.shared.libraryChanged()
+        Releases.shared.libraryChanged()
+        let unread = entries.filter { keep[cacheKey($0)]?.isrc == nil }
+        if !unread.isEmpty { Task { await fillISRC(unread) } }
+    }
+
+    /// Songs whose tags were read before the app read ID codes (ISRC): only that is read now, quietly, once.
+    private func fillISRC(_ list: [Library.Entry]) async {
+        var changed = false
+        for e in list {
+            let k = cacheKey(e)
+            guard var info = tagCache[k], info.isrc == nil else { continue }
+            info.isrc = await Tags.isrc(Library.shared.songsFolder.appendingPathComponent(e.path))
+            tagCache[k] = info
+            if !(info.isrc ?? "").isEmpty, let i = tracks.firstIndex(where: { $0.path == e.path }), tracks[i].isrc.isEmpty {
+                var ts = tracks; ts[i].isrc = info.isrc ?? ""; tracks = ts; changed = true
+            }
+        }
+        if let d = try? JSONEncoder().encode(tagCache) { try? d.write(to: tagFile, options: .atomic) }
+        if changed { setTracks(tracks); Releases.shared.libraryChanged() }
     }
 
     private func cacheKey(_ e: Library.Entry) -> String { "\(e.path)|\(e.size)|\(e.modified)" }
@@ -109,7 +129,8 @@ final class AppModel {
         return a.title.localizedCompare(b.title) == .orderedAscending
     }
 
-    private func setTracks(_ list: [Track]) {
+    private func setTracks(_ list0: [Track]) {
+        let list = Editions.group(list0, order: albumOrder).sorted(by: AppModel.trackOrder)
         tracks = list
         byPath = Dictionary(list.map { ($0.path, $0) }, uniquingKeysWith: { a, _ in a })
         byKey = Dictionary(list.map { ($0.key, $0) }, uniquingKeysWith: { a, _ in a })

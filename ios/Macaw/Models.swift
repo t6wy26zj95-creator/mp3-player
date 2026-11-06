@@ -14,6 +14,8 @@ struct Track: Identifiable, Hashable {
     var year: String
     var duration: Double
     var botId: String?          // the song's id on your music server, when it came from the Telegram bot
+    var ed: String = ""         // the album as the file names it ("Faith (Deluxe Edition)"); album is the name it's shown under
+    var isrc: String = ""       // the recording's ID code (ID3 TSRC, or the server's), "" when unknown
 
     /// The same key the web player uses for a song (playlists store these), so playlists carry over.
     var key: String { "r:" + (botId ?? "n:" + path) }
@@ -61,6 +63,7 @@ enum Route: Hashable {
     case playlist(String)
     case allTracks
     case artist(String)
+    case catalog(CatRef)        // an album on an artist's page that isn't (all) yours: its tracklist from Deezer
 }
 
 enum DrawerTab: String { case queue, library, artists }

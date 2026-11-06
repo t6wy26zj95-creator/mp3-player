@@ -59,6 +59,8 @@ struct SongRow: View {
     var leftAction: LeftAction = .queue
     var inPlaylist: String? = nil
     var spot: ReorderSpot? = nil                 // in a list you can reorder: hold and move
+    var label: String? = nil                     // an album page's "4. Title" (the release's numbering)
+    var sub: String? = nil                       // "Artist · Live"
     var tap: () -> Void
 
     enum LeftAction { case queue, remove(() -> Void), none }
@@ -110,10 +112,10 @@ struct SongRow: View {
                     .scaleEffect(isLifted ? 1.08 : 1)                                       // web .q-row.lifted .item-art
                     .anim(Theme.easeN, value: isLifted)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text((number.map { "\($0). " } ?? "") + track.title)                      // web: up to 2 lines, line-height 1.25
+                    Text(label ?? ((number.map { "\($0). " } ?? "") + track.title))          // web: up to 2 lines, line-height 1.25
                         .font(.system(size: 13, weight: .medium)).foregroundStyle(.white).lineLimit(2)
                         .lineSpacing(13 * 1.25 - UIFont.systemFont(ofSize: 13, weight: .medium).lineHeight)
-                    Text(track.shownArtist).font(.system(size: 11)).foregroundStyle(Color.w(0.5)).lineLimit(1)
+                    Text(sub ?? track.shownArtist).font(.system(size: 11)).foregroundStyle(Color.w(0.5)).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -400,6 +402,7 @@ struct LibraryDrawer: View {
             case .playlist(let id): PlaylistPage(id: id)
             case .allTracks: AllTracksPage()
             case .artist(let name): ArtistPage(name: name)
+            case .catalog(let c): CatalogPage(cat: c)
             }
         }
         // the slide between pages is done by DrawerView
@@ -700,24 +703,231 @@ struct AlbumPage: View {
     private var model: AppModel { .shared }
     private var player: Player { .shared }
     var body: some View {
+        let R = Releases.shared
         VStack(spacing: 0) {
             BackButton(title: back)
             if let a = model.album(named: name) {
-                let sub = [a.artist, a.year, "\(a.tracks.count) song\(a.tracks.count == 1 ? "" : "s")"].filter { !$0.isEmpty }.joined(separator: " · ")
+                let entries = R.albumEntries(name)
+                let own = entries.compactMap(\.track)
+                let list = R.editions(name), view = R.edView(name)
+                // web albumHead: an album with editions shows the year of the one shown (Mixed: the original)
+                let ed = list.map { view ?? $0[0] }
+                let year = (ed.map(\.year).flatMap { Int($0) }) ?? (own.compactMap { Int($0.year) }.max() ?? 0)
+                let sub = [a.artist, year > 0 ? "\(year)" : "", "\(own.count) song\(own.count == 1 ? "" : "s")"].filter { !$0.isEmpty }.joined(separator: " · ")
                 ListHeader(title: a.name, sub: sub, coverPath: a.coverPath, coverData: model.tileCovers[model.coverKey(a.name)], icon: "music.note") {
-                    player.playAll(a.tracks, name: a.name)
+                    if !own.isEmpty { player.playAll(own, name: a.name) }
                 }
-                LazyVStack(spacing: 0) {
-                    ForEach(a.tracks) { t in
-                        SongRow(track: t, number: t.num > 0 ? t.num : nil, active: player.currentKey == t.key) {
-                            player.start(a.tracks, at: t, name: a.name)
-                        }
-                    }
-                }
+                if let list, list.count > 1 { EditionSwitch(name: name, list: list, view: view) }
+                EntryRows(entries: entries, context: own, name: a.name, cover: .path(a.coverPath, model.tileCovers[model.coverKey(a.name)]),
+                          ask: AskCtx(artist: Artists.main(a.artist), album: a.name), albumName: name)
             } else {
                 Text("This album isn't on this phone any more.").font(.system(size: 12)).foregroundStyle(Color.w(0.5)).padding()
             }
         }
+    }
+}
+
+/// An album on an artist's page: its songs from Deezer, the ones you don't have in grey (web openCatalogAlbum).
+struct CatalogPage: View {
+    var cat: CatRef
+    @State private var list: [RelTrack]?
+    @State private var failed = false
+    private var player: Player { .shared }
+    var body: some View {
+        let R = Releases.shared
+        let entries = R.catEntries(cat, own: nil, list: list)
+        let own = entries.compactMap(\.track)
+        VStack(spacing: 0) {
+            BackButton(title: "Back")
+            let sub = [cat.artist, cat.year, "\(own.count) song\(own.count == 1 ? "" : "s")"].filter { !$0.isEmpty }.joined(separator: " · ")
+            CatalogHeader(cat: cat, sub: sub) { if !own.isEmpty { player.playAll(own, name: cat.title) } }
+            if list == nil {
+                Text(failed ? "Couldn\u{2019}t load this album\u{2019}s songs." : "Loading tracks\u{2026}")
+                    .font(.system(size: 12)).foregroundStyle(Color.w(0.45)).frame(maxWidth: .infinity).padding(16)
+            } else {
+                if R.resolving && own.isEmpty {
+                    Text("Checking your library\u{2026}").font(.system(size: 12)).foregroundStyle(Color.w(0.45)).padding(.horizontal, 12).padding(.vertical, 6)
+                }
+                EntryRows(entries: entries, context: own, name: cat.title, cover: .url(cat.cover),
+                          ask: AskCtx(artist: cat.artist, album: R.ownedAlbum(cat.id) ?? cat.title), albumName: nil)
+            }
+        }
+        .task(id: cat.id) {
+            list = await R.trackList(cat.id)
+            failed = list == nil
+        }
+    }
+}
+
+/// The catalog album's header: its cover from Deezer, name, artist · year · songs, Play (web .alb-head).
+struct CatalogHeader: View {
+    var cat: CatRef
+    var sub: String
+    var play: () -> Void
+    var body: some View {
+        HStack(spacing: 12) {
+            RemoteCover(url: cat.cover)
+                .frame(width: 54, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .padding(1)
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.w(0.12), lineWidth: 1))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(cat.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(2)
+                Text(sub).font(.system(size: 12)).foregroundStyle(Color.w(0.55)).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: { Haptics.light(); play() }) {
+                Image(systemName: "play.fill").font(.system(size: 13, weight: .bold)).foregroundStyle(.white).offset(x: 1)
+            }
+            .buttonStyle(RoundButtonStyle(size: 36))
+        }
+        .padding(.horizontal, 12).padding(.top, 4).padding(.bottom, 10)
+    }
+}
+
+struct RemoteCover: View {
+    var url: String?
+    var body: some View {
+        if let u = url.flatMap(URL.init(string:)) {
+            AsyncImage(url: u) { ph in if let img = ph.image { img.resizable().scaledToFill() } else { Color.w(0.06) } }
+        } else { IconTile(system: "music.note", size: 20) }
+    }
+}
+
+/// Who and which album the grey songs belong to (web albumCtx).
+struct AskCtx { var artist: String; var album: String }
+
+enum RowCover { case path(String?, String?), url(String?) }
+
+/// Mixed · Original · Deluxe Edition… under an album's name (web .ed-sw).
+struct EditionSwitch: View {
+    var name: String
+    var list: [Edition]
+    var view: Edition?
+    var body: some View {
+        let R = Releases.shared
+        let items = [("mix", "Mixed")] + list.enumerated().map { ("\($0.element.id)", R.edLabel($0.element, $0.offset, list)) }
+        let on = view.map { "\($0.id)" } ?? "mix"
+        ScrollViewReader { sv in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(items, id: \.0) { item in
+                        let id = item.0, label = item.1
+                        Button { if id != on { withAnimation(Theme.easeN) { R.pickEdition(name, id) } } } label: {
+                            Text(label).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                                .foregroundStyle(id == on ? Color(white: 0.07) : Color.w(0.75))
+                                .padding(.horizontal, 12).padding(.vertical, 6)
+                                .background(Capsule().fill(id == on ? Color.w(0.88) : Color.w(0.06)))
+                                .overlay(Capsule().strokeBorder(id == on ? Color.clear : Color.w(0.14), lineWidth: 1))
+                        }
+                        .buttonStyle(PopStyle())
+                        .id(id)
+                    }
+                }
+                .padding(.horizontal, 12).padding(.top, 2).padding(.bottom, 8)
+            }
+            .onAppear { sv.scrollTo(on, anchor: .leading) }
+        }
+    }
+}
+
+/// An album page's rows: your songs (they play), the ones you don't have in grey with a + (opens your bot's chat with the
+/// song typed in), disc / edition headings, and "Show N more from other editions" (web renderPlaylist).
+struct EntryRows: View {
+    var entries: [AlbumEntry]
+    var context: [Track]
+    var name: String
+    var cover: RowCover
+    var ask: AskCtx
+    var albumName: String?
+    private var player: Player { .shared }
+    var body: some View {
+        let multi = Set(entries.filter { $0.disc < 50 }.map { max(1, $0.disc) }).count > 1
+        let canAsk = !Telegram.shared.key.isEmpty
+        LazyVStack(spacing: 0) {
+            ForEach(Array(entries.enumerated()), id: \.element.id) { i, e in
+                let hd = head(e, multi), prev = i > 0 ? lastHead(i, multi) : nil
+                if let hd, !hd.isEmpty, hd != prev {
+                    Text(hd.uppercased()).font(.system(size: 11, weight: .semibold)).tracking(0.6).foregroundStyle(Color.w(0.5))
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 4)
+                }
+                if let more = e.more {
+                    Button { if let n = albumName { withAnimation(Theme.ease) { Releases.shared.toggleOpen(n) } } } label: {
+                        Text(more < 0 ? "Hide the songs you don\u{2019}t have" : "Show \(more) more from other editions")
+                            .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.w(0.7))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12).padding(.vertical, 10)
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.w(0.18), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                    }
+                    .buttonStyle(PopStyle())
+                    .padding(.horizontal, 12).padding(.top, 6).padding(.bottom, 2)
+                } else if let t = e.track {
+                    let v = Editions.verOf(e.title)
+                    SongRow(track: t, active: player.currentKey == t.key, label: (e.num > 0 ? "\(e.num). " : "") + e.title,
+                            sub: t.shownArtist + (v.isEmpty ? "" : " · " + v)) {
+                        player.start(context, at: t, name: name)
+                    }
+                } else {
+                    GreyRow(label: (e.num > 0 ? "\(e.num). " : "") + e.title, cover: cover,
+                            ask: canAsk ? { Telegram.shared.askBot(artist: ask.artist, title: e.want.isEmpty ? e.title : e.want) } : nil)
+                }
+            }
+        }
+    }
+    /// web headOf
+    private func head(_ e: AlbumEntry, _ multi: Bool) -> String? {
+        if let h = e.head { return h }
+        if e.disc >= 99 { return "Also in your files" }
+        if e.disc == 97 { return "Extra copies" }
+        if e.disc >= 50 { return "" }
+        return multi ? "Disc \(max(1, e.disc))" : ""
+    }
+    /// The heading shown last before row i ("Show more" rows don't change it).
+    private func lastHead(_ i: Int, _ multi: Bool) -> String? {
+        var j = i - 1
+        while j >= 0 { if entries[j].more == nil { return head(entries[j], multi) }; j -= 1 }
+        return nil
+    }
+}
+
+/// A song that isn't in your library: faded cover and text, "🔒 Not in your library", and a + (web .playlist-item.missing).
+struct GreyRow: View {
+    var label: String
+    var cover: RowCover
+    var ask: (() -> Void)?
+    var body: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Group {
+                    switch cover {
+                    case .path(let p, let d): CoverImage(path: p, dataURL: d, px: 120, placeholder: AnyView(Color.w(0.05)))
+                    case .url(let u): RemoteCover(url: u)
+                    }
+                }
+                .frame(width: 28, height: 28)
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .padding(1)
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.w(0.1), lineWidth: 1))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(label).font(.system(size: 13, weight: .medium)).foregroundStyle(.white).lineLimit(2)
+                        .lineSpacing(13 * 1.25 - UIFont.systemFont(ofSize: 13, weight: .medium).lineHeight)
+                    Text("\u{1F512} Not in your library").font(.system(size: 11)).foregroundStyle(Color.w(0.5)).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .opacity(0.35)
+            if let ask {
+                Button { Haptics.light(); ask() } label: {
+                    Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.w(0.85))
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Color.w(0.07)))
+                        .overlay(Circle().strokeBorder(Color.w(0.2), lineWidth: 1))
+                }
+                .buttonStyle(PopStyle())
+                .accessibilityLabel("Get this song")
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
     }
 }
 

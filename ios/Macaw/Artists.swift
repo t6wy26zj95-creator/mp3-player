@@ -8,6 +8,7 @@ struct ArtistsDrawer: View {
             switch ui.artistsPath.last {
             case .artist(let name): ArtistPage(name: name)
             case .album(let name): AlbumPage(name: name, back: "Back")
+            case .catalog(let c): CatalogPage(cat: c)
             default: ArtistGrid()
             }
         }
@@ -316,16 +317,24 @@ struct ArtistPage: View {
         }
     }
 
-    private struct Card: Identifiable { var id: String; var title: String; var year: String; var cover: String?; var localPath: String?; var own: String? }
+    private struct Card: Identifiable { var id: String; var title: String; var year: String; var cover: String?; var localPath: String?; var own: String?; var cat: CatRef? = nil }
 
     @ViewBuilder private func albums(_ d: ArtistInfo.Info?) -> some View {
         let cols = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: 3)
         let local = Artists.albums(of: name)
         let cards: [Card]? = {
             if let cat = d?.albums, !cat.isEmpty {
+                let R = Releases.shared
                 return cat.map { a in
-                    let own = local.first { AppModel.sn($0.name) == AppModel.sn(a.title) }
-                    return Card(id: "\(a.id)", title: a.title, year: a.year, cover: a.cover, localPath: own?.coverPath, own: own?.name)
+                    // web updateArtistOwnership: yours when your songs matched this release (or another edition of it), with
+                    // a dot only when songs of this very edition are here
+                    let k = R.ownedAlbum(a.id)
+                    let mine = k.map { k in
+                        R.relOf(k) == a.id || R.relTracks[a.id] == nil
+                            || R.editionEntries(k, Edition(id: a.id, title: a.title, year: a.year, date: a.date, tracks: R.relTracks[a.id] ?? [])).contains { $0.track != nil }
+                    } ?? false
+                    return Card(id: "\(a.id)", title: a.title, year: a.year, cover: a.cover, localPath: nil, own: mine ? k : nil,
+                                cat: CatRef(id: a.id, title: a.title, artist: d?.name ?? name, cover: a.cover, year: a.year))
                 }
             }
             if d?.albums != nil || slow {                         // nothing from the services: your own albums
@@ -336,7 +345,10 @@ struct ArtistPage: View {
         LazyVGrid(columns: cols, alignment: .center, spacing: 14) {
             if let cards {
                 ForEach(Array(cards.enumerated()), id: \.element.id) { i, c in
-                    Button { if let o = c.own { Haptics.light(); ui.push(.album(o)) } } label: {
+                    Button {
+                        Haptics.light()
+                        if let k = c.cat { ui.push(.catalog(k)) } else if let o = c.own { ui.push(.album(o)) }   // web openCatalogAlbum / artistLocal
+                    } label: {
                         VStack(spacing: 8) {
                             let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
                             Color.clear.aspectRatio(1, contentMode: .fit)

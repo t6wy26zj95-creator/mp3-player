@@ -14,6 +14,7 @@ final class Telegram {
     private(set) var done: [String: String] = [:]       // bot song id -> its path in the app, or "skip:" (you already had it)
     private(set) var albums: [String: String] = [:]     // bot song id -> album on the server
     private(set) var durations: [String: Double] = [:]  // bot song id -> length in seconds
+    private(set) var isrcs: [String: String] = [:]      // bot song id -> the recording's ID code (from the server)
     private(set) var waiting: Set<String> = []          // downloading now
     private(set) var problem = ""
     private(set) var status: String?                    // "Opening Telegram…", "Press Start in the bot…"
@@ -37,6 +38,7 @@ final class Telegram {
         done = s.json("tgDone", as: [String: String].self) ?? [:]
         albums = s.json("tgAlbums", as: [String: String].self) ?? [:]
         durations = s.json("tgDur", as: [String: Double].self) ?? [:]
+        isrcs = s.json("tgIsrc", as: [String: String].self) ?? [:]
     }
 
     func start() {
@@ -75,6 +77,30 @@ final class Telegram {
         if !waiting.isEmpty { s += ", \(waiting.count) downloading" }
         if !problem.isEmpty { s += ". Problem: " + problem }
         return s
+    }
+
+    // MARK: + on a grey song
+
+    @ObservationIgnored private var botName: String?
+
+    /// Opens your chat with the Macaw bot with the artist and song typed in; you pick the song there yourself
+    /// (web manualGet). Nothing is searched or downloaded by the app.
+    func askBot(artist: String, title: String) {
+        Task {
+            if botName == nil {
+                var r = URLRequest(url: URL(string: API_BASE + "/api/search")!, timeoutInterval: 15)
+                r.setValue(key, forHTTPHeaderField: "X-App-Key")
+                if case let (d, _)? = try? await URLSession.shared.data(for: r),
+                   let j = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any], let b = j["bot"] as? String, !b.isEmpty {
+                    botName = b.hasPrefix("@") ? String(b.dropFirst()) : b
+                }
+            }
+            guard let bot = botName else { AppModel.shared.toast("Can\u{2019}t reach your music server"); return }
+            let text = [artist, Editions.cleanTitle(title).isEmpty ? title : Editions.cleanTitle(title)].filter { !$0.isEmpty }.joined(separator: " ")
+            var c = URLComponents(string: "https://t.me/" + bot)!
+            c.queryItems = [URLQueryItem(name: "text", value: text)]
+            if let u = c.url { await UIApplication.shared.open(u) }
+        }
     }
 
     // MARK: linking
@@ -217,14 +243,16 @@ final class Telegram {
             if rel.hasPrefix("Telegram/") { Library.shared.deleteDownloaded(rel) }
             done[id] = nil; gone += 1
         }
-        var al: [String: String] = [:], du: [String: Double] = [:]
+        var al: [String: String] = [:], du: [String: Double] = [:], ic: [String: String] = [:]
         for x in list {
             guard let id = Telegram.idOf(x) else { continue }
             if let a = x["album"] as? String, !a.isEmpty { al[id] = a }
+            if let i = x["isrc"] as? String, !i.isEmpty { ic[id] = i }
             if let d = x["duration"] as? Double, d > 0 { du[id] = d } else if let d = x["duration"] as? Int, d > 0 { du[id] = Double(d) }
         }
         var rescan = false
         if du != durations { durations = du; Store.shared.setJSON("tgDur", du) }
+        if ic != isrcs { isrcs = ic; Store.shared.setJSON("tgIsrc", ic); rescan = true }
         if al != albums { albums = al; Store.shared.setJSON("tgAlbums", al); rescan = true }
         if found > 0 || gone > 0 { Store.shared.setJSON("tgDone", done) }
         if gone > 0 { rescan = true }
