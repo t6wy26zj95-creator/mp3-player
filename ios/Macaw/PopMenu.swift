@@ -5,6 +5,9 @@ import PhotosUI
 struct PopMenu: View {
     var state: UIState.MenuState
     @State private var shown = false
+    @State private var ask: Ask?
+    @State private var askText = ""
+    @FocusState private var askFocus: Bool
     private var ui: UIState { .shared }
     private var model: AppModel { .shared }
     private var player: Player { .shared }
@@ -16,7 +19,7 @@ struct PopMenu: View {
             let a = state.anchor
             let x = min(max(12, a.maxX - w - 8 - screen.minX), geo.size.width - w - 12)
             ZStack(alignment: .topLeading) {
-                Color.black.opacity(shown ? 0.2 : 0)
+                Color.black.opacity(0.001)
                     .ignoresSafeArea()
                     .onTapGesture { close() }
                 card
@@ -60,7 +63,7 @@ struct PopMenu: View {
         .shadow(color: .black.opacity(0.45), radius: 17, y: 14)
     }
 
-    // MARK: a song
+    // MARK: a song (web songMenu)
 
     @ViewBuilder private func songItems(_ t: Track, _ inPl: String?) -> some View {
         HStack(spacing: 10) {
@@ -72,22 +75,23 @@ struct PopMenu: View {
             }
         }
         .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 8)
-        item("Play next", "text.line.first.and.arrowtriangle.forward") { player.enqueue(t, last: false) }
-        item("Play last", "text.append") { player.enqueue(t, last: true) }
+        item("Play next", SVGIcon.qNext) { player.enqueue(t, last: false) }
+        item("Play last", SVGIcon.qLast) { player.enqueue(t, last: true) }
         sep
         if !model.playlists.isEmpty {
-            Text("ADD TO PLAYLIST").font(.system(size: 11, weight: .semibold)).tracking(0.66).foregroundStyle(Color.w(0.5))
-                .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 4)
+            head("Add to playlist")
             ForEach(model.playlists) { p in
                 let on = p.keys.contains(t.key)
-                Button { Haptics.light(); model.toggle(t, in: p.id) } label: {
+                // web: ticks it in place, the menu stays open, no message
+                Button { Haptics.select(); model.toggle(t, in: p.id) } label: {
                     HStack(spacing: 10) {
                         Text(p.name).font(.system(size: 14)).foregroundStyle(.white).lineLimit(1)
-                        Spacer()
+                        Spacer(minLength: 0)
                         ZStack {
                             Circle().strokeBorder(on ? .white : Color.w(0.45), lineWidth: 1.5)
                                 .background(Circle().fill(on ? .white : .clear))
-                            if on { Image(systemName: "checkmark").font(.system(size: 10, weight: .heavy)).foregroundStyle(Color(red: 15 / 255, green: 23 / 255, blue: 30 / 255)) }
+                            SVGIcon(d: SVGIcon.check).fill(Color(red: 15 / 255, green: 23 / 255, blue: 30 / 255))
+                                .frame(width: 14, height: 14).opacity(on ? 1 : 0)
                         }
                         .frame(width: 20, height: 20)
                         .anim(Theme.easeN, value: on)
@@ -97,70 +101,120 @@ struct PopMenu: View {
                 .buttonStyle(MenuRowStyle())
             }
         }
-        item("New playlist", "plus", dimmed: true) {
-            ui.prompt = UIState.Prompt(title: "New playlist", text: "My playlist \(model.playlists.count + 1)", button: "Create") { name in
-                let p = model.newPlaylist(name, keys: [t.key])
-                model.toast("Added to “\(p.name)”")
+        if let a = ask {
+            askRow(a)
+        } else {
+            item("New playlist", SVGIcon.add, dimmed: true, closes: false) {
+                askText = ""
+                ask = Ask(ph: "Playlist name", button: "Create") { name in
+                    let p = model.newPlaylist(name, keys: [t.key])
+                    Haptics.light(); close()
+                    model.toast("Added to \(p.name)")
+                }
+            }
+            if let inPl, let p = model.playlist(inPl), p.keys.contains(t.key) {
+                item("Remove from \(p.name)", SVGIcon.trash, danger: true) {
+                    model.remove(t, from: inPl)
+                    model.toast("Removed from \(p.name)")
+                }
             }
         }
-        if let inPl {
-            sep
-            item("Remove from this playlist", "minus.circle", danger: true) { model.remove(t, from: inPl) }
-        }
-        sep
-        item("Go to artist", "person") { ui.showArtist(t.shownArtist) }
     }
 
-    // MARK: a tile
+    // MARK: a tile (web tileMenu): All Tracks: cover, rename · playlist: cover, rename, delete · album: cover, hide
 
     @ViewBuilder private func tileItems(_ tile: Tile) -> some View {
         switch tile {
         case .all:
-            item("Play", "play") { player.playAll(model.tracks, name: "Library", wholeLibrary: true) }
-            sep
-            item("Choose cover", "photo") { ui.coverPickFor = tile.key }
-            if model.tileCovers[AppModel.allKey] != nil { item("Use the standard cover", "arrow.uturn.backward") { model.setTileCover(tile.key, jpeg: nil) } }
-            item("Rename", "pencil") {
-                ui.prompt = UIState.Prompt(title: "Rename", text: model.allName, button: "Rename") { model.renameAll($0) }
+            head(model.allName)
+            if let a = ask { askRow(a) } else {
+                item("Choose cover", SVGIcon.photo) { ui.coverPickFor = tile.key }
+                if model.tileCovers[AppModel.allKey] != nil { item("Use the standard cover", SVGIcon.undo) { model.setTileCover(tile.key, jpeg: nil) } }
+                item("Rename", SVGIcon.edit, closes: false) {
+                    askText = model.allName
+                    ask = Ask(ph: "Name", button: "Save") { name in
+                        if !name.isEmpty { model.renameAll(name == "All Tracks" ? "" : name) }
+                        close()
+                    }
+                }
             }
         case .playlist(let p):
-            item("Play", "play") { player.playAll(model.tracks(of: p), name: p.name) }
-            sep
-            item("Choose cover", "photo") { ui.coverPickFor = tile.key }
-            if model.tileCovers["pl:" + p.id] != nil { item("Use the standard cover", "arrow.uturn.backward") { model.setTileCover(tile.key, jpeg: nil) } }
-            item("Rename", "pencil") {
-                ui.prompt = UIState.Prompt(title: "Rename playlist", text: p.name, button: "Rename") { model.renamePlaylist(p.id, $0) }
+            head(p.name)
+            if let a = ask { askRow(a) } else {
+                item("Choose cover", SVGIcon.photo) { ui.coverPickFor = tile.key }
+                if model.tileCovers["pl:" + p.id] != nil { item("Use the standard cover", SVGIcon.undo) { model.setTileCover(tile.key, jpeg: nil) } }
+                item("Rename", SVGIcon.edit, closes: false) {
+                    askText = p.name
+                    ask = Ask(ph: "Name", button: "Save") { name in
+                        if !name.isEmpty { model.renamePlaylist(p.id, name) }
+                        close()
+                    }
+                }
+                sep
+                item("Delete playlist", SVGIcon.trash, danger: true) {
+                    ui.confirm = UIState.Confirm(text: "Delete the playlist \"\(p.name)\"? The songs stay in your library.") { model.deletePlaylist(p.id) }
+                }
             }
-            sep
-            item("Delete playlist", "trash", danger: true) { model.deletePlaylist(p.id) }
         case .album(let a):
-            item("Play", "play") { player.playAll(a.tracks, name: a.name) }
-            item("Play next", "text.line.first.and.arrowtriangle.forward") { player.enqueueAll(a.tracks, last: false) }
-            item("Play last", "text.append") { player.enqueueAll(a.tracks, last: true) }
+            head(a.name)
+            item("Choose cover", SVGIcon.photo) { ui.coverPickFor = tile.key }
+            if model.tileCovers["a:" + a.name] != nil { item("Use the album's cover", SVGIcon.undo) { model.setTileCover(tile.key, jpeg: nil) } }
             sep
-            item("Choose cover", "photo") { ui.coverPickFor = tile.key }
-            if model.tileCovers["a:" + a.name] != nil { item("Use the album's cover", "arrow.uturn.backward") { model.setTileCover(tile.key, jpeg: nil) } }
-            item("Hide album", "eye.slash", danger: true) { model.hideAlbum(a.name) }
+            item("Hide album", SVGIcon.trash, danger: true) { model.hideAlbum(a.name) }
         }
     }
 
     // MARK: parts
 
+    struct Ask { var ph: String; var button: String; var done: (String) -> Void }
+
     private var sep: some View {
         Rectangle().fill(Color.w(0.12)).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 4)
     }
 
-    private func item(_ title: String, _ icon: String, dimmed: Bool = false, danger: Bool = false, _ f: @escaping () -> Void) -> some View {
-        let color = danger ? Color(red: 1, green: 0.54, blue: 0.54) : (dimmed ? Color.w(0.75) : .white)
-        return Button { run(f) } label: {
+    /// web .pl-h: 11 pt, bold, 0.06 em apart, capitals, half white
+    private func head(_ t: String) -> some View {
+        Text(t.uppercased()).font(.system(size: 11, weight: .semibold)).tracking(0.66).foregroundStyle(Color.w(0.5)).lineLimit(1)
+            .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 4)
+    }
+
+    /// web .pl-row: the icon (18, 75 % white) first, then the name; danger rows are #ff8a8a
+    private func item(_ title: String, _ icon: String, dimmed: Bool = false, danger: Bool = false, closes: Bool = true, _ f: @escaping () -> Void) -> some View {
+        let color = danger ? Color(red: 1, green: 0x8a / 255, blue: 0x8a / 255) : (dimmed ? Color.w(0.75) : .white)
+        return Button { if closes { run(f) } else { f() } } label: {
             HStack(spacing: 10) {
+                SVGIcon(d: icon).fill(danger ? color : Color.w(0.75)).frame(width: 18, height: 18)
                 Text(title).font(.system(size: 14)).foregroundStyle(color).lineLimit(1)
-                Spacer()
-                Image(systemName: icon).font(.system(size: 15)).foregroundStyle(danger ? color : Color.w(0.75)).frame(width: 18)
+                Spacer(minLength: 0)
             }
             .padding(10).contentShape(Rectangle())
         }
         .buttonStyle(MenuRowStyle())
+    }
+
+    /// web ask(): a name field with its button in place of the menu's last rows (.pl-new)
+    private func askRow(_ a: Ask) -> some View {
+        let go = { a.done(askText.trimmingCharacters(in: .whitespaces)) }
+        return HStack(spacing: 6) {
+            TextField("", text: $askText, prompt: Text(a.ph).foregroundStyle(Color.w(0.4)))
+                .font(.system(size: 16)).foregroundStyle(.white).tint(.white)
+                .autocorrectionDisabled().submitLabel(.done)
+                .focused($askFocus)
+                .onSubmit(go)
+                .onChange(of: askText) { _, v in if v.count > 40 { askText = String(v.prefix(40)) } }
+                .padding(.horizontal, 10).padding(.vertical, 9)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.w(0.08)))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.w(0.2), lineWidth: 1))
+            Button(action: go) {
+                Text(a.button).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(red: 15 / 255, green: 23 / 255, blue: 30 / 255))
+                    .padding(.horizontal, 12).frame(maxHeight: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white))
+            }
+            .buttonStyle(.plain)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(4)
+        .onAppear { askFocus = true }
     }
 }
 
@@ -197,7 +251,7 @@ struct CoverPicker: ViewModifier {
             .overlay {
                 if let picked {
                     CoverCrop(image: picked) { jpeg in
-                        if let jpeg, let key { AppModel.shared.setTileCover(key, jpeg: jpeg) }
+                        if let jpeg, let key { AppModel.shared.setTileCover(key, jpeg: jpeg); AppModel.shared.toast("Cover changed") }
                         self.picked = nil; key = nil; ui.coverPickFor = nil
                     }
                     .zIndex(30)

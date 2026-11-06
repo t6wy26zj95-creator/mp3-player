@@ -110,6 +110,11 @@ struct RootView: View {
                 ui.prompt = nil
             }
         }
+        // web: confirm() before a playlist is deleted
+        .alert(ui.confirm?.text ?? "", isPresented: Binding(get: { ui.confirm != nil }, set: { if !$0 { ui.confirm = nil } })) {
+            Button("Cancel", role: .cancel) { ui.confirm = nil }
+            Button("OK") { ui.confirm?.ok(); ui.confirm = nil }
+        }
         .onOpenURL { url in if url.isFileURL { model.importFiles([url]) } }
         .task {
             guard !booted else { return }

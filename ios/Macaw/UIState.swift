@@ -17,6 +17,7 @@ final class UIState {
     var importing = false
     var menu: MenuState?
     var prompt: Prompt?
+    var confirm: Confirm?
     var coverPickFor: String?           // tile key whose cover you're choosing
     var classic = false                 // set from the saved settings at start (Boot)
     var minimalLight = false
@@ -49,6 +50,12 @@ final class UIState {
         var kind: Kind
         var anchor: CGRect
         enum Kind { case song(Track, inPlaylist: String?), tile(Tile) }
+    }
+
+    struct Confirm: Identifiable {
+        let id = UUID()
+        var text: String
+        var ok: () -> Void
     }
 
     struct Prompt: Identifiable {

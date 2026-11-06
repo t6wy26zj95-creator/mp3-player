@@ -222,7 +222,7 @@ final class AppModel {
     func hideAlbum(_ name: String) {
         guard !hidden.contains(name) else { return }
         hidden.append(name); Store.shared.setJSON("hiddenAlbums", hidden)
-        toast("Album hidden. Bring it back in Settings")
+        toast("Hidden from Library")
     }
     func unhideAlbum(_ name: String) {
         hidden.removeAll { $0 == name }; Store.shared.setJSON("hiddenAlbums", hidden)
@@ -254,9 +254,9 @@ final class AppModel {
     func toggle(_ t: Track, in id: String) {
         guard let i = playlists.firstIndex(where: { $0.id == id }) else { return }
         if playlists[i].keys.contains(t.key) {
-            playlists[i].keys.removeAll { $0 == t.key }; toast("Removed from “\(playlists[i].name)”")
+            playlists[i].keys.removeAll { $0 == t.key }
         } else {
-            playlists[i].keys.append(t.key); toast("Added to “\(playlists[i].name)”")
+            playlists[i].keys.append(t.key)
         }
         savePlaylists()
     }

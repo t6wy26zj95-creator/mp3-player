@@ -323,9 +323,29 @@ final class Player {
             }
             updateNowPlaying()
         case .failed:
+            // web badSong: said only while you want it to play; a stream that can't load (no connection) isn't skipped,
+            // the song itself may be fine; a run of broken songs stops after a few
+            guard isPlaying, let t = current else { return }
+            Haptics.medium()
+            let err = av.currentItem?.error as NSError?
+            if err?.domain == NSURLErrorDomain || (err?.userInfo[NSUnderlyingErrorKey] as? NSError)?.domain == NSURLErrorDomain {
+                pause()
+                model.toast("Couldn't load this song. Check your connection")
+                return
+            }
             failures += 1
-            model.toast("Couldn't play “\(current?.title ?? "this song")”, skipped")
-            if failures < 4 { next() } else { isPlaying = false; failures = 0 }
+            if failures >= min(4, max(1, model.tracks.count)) {
+                failures = 0; pause()
+                model.toast("Can't play these files")
+                return
+            }
+            let name = t.title.count > 28 ? String(t.title.prefix(27)) + "\u{2026}" : t.title
+            model.toast("Can't play \u{201C}\(name)\u{201D}, skipping")
+            let key = t.key
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                if self.current?.key == key { self.next() }
+            }
         default: break
         }
     }
