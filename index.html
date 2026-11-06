@@ -1164,7 +1164,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.1";
+const APP_VERSION = "v0.2";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -6852,6 +6852,11 @@ function pulseLoop(now) {
      pauses with it, so it carries on from where it stopped, never with a jump. A song change's quick swing still plays. */
   const glassOn = !moving && (!uiHold && now > uiCalmAt || flare > .05);
   if (glassOn) { rimA = (rimA + (4 + energy * (5 + pulse * 14)) * dt) % 360; glassT += dt; }   // the light slowly orbits the cover on its own; a little livelier with the music
+  /* the light held still (big player moving, a touch): if the phone turned meanwhile, it glides to the new tilt over
+     ~0.25 s once it carries on instead of jumping there */
+  if (!glassOn) glassHeld = true; else if (glassHeld) { glassHeld = false; glassResume = now; }
+  const gk = now - glassResume < 600 ? 1 - Math.exp(-dt / .25) : 1;
+  if (glassOn) { gTx += (TILT.x - gTx) * gk; gTy += (TILT.y - gTy) * gk; }
   const tx = TILT.x, ty = TILT.y, s = glassT;
   tilt += (Math.min(1, Math.hypot(tx, ty)) - tilt) * (1 - Math.exp(-dt / .35));            // 0 without tilt: the glass then runs on its ambient motion alone
   /* the cover light goes to whichever cover is on screen: the small one, the big one, or both while it expands */
@@ -6869,12 +6874,13 @@ function pulseLoop(now) {
     pset(pm, "--en", energy.toFixed(2)); pset(pm, "--fl", flare.toFixed(2));
     pset(pm, "--br", (.5 + .5 * Math.sin(now / 2600)).toFixed(2));
     if (!glassOn) continue;
-    pset(pm, "--la", la.toFixed(1) + "deg");
-    pset(pm, "--gx", (50 + rr * Math.sin(th) - tx * 12).toFixed(1) + "%"); pset(pm, "--gy", (50 - rr * Math.cos(th) - ty * 12).toFixed(1) + "%");
+    pset(pm, "--la", (rimA + 50 + gTx * 40 - gTy * 12).toFixed(1) + "deg");
+    const la2 = rimA + 50 + gTx * 40 - gTy * 12, th2 = la2 * Math.PI / 180;      // la with the gliding tilt
+    pset(pm, "--gx", (50 + rr * Math.sin(th2) - gTx * 12).toFixed(1) + "%"); pset(pm, "--gy", (50 - rr * Math.cos(th2) - gTy * 12).toFixed(1) + "%");
     pset(pm, "--gi", Math.min(1, .5 + energy * .12 + pulse * .14 + tilt * .35 + .06 * Math.sin(s / 3.1)).toFixed(2));
     pset(pm, "--gt", tilt.toFixed(2));
-    pset(pm, "--sh", Math.max(0, Math.min(1, .5 + .45 * Math.sin(s / 9.5) + tx * .4)).toFixed(3));
-    pset(pm, "--rx", (1.1 * Math.sin(s / 8.7) + tx * 2.6).toFixed(1) + "px"); pset(pm, "--ry", (1.1 * Math.cos(s / 11.3) + ty * 2.6).toFixed(1) + "px");
+    pset(pm, "--sh", Math.max(0, Math.min(1, .5 + .45 * Math.sin(s / 9.5) + gTx * .4)).toFixed(3));
+    pset(pm, "--rx", (1.1 * Math.sin(s / 8.7) + gTx * 2.6).toFixed(1) + "px"); pset(pm, "--ry", (1.1 * Math.cos(s / 11.3) + gTy * 2.6).toFixed(1) + "px");
   }
   if (idle) {
     PERF.gap();
@@ -6882,7 +6888,7 @@ function pulseLoop(now) {
     pTimer = setTimeout(() => { pTimer = 0; if (!pRaf) pRaf = requestAnimationFrame(pulseLoop); }, 100);
   } else pRaf = requestAnimationFrame(pulseLoop);
 }
-let rimA = 0, energy = 0, tilt = 0, glassT = 0, uiHold = false, uiCalmAt = 0;
+let rimA = 0, energy = 0, tilt = 0, glassT = 0, uiHold = false, uiCalmAt = 0, glassHeld = false, glassResume = 0, gTx = 0, gTy = 0;
 /* "the person is doing something": a finger (or mouse button) is down, a list scrolls, or a tap has just landed */
 document.addEventListener("pointerdown", ev => { if (ev.isPrimary) uiHold = true; }, true);
 ["pointerup", "pointercancel"].forEach(t => document.addEventListener(t, ev => { if (ev.isPrimary) { uiHold = false; uiCalmAt = performance.now() + 450; } }, true));
