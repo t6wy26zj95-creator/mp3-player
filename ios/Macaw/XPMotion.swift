@@ -340,10 +340,10 @@ enum XPLayout {
             }
             let r = ratio, k = lerp(1, r, P), sc = k / r, oy = Double(L.height) / 2
             let avail = W - Theme.panelPad - Double(cb.minX)
-            // the small line isn't cut short: the big copy takes over in place. For the title this is read from the text's own
-            // width (the big text at the small size against the small line's width): the old test against the panel's
-            // edge missed cut titles by a point or two, so the big one swapped in whole and the end jumped at the hand-over
-            let swap = name == "title" ? Double(L.width) / r <= Double(cb.width) + 1 : Double(cb.width) < avail - 1
+            // the small line isn't cut short: the big copy takes over in place. A cut small title is exactly as wide as its
+            // room (it fades out at the end of it), so the title is read against its own room, not the panel's edge
+            let room = name == "title" ? Double(c["c.titleBox"]?.width ?? CGFloat(avail)) : avail
+            let swap = Double(cb.width) < room - 0.5
             // cut short ("…") while the big one fits on one line: it still takes over in place, and the letters the small
             // one hid write themselves in (a cross-fade of two different copies read as the text jumping)
             // (the small title fades out over its last 20 pt instead of "…", so at either end the two look the same)

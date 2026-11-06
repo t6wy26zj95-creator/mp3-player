@@ -278,11 +278,13 @@ struct BigSubtitle: View {
         HStack(spacing: 0) {
             Button { if let a = t?.shownArtist { ui.showArtist(a) } } label: {
                 Text(t?.shownArtist ?? "").foregroundStyle(Color.w(e >= 1 ? 0.85 : 0.6 + 0.25 * e))
-                    .overlay(alignment: .trailing) {
+                    .overlay(alignment: .leading) {
                         if poses.chev > 0.001 {
-                            // the small line's " ›" exactly (white at 30 %), so it doesn't change at the hand-over
+                            // the small line's " ›" exactly (white at 30 %), right after the name, so it doesn't change at the
+                            // hand-over (placed by the name's measured width: a trailing alignment guide put it over the last letter)
+                            let wn = ((t?.shownArtist ?? "") as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 13.5)]).width
                             Text(" ›").foregroundStyle(Color.w(0.3)).fixedSize()
-                                .alignmentGuide(.trailing) { d in d[.leading] }
+                                .offset(x: wn)
                                 .opacity(poses.chev)
                         }
                     }

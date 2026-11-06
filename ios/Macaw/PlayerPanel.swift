@@ -271,6 +271,17 @@ struct SlidingTitle: View {
             .xp(tag)
             .frame(maxWidth: .infinity, alignment: center ? .center : .leading)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { if fadeCut, abs($0 - avail) > 0.5 { avail = $0 } }
+            .modifier(BoxTag(tag: fadeCut && !tag.isEmpty ? tag + "Box" : ""))   // its room: the big motion reads from it whether the title is cut
+    }
+}
+
+/// Reports a view's frame to the big-player motion without posing it.
+struct BoxTag: ViewModifier {
+    var tag: String
+    func body(content: Content) -> some View {
+        if tag.isEmpty { content } else {
+            content.onGeometryChange(for: CGRect.self) { $0.frame(in: .named("xp")) } action: { XPMotion.shared.report(tag, $0) }
+        }
     }
 }
 
