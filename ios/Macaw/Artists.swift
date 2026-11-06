@@ -237,7 +237,6 @@ struct ArtistPage: View {
     var body: some View {
         let d = store.get(name)
         VStack(alignment: .leading, spacing: 0) {
-            BackButton(title: ui.tab == .artists && ui.artistsPath.count <= 1 ? "Back to Artists" : "Back")
             hero(d)
             let meta = [d?.tags.prefix(3).joined(separator: " · ") ?? "", (d?.listeners ?? 0) > 0 ? Self.fmt(d!.listeners) + " listeners" : ""]
                 .filter { !$0.isEmpty }.joined(separator: "  •  ")

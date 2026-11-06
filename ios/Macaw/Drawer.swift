@@ -7,6 +7,7 @@ struct DrawerView: View {
     var tab: DrawerTab
     var room: CGFloat
     @State private var contentHeight: CGFloat = 0
+    @State private var backHeight: CGFloat = 0
     private var ui: UIState { .shared }
 
     /// What the drawer shows now: a new key = a new view, which slides in (web: showOnly / .v-in).
@@ -23,6 +24,19 @@ struct DrawerView: View {
             .animation(Theme.ease.slowed)
         let outT = AnyTransition.modifier(active: SongSwap(dx: -d * 12, dy: d == 0 ? -4 : 0, fade: true, blur: 0), identity: SongSwap(dx: 0, dy: 0, fade: false, blur: 0))
             .animation(Theme.easeN.slowed)
+        let back = backTitle
+        VStack(spacing: 0) {
+        // web: the Back button sits outside the scrolling list (#playlist-wrapper / #artist-wrapper), so it stays at the
+        // top however far down you've scrolled
+        ZStack(alignment: .topLeading) {
+            if let back {
+                        .id(viewKey)
+                    .transition(.asymmetric(insertion: inT, removal: outT))
+            }
+        }
+        .padding(.horizontal, Theme.panelPad)
+        .padding(.top, back == nil ? 0 : 14)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { backHeight = $0 }
         ScrollView(.vertical, showsIndicators: false) {
             ZStack(alignment: .top) {
                 Group {
@@ -36,14 +50,31 @@ struct DrawerView: View {
                 .transition(.asymmetric(insertion: inT, removal: outT))
             }
             .padding(.horizontal, Theme.panelPad)
-            .padding(.top, 14)                                                  // web #view-host: padding-top 14px
+            .padding(.top, back == nil ? 14 : 0)                                // web #view-host: padding-top 14px
             .padding(.bottom, 6)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
         .scrollDisabled(UIState.shared.tileDragging)
         .scrollBounceBehavior(.basedOnSize)
-        .frame(height: min(max(contentHeight, 40), room))
+        .frame(height: min(max(contentHeight, 40), max(40, room - (back == nil ? 0 : backHeight))))
+        }
         .anim(Theme.ease, value: contentHeight)                       // web: #view-host height, 400 ms ease
+    }
+
+    /// The page's Back label (nil on a tab's first page): the same words the pages used to show at their top.
+    private var backTitle: String? {
+        switch tab {
+        case .queue: return nil
+        case .library:
+            switch ui.libraryPath.last {
+            case nil: return nil
+            case .album?, .playlist?, .allTracks?: return "Back to Library"
+            default: return "Back"
+            }
+        case .artists:
+            if ui.artistsPath.isEmpty { return nil }
+            return ui.artistsPath.count <= 1 ? "Back to Artists" : "Back"
+        }
     }
 }
 
@@ -705,7 +736,6 @@ struct AlbumPage: View {
     var body: some View {
         let R = Releases.shared
         VStack(spacing: 0) {
-            BackButton(title: back)
             if let a = model.album(named: name) {
                 let entries = R.albumEntries(name)
                 let own = entries.compactMap(\.track)
@@ -738,7 +768,6 @@ struct CatalogPage: View {
         let entries = R.catEntries(cat, own: nil, list: list)
         let own = entries.compactMap(\.track)
         VStack(spacing: 0) {
-            BackButton(title: "Back")
             let sub = [cat.artist, cat.year, "\(own.count) song\(own.count == 1 ? "" : "s")"].filter { !$0.isEmpty }.joined(separator: " · ")
             CatalogHeader(cat: cat, sub: sub) { if !own.isEmpty { player.playAll(own, name: cat.title) } }
             if list == nil {
@@ -938,7 +967,6 @@ struct PlaylistPage: View {
     private var player: Player { .shared }
     var body: some View {
         VStack(spacing: 0) {
-            BackButton(title: "Back to Library")
             if let p = model.playlist(id) {
                 let ts = model.tracks(of: p)
                 ListHeader(title: p.name, sub: "\(ts.count) song\(ts.count == 1 ? "" : "s")", coverPath: ts.first?.path,
@@ -967,7 +995,6 @@ struct AllTracksPage: View {
     private var player: Player { .shared }
     var body: some View {
         VStack(spacing: 0) {
-            BackButton(title: "Back to Library")
             ListHeader(title: model.allName, sub: "\(model.tracks.count) songs", coverPath: nil,
                        coverData: model.tileCovers[AppModel.allKey], icon: "folder.fill") {
                 player.playAll(model.tracks, name: "Library", wholeLibrary: true)
