@@ -283,6 +283,10 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
    Quick: presses, switches, a title changing. Normal: tabs, menus, sheets. Slow: the big player, Cover Flow, the queue strip.
    --ease-pop (a small overshoot) is kept only for the tab highlight, check marks and the cover pop. JS uses MOTION (same values). */
 :root{--ease:cubic-bezier(.22,1,.36,1);--ease-pop:cubic-bezier(.34,1.56,.64,1);--t-q:.15s;--t-n:.25s;--t-s:.4s;--dur:var(--t-s)}
+/* touch screens: every transition on a critically damped spring's curve instead (the same as the big player there):
+   --ease does about a sixth of its move in the first frame, which on a phone reads as a jump and then a crawl */
+@media (pointer:coarse){@supports (transition-timing-function:linear(0,1)){
+  :root{--ease:linear(0,.0407,.1331,.2464,.3627,.472,.5697,.6541,.7253,.7842,.8323,.8712,.9023,.927,.9465,.9618,.9737,.983,.9902,.9957,1)}}}
 @keyframes viewIn{from{opacity:0;transform:translate(var(--dx,0),var(--dy,0))}to{opacity:1;transform:none}}
 .v-in{animation:viewIn var(--t-s) var(--ease) both}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:var(--o,1);transform:none}}
@@ -1144,7 +1148,9 @@ html.cf-land .cf-s{font-size:13px}
 
 <script>
 /* One rhythm for every animation (see --t-q / --t-n / --t-s in the CSS): quick, normal, slow, and one easing. */
-const MOTION = { q: 150, n: 250, s: 400, ease: "cubic-bezier(.22,1,.36,1)" };
+const SPRING_EASE = "linear(0,.0407,.1331,.2464,.3627,.472,.5697,.6541,.7253,.7842,.8323,.8712,.9023,.927,.9465,.9618,.9737,.983,.9902,.9957,1)";
+const MOTION = { q: 150, n: 250, s: 400,                             // touch screens: the spring's curve, as --ease there
+  ease: matchMedia("(pointer:coarse)").matches && window.CSS && CSS.supports("transition-timing-function", SPRING_EASE) ? SPRING_EASE : "cubic-bezier(.22,1,.36,1)" };
 const $ = id => document.getElementById(id);
 var XP = null;
 var RETRO = null;                                     // retro sound (set further down)                                        // the expanded player (set further down); earlier code only calls it through `XP && ...`
@@ -1156,7 +1162,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v67";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v68";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -5237,7 +5243,7 @@ XP = (() => {
     sync(true);
     if (!st.expanded || RM || !auto) return;
     meta.animate([{ opacity: 0, transform: dir ? `translateX(${dir * 26}px)` : "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: MOTION.s, easing: MOTION.ease });
-    clip.animate([{ transform: "scale(.93)", filter: "brightness(.8)" }, { transform: "scale(1.015)", filter: "brightness(1.08)", offset: .55 }, { transform: "none", filter: "brightness(1)" }], { duration: MOTION.s, easing: "cubic-bezier(.22,1,.36,1)" });
+    clip.animate([{ transform: "scale(.93)", filter: "brightness(.8)" }, { transform: "scale(1.015)", filter: "brightness(1.08)", offset: .55 }, { transform: "none", filter: "brightness(1)" }], { duration: MOTION.s, easing: MOTION.ease });
 
   }
   let sDrag = null;
@@ -5437,7 +5443,7 @@ XP = (() => {
     const W = xp.offsetWidth, H = xp.offsetHeight, x = lyrBub.offsetLeft, y = lyrBub.offsetTop - sv.s, w = lyrBub.offsetWidth, h = lyrBub.offsetHeight;
     return `inset(${y.toFixed(1)}px ${(W - x - w).toFixed(1)}px ${(H - y - h).toFixed(1)}px ${x.toFixed(1)}px round 22px)`;
   }
-  const FULL = "inset(0px 0px 0px 0px round 36px)", EASE = "cubic-bezier(.22,1,.36,1)";
+  const FULL = "inset(0px 0px 0px 0px round 36px)", EASE = MOTION.ease;
   function lyrStop() { if (lyr.anim) { lyr.anim.onfinish = null; lyr.anim.cancel(); lyr.anim = null; } lyr.kids.forEach(a => a.cancel()); lyr.kids = []; }
   function lyrOpen() {
     if (lyr.open || !st.expanded || st.raf || drawerOpen()) return;
@@ -5532,7 +5538,7 @@ XP = (() => {
         const L = data.lines, tx = k => k < 0 || k >= L.length ? "" : L[k].text || "•••";
         ch = idx < 0 ? setBub("", "•••", tx(0), "") : setBub(tx(idx - 1), tx(idx), tx(idx + 1), "");
       }
-      if (ch && anim && bvis && !RM && bub.animate) bub.animate([{ transform: "translateY(10px)", opacity: .3 }, { transform: "none", opacity: 1 }], { duration: 440, easing: "cubic-bezier(.22,1,.36,1)" });
+      if (ch && anim && bvis && !RM && bub.animate) bub.animate([{ transform: "translateY(10px)", opacity: .3 }, { transform: "none", opacity: 1 }], { duration: 440, easing: MOTION.ease });
     }
     function show() {
       head(); idx = -2; els = []; bubFill(false);
