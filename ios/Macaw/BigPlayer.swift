@@ -103,7 +103,7 @@ struct BigPlayer: View {
     }
 
     private func art(size: CGFloat) -> some View {
-        CoverArt(track: player.current, size: size, radius: poses.artRadius ?? 18, glow: !ui.minimalLight, big: true, bump: bump)
+        CoverArt(track: player.current, size: size, radius: poses.artRadius ?? 18, glow: !ui.minimalLight, big: (poses.artGrow ?? 1, poses.artScale ?? 1), bump: bump)
             .xp("b.art")
             .onTapGesture(perform: close)
     }

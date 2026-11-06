@@ -729,8 +729,10 @@ struct CoverArt: View {
     var size: CGFloat
     var radius: CGFloat
     var glow = true
-    /// The open big player's cover (web: .xp-sh.big shadow, glass details at 1.6x the small cover's px, no dark outline).
-    var big = false
+    /// The big player's cover: how far it has grown (0 = sitting on the small one, 1 = open) and its current scale.
+    /// Open it wears the web's .xp-sh.big shadow, glass details at 1.6x the small cover's px and no dark outline; while it
+    /// grows everything blends from the small cover's own look, in screen px (web: --u = lerp(1, 1.6, G) / s).
+    var big: (g: Double, s: Double)? = nil
     /// The compact player's song-change motion (web: songOut / coverIn): the cover dips (250 ms) to 88 %, darker, a little
     /// towards the side you skipped from; the new artwork then comes in from the other side, bright, overshoots to 103.5 %
     /// and settles (400 ms ease).
@@ -745,6 +747,12 @@ struct CoverArt: View {
     @State private var fromScale: Double = 0.88
     @State private var job = 0
 
+    /// a shadow value: the small cover's (in 66-px units, scaled to this size) blending into the open big cover's
+    private func sh(_ small: Double, _ open: Double) -> Double {
+        guard let b = big else { return small * size / 66 }
+        return small / b.s * (1 - b.g) + open * b.g
+    }
+
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         let t = motion ? shown : track
@@ -754,13 +762,13 @@ struct CoverArt: View {
                 Color.black.opacity(0.22)
                 CoverImage(path: t?.path, px: Int(size * 3), placeholder: AnyView(NotesPlaceholder()))
                     .frame(width: size, height: size)
-                if glow { CoverGlass(path: t?.path, size: size, radius: radius, u: big ? 1.6 : nil) }
+                if glow { CoverGlass(path: t?.path, size: size, radius: radius, u: big.map { (1 + 0.6 * $0.g) / $0.s }) }
             }
             .frame(width: size, height: size)
             .clipShape(shape)
-            .overlay(shape.stroke(.black.opacity(big ? 0 : 0.45), lineWidth: 0.5))
-            .shadow(color: .black.opacity(big ? 0.2 : 0.18), radius: big ? 6 : 2.5 * size / 66, y: big ? 4 : 2 * size / 66)
-            .shadow(color: .black.opacity(big ? 0.34 : 0.32), radius: big ? 20 : 9 * size / 66, y: big ? 18 : 7 * size / 66)
+            .overlay(shape.stroke(.black.opacity(0.45 * (1 - (big?.g ?? 0))), lineWidth: 0.5 / (big?.s ?? 1)))
+            .shadow(color: .black.opacity(sh(0.18, 0.2)), radius: sh(2.5, 6), y: sh(2, 4))
+            .shadow(color: .black.opacity(sh(0.32, 0.34)), radius: sh(9, 20), y: sh(7, 18))
             .modifier(CoverMotion(arrive: arrive, dip: dip, bump: bump, d: Double(direction) * 22, fromDx: fromDx, fromScale: fromScale, shape: shape))
         }
         .frame(width: size, height: size)

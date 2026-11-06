@@ -40,7 +40,18 @@ final class WalkThrough: XCTestCase {
         Thread.sleep(forTimeInterval: wait)
         return true
     }
-    func id(_ s: String) -> XCUIElement { app.descendants(matching: .any).matching(identifier: s).firstMatch }
+    /// the element with this name that a finger can reach: the small and the big player both have a "next", "play" ...,
+    /// and the hidden one's spot can be the open cover (tapping there folds the big player)
+    func id(_ s: String) -> XCUIElement {
+        let q = app.descendants(matching: .any).matching(identifier: s)
+        if q.count > 1 { for i in 0..<q.count where q.element(boundBy: i).isHittable { return q.element(boundBy: i) } }
+        return q.firstMatch
+    }
+    /// scrolls Settings until the control shows, then taps it
+    func scrollTo(_ e: XCUIElement, _ what: String) -> Bool {
+        for _ in 0..<6 where !(e.exists && e.isHittable) { drag(CGVector(dx: 0.5, dy: 0.75), CGVector(dx: 0.5, dy: 0.45)) }
+        return tap(e, what)
+    }
     func text(_ s: String) -> XCUIElement { app.staticTexts[s].firstMatch }
     func textContaining(_ s: String) -> XCUIElement { app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", s)).firstMatch }
     func button(containing s: String) -> XCUIElement { app.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", s)).firstMatch }
@@ -113,7 +124,7 @@ final class WalkThrough: XCTestCase {
         tap(id("shuffle"), "shuffle"); tap(id("repeat"), "repeat"); shot("big-toggles")
         tap(id("repeat"), "repeat 2"); tap(id("repeat"), "repeat 3"); tap(id("shuffle"), "shuffle off")
         tap(id("next"), "big next"); shot("big-next")
-        drag(CGVector(dx: 0.5, dy: 0.75), CGVector(dx: 0.5, dy: 0.3)); shot("big-lyrics-bubble")
+        drag(CGVector(dx: 0.5, dy: 0.6), CGVector(dx: 0.5, dy: 0.2)); shot("big-lyrics-bubble")
         drag(CGVector(dx: 0.5, dy: 0.3), CGVector(dx: 0.5, dy: 0.8))
         tap(id("handle"), "close big player", wait: 1.5); shot("big-closed")
         // pull to open, pull to close
@@ -140,7 +151,7 @@ final class WalkThrough: XCTestCase {
         tap(id("handle"), "land close big", wait: 1.5)
         XCUIDevice.shared.orientation = .portrait; Thread.sleep(forTimeInterval: 1.5)
         tap(id("settings"), "Settings for Cover Flow")
-        if tap(id("flowSwitch"), "Cover Flow switch") {
+        if scrollTo(id("flowSwitch"), "Cover Flow switch") {
             tap(id("closeSettings"), "close Settings 2")
             shot("flow")
             drag(CGVector(dx: 0.8, dy: 0.62), CGVector(dx: 0.2, dy: 0.62), speed: .fast); shot("flow-swiped")

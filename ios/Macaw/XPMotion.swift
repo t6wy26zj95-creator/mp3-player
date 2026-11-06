@@ -183,6 +183,8 @@ struct XPPoses: Equatable {
     var bigOn = false             // the whole big layer (hidden while it is measured)
     var p: Double = 0
     var artRadius: CGFloat?       // the big cover's corner while it grows (in its own size)
+    var artGrow: Double?          // how far the big cover has grown, 0 (on the small one) … 1 (open)
+    var artScale: Double?         // its current scale (its own px → screen px)
     var extra: Double = 1         // album · year write themselves in
     var chev: Double = 0          // the small artist line's " ›", riding along
     var moving = false
@@ -274,6 +276,7 @@ enum XPLayout {
         map["b.art"] = XPPose(dx: curX - ba.minX, dy: curY - ba.minY, scale: s, anchor: .topLeading, opacity: P > 0 ? 1 : 0)
         map["c.art"] = XPPose(opacity: P > 0 ? 0 : 1)
         out.artRadius = lerp(12, 18, G) / max(s, 0.01)
+        out.artGrow = G; out.artScale = max(s, 0.01)
 
         let v = 1 - (1 - P) * (1 - P), bottom = curY + size, bottom0 = Double(ca.maxY), bottom1 = Double(ba.maxY)
         func rowY(_ y0: Double, _ y1: Double) -> Double { bottom + lerp(y0 - bottom0, y1 - bottom1, v) }

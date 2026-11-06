@@ -47,3 +47,15 @@ static float3 glassy(float3 c, float tint) {
     float3 rgb = mix(base, col, ring) * (1.0 - hl) + float3(hl);
     return half4(half3(rgb), 1.0h);
 }
+
+// web glassy(), minus its tint (Apple's glass tint does that part): saturate 135 %, brightness .94, and where the
+// wallpaper is bright the glass smokes it down with a soft knee, so white text stays readable on a light photo.
+// Drawn behind Apple's clear glass, so the glass bends this smoked wallpaper as the web's lens does.
+[[ stitchable ]] half4 webSmoke(float2 pos, half4 color) {
+    float3 c = float3(color.rgb);
+    float l = dot(c, float3(.2126, .7152, .0722));
+    c = clamp(mix(float3(l), c, 1.35), 0., 1.) * .94;
+    float lb = dot(c, float3(.2126, .7152, .0722));
+    if (lb > .3) c *= (.3 + (lb - .3) * .16) / lb;
+    return half4(half3(c), color.a);
+}

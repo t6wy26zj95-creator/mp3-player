@@ -85,7 +85,8 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
                 let u = UIState.shared, dim = f.map { $0 == "dim" } ?? u.dimGlass
                 let behind = min(0.9, (u.glassBehind + (dim ? 15 : 0)) / 100), sub = u.glassSub / 100
                 let base = u.glassRegular ? Glass.regular : Glass.clear
-                let tinted = u.glassTint > 0 ? base.tint(Color.black.opacity(u.glassTint / 100)) : base
+                // the web lens's tint colour, rgb(6,18,26), at the strength you chose in the Glass lab
+                let tinted = u.glassTint > 0 ? base.tint(Theme.scrim.opacity(u.glassTint / 100)) : base
                 // the grey is taken out over the finished glass (text included: 4 % off white is invisible). Under the
                 // text, inside the glass, the blend was lost the first time the panel grew and the glass turned white.
                 content
@@ -93,6 +94,7 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
                     .environment(\.colorScheme, u.glassLight ? .light : .dark)
                     .overlay { if sub > 0 { shape.fill(Color(white: 1 - sub)).blendMode(.plusDarker).allowsHitTesting(false) } }
                     .background(shape.fill(Color.black.opacity(behind)).anim(Theme.ease, value: dim))
+                    .background { SmokedWall(shape: shape) }
             }
         } else { frosted(content) }
         #else
@@ -109,6 +111,27 @@ struct PanelGlass<S: InsettableShape>: ViewModifier {
                     .shadow(color: .black.opacity(0.3), radius: 25, y: 20)
                     .shadow(color: .black.opacity(0.15), radius: 7.5, y: 4)
             }
+    }
+}
+
+/// The wallpaper right behind the panel, smoked down where it's bright (web glassy(): the Liquid Glass panel darkens
+/// bright spots pixel by pixel). Apple's glass on top bends this instead of the raw wallpaper, so over a light sky the
+/// panel is as dark and as blue as the web's, while over dark parts nothing changes.
+struct SmokedWall<S: InsettableShape>: View {
+    var shape: S
+    var body: some View {
+        GeometryReader { g in
+            let f = g.frame(in: .global), screen = UIScreen.main.bounds
+            WallpaperView()
+                .frame(width: screen.width, height: screen.height)
+                .offset(x: -f.minX, y: -f.minY)
+                .frame(width: f.width, height: f.height, alignment: .topLeading)
+                .clipped()
+                .colorEffect(ShaderLibrary.webSmoke())
+                .clipShape(shape)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
