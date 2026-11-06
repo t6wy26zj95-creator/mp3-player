@@ -19,7 +19,9 @@ struct PopMenu: View {
             let a = state.anchor
             let x = min(max(12, a.maxX - w - 8 - screen.minX), geo.size.width - w - 12)
             ZStack(alignment: .topLeading) {
-                Color.black.opacity(0.001)
+                // web: no shade behind the menu; a tap anywhere else only closes it (plOutside + plSwallow)
+                Color.clear
+                    .contentShape(Rectangle())
                     .ignoresSafeArea()
                     .onTapGesture { close() }
                 card
