@@ -1156,7 +1156,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v66";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v67";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -4742,7 +4742,10 @@ XP = (() => {
         /* "swap": the big copy is the same text at the same place and size, so it simply takes over at once (no cross-fade,
            nothing doubled or grey). Not when the small title is cut short or the big one wraps onto more lines. */
         const swap = t.scrollWidth <= t.clientWidth + 1 && xb.h <= xb.oy * 3;
-        return { c, x, r, cb, xb, swap, c0: [cb.x + cb.off, cb.y + cb.oy], x1: [xb.x + xb.off, xb.y + xb.oy] }; }),
+        /* cut short, but the big copy fits on one line: it still takes over in place, and only the letters the small one
+           hid behind its "…" write themselves in (no cross-fade: two copies of a title never line up, it read as a jump) */
+        const reveal = !swap && xb.h <= xb.oy * 3 ? Math.max(0, t.clientWidth - 14) : 0;
+        return { c, x, r, cb, xb, swap, reveal, c0: [cb.x + cb.off, cb.y + cb.oy], x1: [xb.x + xb.off, xb.y + xb.oy] }; }),
       pairs: PAIRS.map(([c, x, mode]) => { const cb = box(c), xb = box(x), T = mode === "track", f = mode === "start" ? 0 : mode === "end" ? 1 : .5;
         /* a track isn't scaled (its dot would stretch): the big one opens up from the small one's length. Times keep
            their own size (scale only for buttons) and are anchored on the side where their digits line up. */
@@ -4850,7 +4853,8 @@ XP = (() => {
     for (const l of m.lines) {
       /* a title that can't simply take over (cut short, or wrapping) cross-fades with it in place, quickly: never a moment
          with neither on screen */
-      const cOp = l.swap ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, .1, .22)), xOp = l.swap ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .06, .2));
+      const inPlace = l.swap || l.reveal > 0;
+      const cOp = inPlace ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, .1, .22)), xOp = inPlace ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .06, .2));
       /* each line circles round the growing cover by the top-left corner of its whole text block (see orbit): the text
          hangs right and down from that corner, so going round the cover's right side and under it, no part of it (a long
          wrapped second line included) can cross the cover */
@@ -4860,8 +4864,9 @@ XP = (() => {
       /* no room beside the cover for the whole line (what of it is showing: the album writes itself in)? Then it goes
          under the cover and moves in from the right edge, instead of running off it, fading there or vanishing */
       if (P > 0 && P < 1) {
-        const full = l.xb.right - l.xb.l0, vis = l === lead ? full : lerp(Math.min(full, m.xrw || full), full, extra);
-        const f0 = fade(P, 0, .06), right = l === lead ? l.xb.right - l.xb.off : vis - dx;   // from the text's start to its (showing) end
+        const full = l.xb.right - l.xb.l0, shown = l.reveal > 0 ? lerp(l.reveal * l.r, l.xb.tw, fade(P, 0, .45)) : 0;   // a cut-short title: what has written itself in so far
+        const vis = l.reveal > 0 ? shown : l === lead ? full : lerp(Math.min(full, m.xrw || full), full, extra);
+        const f0 = fade(P, 0, .06), right = l.reveal > 0 ? shown : l === lead ? l.xb.right - l.xb.off : vis - dx;   // from the text's start to its (showing) end
         X -= f0 * Math.max(0, X + right * sc - limit);                // never past the right edge
         const wd = Math.max(clamp01((vis * sc - (limit - (curX + size + 12)) + 40) / 80), clamp01((curX + size + 12 - (X - dx * sc)) / 16)) * f0;   // eased in before it's needed, so it glides under
         Y += wd * Math.max(0, curY + size + 12 + oy * sc - Y);         // and under the cover when that brings it over it
@@ -4878,7 +4883,12 @@ XP = (() => {
       /* a title that wraps (where the small one is cut short): its lines after the first fade away near the small end, so
          the cross-fade is between two nearly identical first lines, not over a doubled second line */
       const more = l.swap || l.xb.h <= l.xb.oy * 3 ? "" : `linear-gradient(#000 ${(l.xb.oy * 2).toFixed(1)}px,rgba(0,0,0,${fade(P, .16, .36).toFixed(3)}) ${(l.xb.oy * 2 + 1).toFixed(1)}px)`;
-      setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit), more);
+      let rev = "";
+      if (l.reveal > 0) {                                             // the hidden end of a cut-short title writes itself in
+        const rv = fade(P, 0, .45), a = l.xb.off + lerp(l.reveal * l.r, l.xb.tw, rv);
+        if (rv < 1) rev = `linear-gradient(90deg,#000 ${a.toFixed(1)}px,transparent ${(a + 22).toFixed(1)}px)`;
+      }
+      setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit), more || rev);
     }
     /* album and year (and the sound effect) write themselves in, letter by letter, and take themselves back the same way */
     const ls = [...letters(XA), ...letters(XF)], n = ls.length, K = 3;
