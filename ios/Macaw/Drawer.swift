@@ -30,7 +30,8 @@ struct DrawerView: View {
         // top however far down you've scrolled
         ZStack(alignment: .topLeading) {
             if let back {
-                        .id(viewKey)
+                BackButton(title: back)
+                    .id(viewKey)
                     .transition(.asymmetric(insertion: inT, removal: outT))
             }
         }
