@@ -1,4 +1,5 @@
 import SwiftUI
+import Network
 
 /// Artists: a grid of your artists (photo from Deezer, or their initial), then an artist's page with your albums.
 struct ArtistsDrawer: View {
@@ -257,8 +258,8 @@ struct ArtistPage: View {
         }
         .padding(.bottom, 12)
         .task(id: name) {
-            slow = false
-            Task { try? await Task.sleep(nanoseconds: 4_000_000_000); slow = true }
+            slow = Net.shared.offline                                   // web: offline, your own albums at once; else after 6 s
+            Task { try? await Task.sleep(nanoseconds: 6_000_000_000); slow = true }
             await store.load(name)
         }
     }
@@ -310,10 +311,20 @@ struct ArtistPage: View {
             }
             .padding(.horizontal, 4)
             .modifier(CardRise(index: 0))
-        } else if slow && d?.albums == nil {
-            Text("Artist info isn\u{2019}t loading. Here are your own albums.").font(.system(size: 12)).foregroundStyle(Color.w(0.45))
+        } else if let n = note(d) {
+            Text(n).font(.system(size: 12)).foregroundStyle(Color.w(0.45))           // web .artist-note
                 .padding(.horizontal, 4).padding(.vertical, 10)
+                .modifier(CardRise(index: 0))
         }
+    }
+
+    /// web artistLocal's note: why your own albums are shown instead of the artist's
+    private func note(_ d: ArtistInfo.Info?) -> String? {
+        if let a = d?.albums, a.isEmpty { return d?.full == true ? nil : "Couldn\u{2019}t load artist info. Here are your own albums." }
+        if d?.albums == nil && slow {
+            return Net.shared.offline ? "You\u{2019}re offline. Here are your own albums." : "Artist info isn\u{2019}t loading. Here are your own albums for now."
+        }
+        return nil
     }
 
     private struct Card: Identifiable { var id: String; var title: String; var year: String; var cover: String?; var localPath: String?; var own: String?; var cat: CatRef? = nil }
@@ -341,6 +352,10 @@ struct ArtistPage: View {
             }
             return nil
         }()
+        if let cards, cards.isEmpty {
+            Text("No albums found.").font(.system(size: 12)).foregroundStyle(Color.w(0.45))     // web .artist-note
+                .padding(.horizontal, 4).padding(.vertical, 10)
+        }
         LazyVGrid(columns: cols, alignment: .center, spacing: 14) {
             if let cards {
                 ForEach(Array(cards.enumerated()), id: \.element.id) { i, c in
@@ -466,4 +481,20 @@ extension VerticalAlignment {
     /// CSS background-position: center 25% (the picture's point a quarter down sits a quarter down the box)
     private enum Quarter: AlignmentID { static func defaultValue(in d: ViewDimensions) -> CGFloat { d.height * 0.25 } }
     static let quarter = VerticalAlignment(Quarter.self)
+}
+
+
+/// Whether the phone is online (web: navigator.onLine).
+@MainActor @Observable
+final class Net {
+    static let shared = Net()
+    private(set) var offline = false
+    private let monitor = NWPathMonitor()
+    private init() {
+        monitor.pathUpdateHandler = { p in
+            let off = p.status != .satisfied
+            Task { @MainActor in if Net.shared.offline != off { Net.shared.offline = off } }
+        }
+        monitor.start(queue: DispatchQueue(label: "net"))
+    }
 }

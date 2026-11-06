@@ -8,6 +8,8 @@ struct DrawerView: View {
     var room: CGFloat
     @State private var contentHeight: CGFloat = 0
     @State private var backHeight: CGFloat = 0
+    @State private var pos = ScrollPosition(edge: .top)
+    private static let offsets = OffsetBox()
     private var ui: UIState { .shared }
 
     /// What the drawer shows now: a new key = a new view, which slides in (web: showOnly / .v-in).
@@ -60,8 +62,21 @@ struct DrawerView: View {
         .scrollBounceBehavior(.basedOnSize)
         .frame(height: min(max(contentHeight, 40), max(40, room - (back == nil ? 0 : backHeight))))
         // web renderQueue(true): opening the Queue shows Now Playing at the top, the history scrolled away above it
+        .scrollPosition($pos)
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in Self.offsets.cur = y }
+        // web: a page you open starts at its top (renderPlaylist + scrollTop = 0); Back, or coming back to a tab, finds the
+        // page where you left it (albumOrigin.scroll, rememberTab)
+        .onChange(of: viewKey) { old, new in
+            Self.offsets.at[old] = Self.offsets.cur
+            if tab == .queue { DispatchQueue.main.async { sv.scrollTo("q-now", anchor: .top) }; return }   // web renderQueue(true)
+            let y = ui.navDir > 0 ? 0 : (Self.offsets.at[new] ?? 0)
+            if ui.navDir > 0 { Self.offsets.at[new] = nil }
+            Self.offsets.cur = y
+            var tr = Transaction(); tr.disablesAnimations = true
+            withTransaction(tr) { pos.scrollTo(y: y) }
+            DispatchQueue.main.async { withTransaction(tr) { pos.scrollTo(y: y) } }      // again once the new page is laid out
+        }
         .onAppear { if tab == .queue { DispatchQueue.main.async { sv.scrollTo("q-now", anchor: .top) } } }
-        .onChange(of: tab) { _, t in if t == .queue { DispatchQueue.main.async { sv.scrollTo("q-now", anchor: .top) } } }
         }
         }
         .anim(Theme.ease, value: contentHeight)                       // web: #view-host height, 400 ms ease
@@ -1089,6 +1104,8 @@ struct DelBadge: View {
 /// A place to keep a view's position on screen without redrawing it each time it moves (it moves on every scroll frame).
 final class FrameBox { var r: CGRect = .zero }
 final class SlotBox { var s: [String: CGRect] = [:] }
+/// Where each drawer page was scrolled to (web: every view keeps its own scrollTop), out of SwiftUI's sight.
+final class OffsetBox { var cur: CGFloat = 0; var at: [String: CGFloat] = [:] }
 
 /// The drawer's pages drawn once, unseen, soon after launch, so the first time one opens its pictures (tile glass,
 /// shadows) and views already exist. Without it the first open of the Library hitched and its first frames were lost.
