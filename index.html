@@ -285,8 +285,8 @@ body{margin:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;col
 :root{--ease:cubic-bezier(.22,1,.36,1);--ease-pop:cubic-bezier(.34,1.56,.64,1);--t-q:.15s;--t-n:.25s;--t-s:.4s;--dur:var(--t-s)}
 /* touch screens: every transition on a critically damped spring's curve instead (the same as the big player there):
    --ease does about a sixth of its move in the first frame, which on a phone reads as a jump and then a crawl */
-@media (pointer:coarse){@supports (transition-timing-function:linear(0,1)){
-  :root{--ease:linear(0,.0407,.1331,.2464,.3627,.472,.5697,.6541,.7253,.7842,.8323,.8712,.9023,.927,.9465,.9618,.9737,.983,.9902,.9957,1)}}}
+@supports (transition-timing-function:linear(0,1)){
+  :root{--ease:linear(0,.0407,.1331,.2464,.3627,.472,.5697,.6541,.7253,.7842,.8323,.8712,.9023,.927,.9465,.9618,.9737,.983,.9902,.9957,1)}}
 @keyframes viewIn{from{opacity:0;transform:translate(var(--dx,0),var(--dy,0))}to{opacity:1;transform:none}}
 .v-in{animation:viewIn var(--t-s) var(--ease) both}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:var(--o,1);transform:none}}
@@ -1150,7 +1150,7 @@ html.cf-land .cf-s{font-size:13px}
 /* One rhythm for every animation (see --t-q / --t-n / --t-s in the CSS): quick, normal, slow, and one easing. */
 const SPRING_EASE = "linear(0,.0407,.1331,.2464,.3627,.472,.5697,.6541,.7253,.7842,.8323,.8712,.9023,.927,.9465,.9618,.9737,.983,.9902,.9957,1)";
 const MOTION = { q: 150, n: 250, s: 400,                             // touch screens: the spring's curve, as --ease there
-  ease: matchMedia("(pointer:coarse)").matches && window.CSS && CSS.supports("transition-timing-function", SPRING_EASE) ? SPRING_EASE : "cubic-bezier(.22,1,.36,1)" };
+  ease: window.CSS && CSS.supports("transition-timing-function", SPRING_EASE) ? SPRING_EASE : "cubic-bezier(.22,1,.36,1)" };
 const $ = id => document.getElementById(id);
 var XP = null;
 var RETRO = null;                                     // retro sound (set further down)                                        // the expanded player (set further down); earlier code only calls it through `XP && ...`
@@ -1162,7 +1162,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v68";                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v69";                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */
@@ -3384,7 +3384,7 @@ audio.addEventListener("ended", onEnded);
      springs back in once the new artwork is ready, and the cover light flares.
    Web Animations and small rAF loops only; nothing moves with reduced motion turned on. */
 const RM = matchMedia("(prefers-reduced-motion:reduce)").matches;
-const PHONE_SPRING = matchMedia("(pointer:coarse)").matches;          // touch screens: the big player opens / closes on a spring
+const PHONE_SPRING = true;                                           // the big player opens / closes on a spring (phones and PC alike)
 const PRESSABLE = ".player-btn,.tab-btn,.chip,.circle-btn,.back-btn,.done-btn,.gear-btn,.set-pill,.set-x,.q-sec button,.artist-more,.switch,.xp-next-h button,.lyr-close";
 const curScale = el => { const v = parseFloat(getComputedStyle(el).scale); return isFinite(v) ? v : 1; };
 function pressDown(el) {
