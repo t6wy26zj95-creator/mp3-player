@@ -101,8 +101,7 @@ struct BigPlayer: View {
     }
 
     private func art(size: CGFloat) -> some View {
-        BigArt(size: size, bump: bump)
-            .xp("b.art")
+        BigArtFrame(size: size, bump: bump)
             .onTapGesture(perform: close)
     }
 
@@ -155,6 +154,22 @@ struct BigArt: View {
     var body: some View {
         CoverArt(track: Player.shared.current, size: size, radius: poses.artRadius ?? 18, glow: !UIState.shared.minimalLight,
                  big: (poses.artGrow ?? 1, poses.artScale ?? 1), bump: bump)
+    }
+}
+
+/// The big cover where it is on screen, with its shadow drawn after the scaling, in screen px: the small cover's
+/// shadow blending into the open one's as it grows (web .xp-sh small → .xp-sh.big).
+struct BigArtFrame: View {
+    var size: CGFloat
+    var bump: Double
+    @Environment(\.xpPoses) private var poses
+    var body: some View {
+        let g = poses.artGrow ?? 1
+        func l(_ a: Double, _ b: Double) -> Double { a + (b - a) * g }
+        return BigArt(size: size, bump: bump)
+            .xp("b.art")
+            .shadow(color: .black.opacity(l(0.18, 0.2)), radius: l(2.5, 6), y: l(2, 4))
+            .shadow(color: .black.opacity(l(0.32, 0.34)), radius: l(9, 20), y: l(7, 18))
     }
 }
 

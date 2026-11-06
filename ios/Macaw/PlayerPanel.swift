@@ -747,11 +747,10 @@ struct CoverArt: View {
     @State private var fromScale: Double = 0.88
     @State private var job = 0
 
-    /// a shadow value: the small cover's (in 66-px units, scaled to this size) blending into the open big cover's
-    private func sh(_ small: Double, _ open: Double) -> Double {
-        guard let b = big else { return small * size / 66 }
-        return small / b.s * (1 - b.g) + open * b.g
-    }
+    /// a shadow value, the small cover's in 66-px units scaled to this size. The big cover wears none here: it gets its
+    /// shadow after it is scaled (BigArtFrame), in screen px, because drawn inside the scaled view it came out much darker
+    /// and tighter at small sizes (the black shadow left under the cover after a close).
+    private func sh(_ small: Double) -> Double { big == nil ? small * size / 66 : 0 }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -767,8 +766,8 @@ struct CoverArt: View {
             .frame(width: size, height: size)
             .clipShape(shape)
             .overlay(shape.stroke(.black.opacity(0.45 * (1 - (big?.g ?? 0))), lineWidth: 0.5 / (big?.s ?? 1)))
-            .shadow(color: .black.opacity(sh(0.18, 0.2)), radius: sh(2.5, 6), y: sh(2, 4))
-            .shadow(color: .black.opacity(sh(0.32, 0.34)), radius: sh(9, 20), y: sh(7, 18))
+            .shadow(color: .black.opacity(big == nil ? 0.18 : 0), radius: sh(2.5), y: sh(2))
+            .shadow(color: .black.opacity(big == nil ? 0.32 : 0), radius: sh(9), y: sh(7))
             .modifier(CoverMotion(arrive: arrive, dip: dip, bump: bump, d: Double(direction) * 22, fromDx: fromDx, fromScale: fromScale, shape: shape))
         }
         .frame(width: size, height: size)
