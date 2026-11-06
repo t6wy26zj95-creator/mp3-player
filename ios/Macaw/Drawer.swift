@@ -723,27 +723,52 @@ struct ListHeader: View {
     var sub: String
     var coverPath: String?
     var coverData: String?
-    var icon: String
+    var icon: String                                     // web: the list icon for All Tracks, the note otherwise
+    var remote: String? = nil                            // an album on an artist's page: its cover from Deezer
+    var enabled = true                                   // web .alb-play[disabled]: nothing of yours to play
     var play: () -> Void
+    static let note = "M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"
+    static let list = "M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"
     var body: some View {
+        // web .alb-head: 56 pt art (1 pt border inside, radius 10), 15 pt name up to 2 lines, 12 pt line 3 pt under it,
+        // a 36 pt round Play with a 15 pt triangle
+        let ph = AnyView(ZStack { Color.w(0.06); SVGIcon(d: icon).fill(Color.w(0.45)).frame(width: 22, height: 22) })
         HStack(spacing: 12) {
-            CoverImage(path: coverPath, dataURL: coverData, px: 200, placeholder: AnyView(IconTile(system: icon, size: 20)))
-                .frame(width: 54, height: 54)
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .padding(1)
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.w(0.12), lineWidth: 1))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(2)
+            Group {
+                if let remote, let u = URL(string: remote) {
+                    AsyncImage(url: u) { r in if let img = r.image { img.resizable().scaledToFill() } else { Color.w(0.06) } }
+                } else {
+                    CoverImage(path: coverPath, dataURL: coverData, px: 200, placeholder: ph)
+                }
+            }
+            .frame(width: 56, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.w(0.12), lineWidth: 1))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(2).lineSpacing(1)
                 Text(sub).font(.system(size: 12)).foregroundStyle(Color.w(0.55)).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Button(action: { Haptics.light(); play() }) {
-                Image(systemName: "play.fill").font(.system(size: 13, weight: .bold)).foregroundStyle(.white).offset(x: 1)
+                SVGIcon(d: "M8 5v14l11-7z").fill(.white).frame(width: 15, height: 15).offset(x: 2)
             }
             .buttonStyle(RoundButtonStyle(size: 36))
+            .opacity(enabled ? 1 : 0.35)
+            .allowsHitTesting(enabled)
         }
-        .padding(.horizontal, 12).padding(.top, 4).padding(.bottom, 10)
+        .padding(.horizontal, 12).padding(.top, 2).padding(.bottom, 10)
     }
+
+    /// web albumHead: the album's artist when there's one (its main name), "Various artists" when there are several
+    static func who(_ own: [Track]) -> String {
+        var seen: [String] = []
+        for t in own {
+            let a = Artists.main(t.albumArtist.isEmpty ? t.artist : t.albumArtist)
+            if !a.isEmpty && a != "Unknown Artist" && !seen.contains(a) { seen.append(a) }
+        }
+        return seen.count == 1 ? seen[0] : seen.isEmpty ? "" : "Various artists"
+    }
+    static func count(_ n: Int) -> String { n == 1 ? "1 song" : "\(n) songs" }
 }
 
 struct AlbumPage: View {
@@ -761,8 +786,8 @@ struct AlbumPage: View {
                 // web albumHead: an album with editions shows the year of the one shown (Mixed: the original)
                 let ed = list.map { view ?? $0[0] }
                 let year = (ed.map(\.year).flatMap { Int($0) }) ?? (own.compactMap { Int($0.year) }.max() ?? 0)
-                let sub = [a.artist, year > 0 ? "\(year)" : "", "\(own.count) song\(own.count == 1 ? "" : "s")"].filter { !$0.isEmpty }.joined(separator: " · ")
-                ListHeader(title: a.name, sub: sub, coverPath: a.coverPath, coverData: model.tileCovers[model.coverKey(a.name)], icon: "music.note") {
+                let sub = [ListHeader.who(own), year > 0 ? "\(year)" : "", ListHeader.count(own.count)].filter { !$0.isEmpty }.joined(separator: " · ")
+                ListHeader(title: a.name, sub: sub, coverPath: a.coverPath, coverData: model.tileCovers[model.coverKey(a.name)], icon: ListHeader.note, enabled: !own.isEmpty) {
                     if !own.isEmpty { player.playAll(own, name: a.name) }
                 }
                 if let list, list.count > 1 { EditionSwitch(name: name, list: list, view: view) }
@@ -786,8 +811,10 @@ struct CatalogPage: View {
         let entries = R.catEntries(cat, own: nil, list: list)
         let own = entries.compactMap(\.track)
         VStack(spacing: 0) {
-            let sub = [cat.artist, cat.year, "\(own.count) song\(own.count == 1 ? "" : "s")"].filter { !$0.isEmpty }.joined(separator: " · ")
-            CatalogHeader(cat: cat, sub: sub) { if !own.isEmpty { player.playAll(own, name: cat.title) } }
+            let sub = [cat.artist, cat.year, ListHeader.count(own.count)].filter { !$0.isEmpty }.joined(separator: " · ")
+            ListHeader(title: cat.title, sub: sub, coverPath: nil, coverData: nil, icon: ListHeader.note, remote: cat.cover, enabled: !own.isEmpty) {
+                if !own.isEmpty { player.playAll(own, name: cat.title) }
+            }
             if list == nil {
                 Text(failed ? "Couldn\u{2019}t load this album\u{2019}s songs." : "Loading tracks\u{2026}")
                     .font(.system(size: 12)).foregroundStyle(Color.w(0.45)).frame(maxWidth: .infinity).padding(16)
@@ -807,31 +834,6 @@ struct CatalogPage: View {
 }
 
 /// The catalog album's header: its cover from Deezer, name, artist · year · songs, Play (web .alb-head).
-struct CatalogHeader: View {
-    var cat: CatRef
-    var sub: String
-    var play: () -> Void
-    var body: some View {
-        HStack(spacing: 12) {
-            RemoteCover(url: cat.cover)
-                .frame(width: 54, height: 54)
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .padding(1)
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.w(0.12), lineWidth: 1))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(cat.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(2)
-                Text(sub).font(.system(size: 12)).foregroundStyle(Color.w(0.55)).lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Button(action: { Haptics.light(); play() }) {
-                Image(systemName: "play.fill").font(.system(size: 13, weight: .bold)).foregroundStyle(.white).offset(x: 1)
-            }
-            .buttonStyle(RoundButtonStyle(size: 36))
-        }
-        .padding(.horizontal, 12).padding(.top, 4).padding(.bottom, 10)
-    }
-}
-
 struct RemoteCover: View {
     var url: String?
     var body: some View {
@@ -987,8 +989,8 @@ struct PlaylistPage: View {
         VStack(spacing: 0) {
             if let p = model.playlist(id) {
                 let ts = model.tracks(of: p)
-                ListHeader(title: p.name, sub: "\(ts.count) song\(ts.count == 1 ? "" : "s")", coverPath: ts.first?.path,
-                           coverData: model.tileCovers["pl:" + p.id], icon: "music.note.list") {
+                ListHeader(title: p.name, sub: "Playlist · " + ListHeader.count(ts.count), coverPath: ts.first?.path,
+                           coverData: model.tileCovers["pl:" + p.id], icon: ListHeader.note, enabled: !ts.isEmpty) {
                     player.playAll(ts, name: p.name)
                 }
                 if ts.isEmpty {
@@ -1013,8 +1015,8 @@ struct AllTracksPage: View {
     private var player: Player { .shared }
     var body: some View {
         VStack(spacing: 0) {
-            ListHeader(title: model.allName, sub: "\(model.tracks.count) songs", coverPath: nil,
-                       coverData: model.tileCovers[AppModel.allKey], icon: "folder.fill") {
+            ListHeader(title: "All Tracks", sub: ListHeader.count(model.tracks.count), coverPath: nil,
+                       coverData: nil, icon: ListHeader.list, enabled: !model.tracks.isEmpty) {
                 player.playAll(model.tracks, name: "Library", wholeLibrary: true)
             }
             HStack(spacing: 8) {
