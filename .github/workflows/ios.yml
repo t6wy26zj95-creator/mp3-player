@@ -235,6 +235,13 @@ jobs:
           xcrun simctl launch "$SIM" app.macaw.player -macawScreen motion
           sleep 80
           kill -INT $rec; wait $rec || true
+          # a song playing: the cover's light, glow and glass moving with the music (compared with the web's)
+          xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
+          xcrun simctl io "$SIM" recordVideo --codec h264 --force screens/playing.mp4 & rec=$!
+          sleep 2
+          xcrun simctl launch "$SIM" app.macaw.player -macawScreen playing
+          sleep 16
+          kill -INT $rec; wait $rec || true
           # the same motions 10 times slower, to compare frame by frame with the web player's
           xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
           xcrun simctl io "$SIM" recordVideo --codec h264 --force screens/motion-slow.mp4 & rec=$!

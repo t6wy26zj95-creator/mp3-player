@@ -210,6 +210,7 @@ enum TestScreens {
             try? await Task.sleep(nanoseconds: 500_000_000)
             if let a = model.albums.first(where: { $0.tracks.contains { $0.num > 0 } }) ?? model.albums.first { ui.push(.album(a.name)) }
         case "artists": ui.open(.artists)
+        case "playing": player.play()          // the cover's light, glow and glass while a song plays (recorded)
         case "artistpage", "catalog":       // an artist's page (their albums you don't have greyed), then one of those albums
             ui.open(.artists)
             try? await Task.sleep(nanoseconds: 500_000_000)
