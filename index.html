@@ -624,6 +624,11 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .player-wrapper.xp-on .xp{pointer-events:auto}
 .player-wrapper.xp-on>#player-main,.player-wrapper.xp-on>#controls-main,.player-wrapper.xp-on>#footer-main{visibility:hidden}
 .player-wrapper.xp-anim>#player-main,.player-wrapper.xp-anim>#controls-main,.player-wrapper.xp-anim>#footer-main{pointer-events:none}
+/* while it moves, the small rows are drawn above the big player's layer: the big cover's glow lies under the text and
+   buttons as the small cover's glow does at rest (drawn over them it tinted the small title until the very last frame,
+   then let go: the title brightened with a click). Whatever of them isn't showing is at .001 then. */
+.player-wrapper.xp-anim>#player-main,.player-wrapper.xp-anim>#controls-main,.player-wrapper.xp-anim>#footer-main{z-index:4}
+.player-wrapper.xp-anim #album-art-box{box-shadow:none}   /* the big cover's shadow is the one shown while it moves (see render) */
 /* while the player opens / closes, the buttons follow the motion exactly: their own press / fade easing would make them
    lag a beat behind (and the small and big ones show at once) */
 .player-wrapper.xp-anim .player-btn{transition:none}
@@ -700,7 +705,8 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 .xp-bow.on{display:block}
 .xp-bow path{fill:none;stroke-linecap:round;stroke-linejoin:round}
 .xp-bow .bow-bg{stroke:rgba(255,255,255,.15)}
-.xp-bow .bow-fill{stroke:#fff;filter:drop-shadow(0 0 4px rgba(255,255,255,.5))}   /* the same glow as the bars it stands in for (.slider-fill) */
+.xp-bow .bow-fill{stroke:#fff}   /* its glow: the same as the bars it stands in for (.slider-fill), as an SVG filter (#bow-glow): Safari draws no CSS
+   filter on a path inside an SVG, so on the iPhone the line had no glow while moving and the glow appeared at once at the end */
 .xp-scrub .custom-range-slider{height:4px;border-radius:3px}
 .xp-times{display:flex;justify-content:space-between;margin-top:9px;font-size:11px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
 .xp-ctrls{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:0 4px}
@@ -749,8 +755,14 @@ html.bubble .player-wrapper :is(.playlist-container,.queue-container,.albums-gri
 /* ---- the open player scrolls: under the queue sits the lyrics bubble; tapping it opens the full lyrics ----
    The home layer isn't clipped at rest (the cover glow spreads past the glass); while it is scrolled it is clipped to
    the panel (set by JS). The full lyrics live in a box clipped to the panel, over the home layer, which fades out. */
-.xp-home{position:absolute;inset:0;transition:opacity var(--t-n) var(--ease)}
-.xp.lyr-open .xp-home{opacity:0;pointer-events:none}
+/* the home layer is exactly as wide as the screen and clips sideways only: the big cover's glow and the long artist line
+   reach past the screen edge while they move, and anything wider than the screen made phones widen the whole page for
+   the length of the motion (the wallpaper and everything fixed jumped back when it ended). --xl/--xr: the panel's
+   distance from the screen's edges (set in prep). The inner box is the panel again, so nothing inside moves. */
+.xp-home{position:absolute;top:0;bottom:0;left:calc(var(--xl,0px) * -1);right:calc(var(--xr,0px) * -1);overflow-x:clip;pointer-events:none;transition:opacity var(--t-n) var(--ease)}
+.xp-hin{position:absolute;top:0;bottom:0;left:var(--xl,0px);right:var(--xr,0px)}
+.player-wrapper.xp-on .xp:not(.lyr-open) .xp-hin{pointer-events:auto}
+.xp.lyr-open .xp-home{opacity:0}
 .xp-side{position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:none;visibility:hidden}
 .xp-side.on{visibility:visible}
 .player-wrapper.xp-on .xp-side.on{pointer-events:auto}
@@ -1060,7 +1072,7 @@ html.cf-land .cf-s{font-size:13px}
   </div></div></div>
 
   <div class="xp" id="xp" aria-hidden="true">
-    <div class="xp-home" id="xp-home">
+    <div class="xp-home" id="xp-home"><div class="xp-hin">
     <div class="xp-top" id="xp-top">
       <button class="xp-handle" id="xp-handle" aria-label="Close the big player"><i></i></button>
       <div class="xp-slot" id="xp-slot">
@@ -1073,7 +1085,7 @@ html.cf-land .cf-s{font-size:13px}
       <div class="xp-meta" id="xp-meta"><div class="xp-title" id="xp-title"></div><div class="xp-sub"><span class="xp-artist" id="xp-artist"></span><span id="xp-album"></span><span class="xp-fx" id="xp-fx"></span></div></div>
       <div class="xp-scrub" id="xp-scrub">
         <div class="custom-range-slider" id="xp-progress"><div class="slider-fill"></div><div class="slider-thumb"></div></div>
-        <svg class="xp-bow" id="xp-bow" aria-hidden="true"><path class="bow-bg"/><path class="bow-fill"/></svg>
+        <svg class="xp-bow" id="xp-bow" aria-hidden="true"><defs><filter id="bow-glow" filterUnits="userSpaceOnUse" x="-3000" y="-3000" width="6000" height="6000"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feComponentTransfer><feFuncA type="linear" slope=".8"/></feComponentTransfer><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><path class="bow-bg"/><path class="bow-fill" filter="url(#bow-glow)"/></svg>
         <div class="xp-times"><span id="xp-cur">0:00</span><span id="xp-left">-0:00</span></div>
       </div>
       <div class="xp-ctrls" id="xp-ctrls">
@@ -1092,7 +1104,7 @@ html.cf-land .cf-s{font-size:13px}
       <div class="xl-head"><span>Lyrics</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 16.6 13.2 12 8.6 7.4 10 6l6 6-6 6z"/></svg></div>
       <div class="xl-lines" id="xl-lines"><div class="xl-l xl-prev"></div><div class="xl-l xl-now"></div><div class="xl-l xl-next"></div></div>
     </div>
-    </div>
+    </div></div>
     <div class="xp-side" id="xp-side">
       <div class="xp-page" id="xp-lyrics">
         <div class="lyr-head"><button class="lyr-close" id="lyr-close" aria-label="Close lyrics"><svg viewBox="0 0 24 24"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button><div class="lyr-art" id="lyr-art"></div><div class="lyr-meta"><div class="lyr-title" id="lyr-title"></div><div class="lyr-artist" id="lyr-artist"></div></div>
@@ -1176,7 +1188,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.5";
+const APP_VERSION = "v0.6";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -4653,7 +4665,28 @@ XP = (() => {
   const canExpand = () => pm.style.display !== "none" && curId != null;
   const drawerOpen = () => drawerBox.classList.contains("expanded");
   const shown = () => xp.classList.contains("show");
-  function rel(el) { let x = 0, y = 0; while (el && el !== wrap) { x += el.offsetLeft; y += el.offsetTop; el = el.offsetParent; } return { x, y }; }
+  /* where an element's layout box sits in the panel. offsetLeft/Top are rounded to whole px at every level, which left
+     the moving copies up to half a px off their resting place (the title clicked into place as the close ended). While
+     measuring (REL set: the panel's lean taken off), the exact box is read from its rect instead, its own scale/translate
+     undone; anything unusual (a rotated or moved parent) falls back to the rounded sum. */
+  let REL = null;
+  function rel(el) {
+    let x = 0, y = 0, e = el; while (e && e !== wrap) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+    const out = { x, y, w: el.offsetWidth, h: el.offsetHeight };
+    if (!REL) return out;
+    try {
+      for (let a = el.parentElement; a && a !== wrap; a = a.parentElement) if (getComputedStyle(a).transform !== "none") return out;
+      const r = el.getBoundingClientRect(), cs = getComputedStyle(el); let L = r.left, T = r.top, w = r.width, h = r.height;
+      if (cs.transform !== "none") {
+        const m = new DOMMatrix(cs.transform); if (Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6 || m.a <= 0 || m.d <= 0) return out;
+        const o = cs.transformOrigin.split(" ").map(parseFloat);
+        L -= o[0] * (1 - m.a) + m.e; T -= o[1] * (1 - m.d) + m.f; w /= m.a; h /= m.d;
+      }
+      const fx = L - REL.left - wrap.clientLeft, fy = T - REL.top - wrap.clientTop;
+      if (Math.abs(fx - x) < 1.5 && Math.abs(fy - y) < 1.5 && Math.abs(w - out.w) < 1.5 && Math.abs(h - out.h) < 1.5) return { x: fx, y: fy, w, h, exact: true };
+    } catch (err) {}
+    return out;
+  }
   function naturalH() {                                              // the compact panel's own height (drawer closed)
     if (!drawerOpen()) { const s = wrap.style.height; wrap.style.height = ""; const h = wrap.offsetHeight; wrap.style.height = s; return h; }
     return pm.offsetHeight + cm.offsetHeight + fm.offsetHeight + 48 + 42;
@@ -4724,7 +4757,7 @@ XP = (() => {
      strongest halfway and gone at either end (its ends stay put), so it lands as the straight line it is at rest */
   const BOW = $("xp-bow"), bowBg = BOW.querySelector(".bow-bg"), bowFill = BOW.querySelector(".bow-fill"), xpBar = $("xp-progress"), xpFill = xpBar.querySelector(".slider-fill");
   const BOW_A = 9;                                                   // how far the line bows at most (px)
-  function bow(q, X, Y, kx, ky, P) {
+  function bow(q, X, Y, kx, ky, P, ox, oy) {
     const on = P > 0 && P < 1;
     BOW.classList.toggle("on", on); xpBar.style.background = on ? "transparent" : ""; xpFill.style.opacity = on ? "0" : "";
     if (!on) { q.thumb.style.transform = ""; return; }
@@ -4738,14 +4771,14 @@ XP = (() => {
     const path = (a, b) => { let d = ""; const n = Math.max(1, Math.round(N * (b - a))); for (let i = 0; i <= n; i++) { const t = a + (b - a) * i / n, x = Math.min(x0 + L - r, Math.max(x0 + r, x0 + L * t)); d += (i ? "L" : "M") + x.toFixed(2) + "," + (y0 + dy(t)).toFixed(2); } return d; };
     bowBg.setAttribute("d", path(0, 1)); bowFill.setAttribute("d", f > .002 ? path(0, f) : "");
     bowBg.style.strokeWidth = bowFill.style.strokeWidth = sw.toFixed(2);
-    q.thumb.style.transform = `translate(-50%,calc(-50% + ${(dy(f) / ky).toFixed(2)}px)) scale(${(1 / kx).toFixed(4)},${(1 / ky).toFixed(4)})`;   // the dot rides the string
+    q.thumb.style.transform = `translate(calc(-50% + ${ox.toFixed(3)}px),calc(-50% + ${(oy + dy(f)).toFixed(3)}px))`;   // the dot rides the string
   }
   function clearMoved() { unletters(XA); unletters(XF); BOW.classList.remove("on"); xpBar.style.background = xpFill.style.opacity = ""; if (st.m) st.m.originsOn = false; MOVED.forEach(el => { el.style.transform = el.style.opacity = el.style.transformOrigin = el.style.clipPath = ""; if (el._m) setMask(el, "", ""); });
     XTRA.forEach(el => { el.style.opacity = el.style.color = ""; if (el.classList.contains("slider-thumb") || el.tagName === "svg") el.style.transform = ""; }); }
-  function box(el) { const r = rel(el); return { x: r.x, y: r.y, w: el.offsetWidth, h: el.offsetHeight }; }
+  function box(el) { const r = rel(el); return { x: r.x, y: r.y, w: r.w, h: r.h, exact: r.exact }; }
   function textBox(el) {                                             // where the text's first line starts, and how far the text reaches
     const b = box(el), rg = document.createRange(); rg.selectNodeContents(el);
-    const er = el.getBoundingClientRect(), k = er.width ? b.w / er.width : 1;   // rects include the glass lean: undo it
+    const er = el.getBoundingClientRect(), k = b.exact ? 1 : er.width ? b.w / er.width : 1;   // rects include the glass lean: undo it (taken off while measuring)
     const rs = [...rg.getClientRects()].filter(r => r.width > .5), f = rs[0] || rg.getBoundingClientRect();
     const first = rs.filter(r => Math.abs(r.top - f.top) < 4);             // the first line (several rects when it has spans)
     const fl = Math.min(...first.map(r => r.left)), fr = Math.max(...first.map(r => r.right));
@@ -4757,6 +4790,10 @@ XP = (() => {
   }
   function measureRects() {
     clearMoved();
+    const lean = wrap.style.transform; wrap.style.transform = "none"; REL = wrap.getBoundingClientRect();
+    try { measureAll(); } finally { REL = null; wrap.style.transform = lean; }
+  }
+  function measureAll() {
     const a = rel(artBox), s = rel(slot);
     st.m = { ax: a.x, ay: a.y, aw: artBox.offsetWidth || 66, sx: s.x, sy: s.y, W: wrap.clientWidth,
       lines: LINES.map(([c, x, r], i) => { const cb = textBox(c), xb = textBox(x), t = c.firstElementChild;
@@ -4785,9 +4822,14 @@ XP = (() => {
     m.pairs.forEach(q => { q.c.style.transformOrigin = q.x.style.transformOrigin = q.origin; });
     m.originsOn = true;
   }
+  function xpEdges() {                                               // the screen's edges, for the home layer's sideways clip (see .xp-home)
+    const xl = Math.max(0, wrap.offsetLeft), xr = Math.max(0, document.documentElement.clientWidth - xl - wrap.offsetWidth);
+    xp.style.setProperty("--xl", xl + "px"); xp.style.setProperty("--xr", xr + "px");
+  }
   function prep(h0, warm) {                                          // before any move: show the layer, size it, measure both layouts
     clearTimeout(st.shT); wrap.style.transition = "";
     xp.classList.add("show"); xp.setAttribute("aria-hidden", "false");
+    xpEdges();
     st.warm = !!warm;                                                 // warm: shown but not yet moving, the compact row still takes taps
     wrap.classList.add("xp-lay");                                    // the moving parts become layers now, during the touch, not on the first frame
     if (!warm) { wrap.classList.add("xp-anim"); wrap.classList.remove("xp-on"); }   // moving: the compact copies fade in/out along the way (render below places them first)
@@ -4841,6 +4883,18 @@ XP = (() => {
   }
   /* (no cross-fade of a small copy and its big copy, not even briefly: two copies at once doubled the text's shadow, it
      read as the text turning bold and dark for a moment) */
+  /* where the small copies hand over to the big ones (and back): not at the very ends, where everything is all but still,
+     but a fifth of the way, while it moves fast (4-12 px a frame). The big text and icons are drawn large and scaled down, the small ones
+     drawn at their own size; the browser snaps each to the pixel grid its own way, so at the swap the letters shifted by
+     ~0.4 px: invisible mid-motion, a visible click when the motion had already settled. */
+  const HAND = .2;
+  /* a small copy at (all but) its own size is moved by whole screen pixels: moved by a fraction it is resampled, a touch
+     blurred, and turned sharp again the moment the close ended. (Not the big copies: they are drawn large and scaled,
+     and switching them to whole pixels near the end of the open sharpened the text in one frame.) */
+  const mv = (dx, dy, kx, ky, snap) => {
+    if (snap && Math.abs(kx - 1) < 5e-4 && Math.abs(ky - 1) < 5e-4) { const d = devicePixelRatio || 1, s = v => (Math.round(v * d) / d).toFixed(3); return `translate(${s(dx)}px,${s(dy)}px)`; }
+    return `translate(${dx.toFixed(2)}px,${dy.toFixed(2)}px) scale(${kx.toFixed(4)},${ky.toFixed(4)})`;
+  };
   const breathK = el => el.classList.contains("player-btn") && !el.classList.contains("xp-tog") ? 1 + (el._bp || 0) * (el.id === "play-btn" ? .06 : .035) : 1;
   function render(p) {
     const m = st.m; if (!m) return;
@@ -4848,7 +4902,11 @@ XP = (() => {
     const P = clamp01(p);                                            // never laid out past either end (the panel only gives a few px, below)
     /* exactly one cover on screen at any moment (both kept painted, the other at .001): two at once means two shadows,
        a darker flash around the cover on the frame they overlap */
-    artBox.style.opacity = P > 0 ? ".001" : ""; art.style.opacity = P > 0 ? "" : ".001";
+    /* the picture itself is blended over the last few hundredths of the way (the two covers are on the same spot then):
+       the big one is a large picture shrunk, a touch crisper and grainier than the small one, and swapping them in the
+       still last frame was a visible change in a detailed cover. Only the small cover's picture fades (above the big
+       one, its own shadow off while it moves), so nothing doubles. */
+    artBox.style.opacity = P > 0 ? Math.max(.001, 1 - P / .04).toFixed(3) : ""; art.style.opacity = P > 0 ? "" : ".001";
     /* the big cover, scaled down onto the small one at p = 0 */
     const G = grow(P);
     const size = lerp(m.aw, st.S, G), curX = lerp(m.ax, m.sx, G), curY = lerp(m.ay, m.sy, G);
@@ -4873,12 +4931,13 @@ XP = (() => {
     /* each line is shown by ONE copy: the big one takes over in place at once (same text, size and weight) and the small
        one, now hidden under it, fades away. Only what the small line lacks (album, year) fades in. A title that can't take
        over in place (cut short, or wrapping) hands over quickly, one copy fully out before the other comes in. */
-    const extra = fade(P, .14, .72);
+    const extra = fade(P, HAND + .04, .76);                         // after the hand-over: the small line has no album
     for (const l of m.lines) {
       /* a title that can't simply take over (cut short, or wrapping) cross-fades with it in place, quickly: never a moment
          with neither on screen */
       const inPlace = l.swap || l.reveal > 0;
-      const cOp = inPlace ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, .1, .22)), xOp = inPlace ? (P > 0 ? 1 : .001) : Math.max(.001, fade(P, .06, .2));
+      const ps = HAND;                                               // a cut-short title too: its hidden end only starts writing itself in after the hand-over
+      const cOp = inPlace ? (P > ps ? .001 : 1) : Math.max(.001, 1 - fade(P, .1, .22)), xOp = inPlace ? (P > ps ? 1 : .001) : Math.max(.001, fade(P, .06, .2));
       /* each line circles round the growing cover by the top-left corner of its whole text block (see orbit): the text
          hangs right and down from that corner, so going round the cover's right side and under it, no part of it (a long
          wrapped second line included) can cross the cover */
@@ -4893,7 +4952,7 @@ XP = (() => {
       /* no room beside the cover for the whole line (what of it is showing: the album writes itself in)? Then it goes
          under the cover and moves in from the right edge, instead of running off it, fading there or vanishing */
       if (P > 0 && P < 1) {
-        const full = l.xb.right - l.xb.l0, shown = l.reveal > 0 ? lerp(l.reveal * l.r, l.xb.tw, fade(P, 0, .45)) : 0;   // a cut-short title: what has written itself in so far
+        const full = l.xb.right - l.xb.l0, shown = l.reveal > 0 ? lerp(l.reveal * l.r, l.xb.tw, fade(P, HAND, HAND + .45)) : 0;   // a cut-short title: what has written itself in so far
         const vis = l.reveal > 0 ? shown : l === lead ? full : lerp(Math.min(full, m.xrw || full), full, extra);
         const f0 = fade(P, 0, .06), right = l.reveal > 0 ? shown : l === lead ? l.xb.right - l.xb.off : vis - dx;   // from the text's start to its (showing) end
         X -= f0 * Math.max(0, X + right * sc - limit);                // never past the right edge
@@ -4913,8 +4972,8 @@ XP = (() => {
         Y += Math.max(0, need - lerp(Math.max(0, n0), Math.max(0, n1), P));
       }
       l.X = X; l.Y = Y; l.k = k;
-      l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
-      l.x.style.transform = `translate(${(X - l.x1[0]).toFixed(2)}px,${(Y - l.x1[1]).toFixed(2)}px) scale(${(k / l.r).toFixed(4)})`;
+      l.c.style.transform = P ? mv(X - l.c0[0], Y - l.c0[1], k, k, true) : "";
+      l.x.style.transform = mv(X - l.x1[0], Y - l.x1[1], k / l.r, k / l.r);
       setOp(l.c, cOp); setOp(l.x, xOp);
       setMask(l.c, fadeEdge(l.cb, X, k, limit));
       /* a title that wraps (where the small one is cut short): its lines after the first fade away near the small end, so
@@ -4922,7 +4981,7 @@ XP = (() => {
       const more = l.swap || l.xb.h <= l.xb.oy * 3 ? "" : `linear-gradient(#000 ${(l.xb.oy * 2).toFixed(1)}px,rgba(0,0,0,${fade(P, .16, .36).toFixed(3)}) ${(l.xb.oy * 2 + 1).toFixed(1)}px)`;
       let rev = "";
       if (l.reveal > 0) {                                             // the hidden end of a cut-short title writes itself in
-        const rv = fade(P, 0, .45), a = l.xb.off + lerp(l.reveal * l.r, l.xb.tw, rv);
+        const rv = fade(P, HAND, HAND + .45), a = l.xb.off + lerp(l.reveal * l.r, l.xb.tw, rv);
         if (rv < 1) rev = `linear-gradient(90deg,#000 ${a.toFixed(1)}px,transparent ${(a + 20 * l.r).toFixed(1)}px)`;
       }
       setMask(l.x, fadeEdge(l.xb, X, k / l.r, limit), more || rev);
@@ -4931,7 +4990,7 @@ XP = (() => {
     const ls = [...letters(XA), ...letters(XF)], n = ls.length, K = 3;
     ls.forEach((el, i) => setOp(el, clamp01((extra * (n + K) - i) / K)));
     XR.style.color = P >= 1 ? "" : `rgba(255,255,255,${lerp(.6, .85, extra).toFixed(3)})`;   // the artist starts as dim as the small one
-    XR.style.setProperty("--chev", (1 - fade(P, 0, .13)).toFixed(3));
+    XR.style.setProperty("--chev", (1 - fade(P, HAND, HAND + .13)).toFixed(3));   // the small line has its "›" until the hand-over
     /* buttons, scrubber, times */
     const hc = P * P;
     /* the rows below never run into the text circling down: if the artist line comes lower than the playback line
@@ -4954,6 +5013,9 @@ XP = (() => {
       if (st.rowY != null && dir !== 0 && dir === st.rowDir) push2 += dir > 0 ? Math.max(0, st.rowY - want) : Math.min(0, st.rowY - want);
       if (dir !== 0) st.rowDir = dir;
       st.rowY = want + push2 - push; st.rowP = P;
+      /* ...but let go of the hold over the last tenth at either end: where the wanted spot no longer changes (on its side,
+         the rows are in place by halfway) the motion never caught up, and the rows dropped the last 1.6 px at rest */
+      push2 = push + (push2 - push) * Math.min(1, (1 - P) / .1, P / .1);
     } else { st.rowY = null; st.rowP = null; st.rowDir = 0; }
     let playDy = 0, playDy0 = 0, playY = 0, tail0 = 0, tail1 = 0;
     for (const q of m.pairs) {
@@ -4964,17 +5026,31 @@ XP = (() => {
       /* the buttons keep breathing while they move: their breathing size is a transform too, which the move's own transform
          replaced, so each button was its resting size during the move and grew back to its breathing size in the last frame */
       const bc = breathK(q.c), bx = breathK(q.x);
-      q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${(k * bc).toFixed(4)})` : "";
+      q.c.style.transform = P ? mv(X - q.c0[0], Y - q.c0[1], k * bc, k * bc, true) : "";
       /* the scrubber stretches from the small one's length to its own (its dot is kept round), so it is one bar all along */
-      const kx = q.track ? lerp(q.cw, q.xw, hc) / q.xw : k / q.r, ky = q.track ? lerp(q.ky0, 1, hc) : k / q.r;
-      q.x.style.transform = `translate(${(X - q.x1[0]).toFixed(2)}px,${(Y - q.x1[1]).toFixed(2)}px) scale(${(kx * bx).toFixed(4)},${(ky * bx).toFixed(4)})`;
-      if (q.track) bow(q, X, Y, kx, ky, P);
+      /* it stays the small bar's length and straight up to the hand-over (a fifth of the way), so the small bar itself can
+         take over there, while it moves fast, instead of in the last, still frame (where the bent line's and the small
+         bar's edges and dots were drawn a touch differently) */
+      const Pt = q.track ? clamp01((P - HAND) / (1 - HAND)) : P, ht = Pt * Pt;
+      const kx = q.track ? lerp(q.cw, q.xw, ht) / q.xw : k / q.r, ky = q.track ? lerp(q.ky0, 1, ht) : k / q.r;
+      if (q.track) {
+        /* the big bar itself isn't seen while it moves (the bent line stands in for it), only its dot. So the bar is not
+           squeezed: it moves by whole screen pixels only, and the dot is painted at its exact place inside it, a whole
+           number of screen pixels from the small dot. (Squeezed, and the dot stretched back as a layer of its own, the
+           dot came out a touch soft and wide and turned crisp in the last frame.) */
+        const d = devicePixelRatio || 1, snap = v => Math.round(v * d) / d, u = (parseFloat(q.thumb.style.left) || 0) / 100;
+        const TX = snap(X - q.x1[0]), TY = snap(Y - q.x1[1]);
+        const dcx = q.c0[0] + (u - .5) * q.cw, dx = dcx + snap(X + kx * (u - .5) * q.xw - dcx), dyy = q.c0[1] + snap(Y - q.c0[1]);
+        q.x.style.transform = `translate(${TX.toFixed(3)}px,${TY.toFixed(3)}px)`;
+        bow(q, X, Y, kx, ky, Pt, dx - (q.x1[0] + TX + (u - .5) * q.xw), dyy - (q.x1[1] + TY));
+      } else q.x.style.transform = mv(X - q.x1[0], Y - q.x1[1], kx * bx, ky * bx);
       if (q.x.classList.contains("player-btn")) q.x.style.setProperty("--ks", P > 0 && P < 1 ? Math.max(.05, kx).toFixed(3) : "1");
       if (q.icon && q.ik !== 1) q.icon.style.transform = P > 0 && P < 1 ? `scale(${lerp(q.ik, 1, hc).toFixed(4)})` : "";   // icons match the small ones' size at first
       /* same as the lines: the big copy takes over in place; a time whose text differs ("4:22" / "-2:04") swaps over quickly */
       const sw = q.same && !(st.land && q.time);                   // on its side the times cross the buttons' path: they fade out and back in instead
-      setOp(q.c, sw ? (P > 0 ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, st.land ? .08 : .12)));   // hidden, but kept painted (.001), so it is back the instant it's needed
-      setOp(q.x, sw ? (P > 0 ? 1 : .001) : Math.max(.001, st.land && q.time ? fade(P, .6, .9) : fade(P, .12, .32)));
+      const ps = HAND;
+      setOp(q.c, sw ? (P > ps ? .001 : 1) : Math.max(.001, 1 - fade(P, 0, st.land ? .08 : .12)));   // hidden, but kept painted (.001), so it is back the instant it's needed
+      setOp(q.x, sw ? (P > ps ? 1 : .001) : Math.max(.001, st.land && q.time ? fade(P, .6, .9) : fade(P, .12, .32)));
       if (q.track) setOp(BOW, +(q.x.style.opacity || 1));        // the bent line stands in for the big bar: it shows exactly as much as the big bar would (it doubled the small bar near either end)
       if (q.c === playBtn) { playDy = Y - q.x1[1]; playDy0 = Y - q.c0[1]; playY = Y; tail0 = st.h0 - q.c0[1]; tail1 = st.h1 - q.x1[1]; }
     }
@@ -5036,7 +5112,10 @@ XP = (() => {
     if (PHONE_SPRING) {
       const W = 2 * Math.PI / .4, y0 = p0 - target, w0 = (v0 || 0) + W * y0;   // y(t) = (y0 + (v0 + W·y0)·t)·e^(−W·t)
       const spring = now => {
-        if (!t0) t0 = now - 16;
+        /* the first frame shows the start as it is (with the big player's layer now on screen): everything in it, the
+           cover's glow included, gets drawn once before anything moves. Starting to move in that same frame showed the
+           glow missing for one frame (the small one already hidden, the big one not drawn yet): a flicker on opening */
+        if (!t0) t0 = now;
         const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
         PERF.frame(now);
         const t = (now - t0) / 1000, ex = Math.exp(-W * t), y = (y0 + w0 * t) * ex;
@@ -5054,7 +5133,7 @@ XP = (() => {
       return;
     }
     const step = now => {
-      if (!t0) t0 = now - 16;
+      if (!t0) t0 = now;                                              // (as above: the first frame is the start, drawn once)
       const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
       PERF.frame(now);
       const u = Math.min(1, (now - t0) / 1000 / D), e = easeApp(u);
@@ -5662,9 +5741,9 @@ XP = (() => {
   })();
 
   viewReset();
-  const onResize = () => { if (!st.expanded || st.raf || g) return; layout(); wrap.style.height = st.h1 + "px"; measureRects(); if (!sv.raf) { sv.s = Math.min(sv.s, maxS()); svRender(); } };
+  const onResize = () => { if (!st.expanded || st.raf || g) return; xpEdges(); layout(); wrap.style.height = st.h1 + "px"; measureRects(); if (!sv.raf) { sv.s = Math.min(sv.s, maxS()); svRender(); } };
   addEventListener("resize", onResize); if (window.visualViewport) visualViewport.addEventListener("resize", onResize);
-  return { glowLight: coverGlow.light, open, close, sync, onSong, scrollTo: svTo, openLyrics: lyrOpen, closeLyrics: lyrClose, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, get lyricsOpen() { return lyr.open; }, _st: st, _sv: sv, _lyr: () => LYR._state() };
+  return { glowLight: coverGlow.light, open, close, sync, onSong, scrollTo: svTo, openLyrics: lyrOpen, closeLyrics: lyrClose, get expanded() { return st.expanded; }, get sheet() { return st.sheet; }, get lyricsOpen() { return lyr.open; }, _st: st, _sv: sv, _render: render, _lyr: () => LYR._state() };
 })();
 
 /* ---------- LIQUID GLASS: tilt (optional) adds to the cover light; the light also moves on its own ---------- */
@@ -6839,8 +6918,11 @@ function startPulse() {
   if (pTimer) { clearTimeout(pTimer); pTimer = 0; }
   if (!pRaf) { PERF.gap(); pRaf = requestAnimationFrame(pulseLoop); }
 }
-const pw = {};                                                        // last written value per element + property
-function pset(el, k, v) { if (!el) return; const key = (el.id || el.className) + k; if (pw[key] === v) return; pw[key] = v; el.style.setProperty(k, v); }
+/* writes a CSS variable only when it changes. Remembered per element: keyed by class name, the big player's scrub dot
+   (no id, same class as the small one's) was never given the music's glow while the small one had the same value, so
+   its glow dropped as the big player took over and came back a moment later (the bar's light flickering on opening) */
+const pwm = new WeakMap();
+function pset(el, k, v) { if (!el) return; let m = pwm.get(el); if (!m) pwm.set(el, m = {}); if (m[k] === v) return; m[k] = v; el.style.setProperty(k, v); }
 let pEls = null;
 function pulseLoop(now) {
   pRaf = 0;
