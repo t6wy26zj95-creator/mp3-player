@@ -31,10 +31,7 @@ jobs:
       # screenshots): Liquid Glass looks the way it does on his phone. Falls back to the newest Xcode 26.
       - name: Pick Xcode
         run: |
-          ls -d /Applications/Xcode*.app
-          # the Xcode the last builds Nick could install were made with (27.2 RC); 27.2.0 builds AltStore refused (6 Nov)
-          x=$(ls -d /Applications/Xcode_27.2_Release_Candidate.app 2>/dev/null | tail -1)
-          [ -n "$x" ] || x=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          x=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
           [ -n "$x" ] || x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
           [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
           echo "Using $x"; sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
