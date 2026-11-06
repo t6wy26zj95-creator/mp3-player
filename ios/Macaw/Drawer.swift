@@ -38,6 +38,7 @@ struct DrawerView: View {
         .padding(.horizontal, Theme.panelPad)
         .padding(.top, back == nil ? 0 : 14)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { backHeight = $0 }
+        ScrollViewReader { sv in
         ScrollView(.vertical, showsIndicators: false) {
             ZStack(alignment: .top) {
                 Group {
@@ -58,6 +59,10 @@ struct DrawerView: View {
         .scrollDisabled(UIState.shared.tileDragging)
         .scrollBounceBehavior(.basedOnSize)
         .frame(height: min(max(contentHeight, 40), max(40, room - (back == nil ? 0 : backHeight))))
+        // web renderQueue(true): opening the Queue shows Now Playing at the top, the history scrolled away above it
+        .onAppear { if tab == .queue { DispatchQueue.main.async { sv.scrollTo("q-now", anchor: .top) } } }
+        .onChange(of: tab) { _, t in if t == .queue { DispatchQueue.main.async { sv.scrollTo("q-now", anchor: .top) } } }
+        }
         }
         .anim(Theme.ease, value: contentHeight)                       // web: #view-host height, 400 ms ease
     }
@@ -378,6 +383,7 @@ struct QueueDrawer: View {
                 }
                 let ctx = player.context
                 SectionLabel(text: player.nowFrom == .context && ctx != nil ? "Playing from \(ctx!.name)" : "Now Playing", first: hist.isEmpty)
+                    .id("q-now")                                  // web: the Queue opens scrolled to here (history above it)
                 SongRow(track: cur, active: true, leftAction: .none) {}
                 if !player.queue.isEmpty {
                     SectionLabel(text: "Queue · \(player.queue.count)", button: "Clear") { player.clearQueue() }
@@ -391,7 +397,7 @@ struct QueueDrawer: View {
                 }
                 if let ctx {
                     let up = player.contextUpcoming()
-                    let n = showAll ? up.count : min(up.count, 30)
+                    let n = showAll ? up.count : min(up.count, 20)            // web CTX_ROWS
                     SectionLabel(text: "\(player.queue.isEmpty ? "Next" : "Then") from \(ctx.name)\(player.shuffle ? " · Shuffled" : "")")
                     ForEach(Array(up.prefix(n).enumerated()), id: \.offset) { i, k in
                         if let t = model.byKey[k] {
@@ -401,21 +407,32 @@ struct QueueDrawer: View {
                         }
                     }
                     if up.count > n {
-                        Button("Show all \(up.count)") { showAll = true }
-                            .font(.system(size: 11)).foregroundStyle(Color.w(0.55)).frame(maxWidth: .infinity).padding(.top, 10).padding(.bottom, 4)
+                        // web .q-more.q-link
+                        Button { showAll = true } label: {
+                            Text("Show all \(up.count)").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.w(0.6))
+                                .frame(maxWidth: .infinity).padding(.top, 10).padding(.bottom, 4).contentShape(Rectangle())
+                        }
+                        .buttonStyle(PopStyle())
                     } else if !player.contextList().isEmpty {
                         note(player.repeatMode == .off ? (up.isEmpty ? "\(ctx.name) stops after this song" : "Then \(ctx.name) stops")
                              : (up.isEmpty ? "\(ctx.name) starts again from the top" : "Then \(ctx.name) starts again"))
                     }
                 } else if player.queue.isEmpty {
-                    note("Nothing after this song. Swipe a song left in Library to queue it.")
+                    empty("Nothing after this song. Swipe a song left in Library to queue it.")
                 }
             } else {
-                note("Nothing playing yet.")
+                empty("Nothing playing yet.")
             }
         }
     }
 
+    /// web .q-empty: 12 pt, 40 % white, centred, 14 pt above and below
+    private func empty(_ t: String) -> some View {
+        Text(t).font(.system(size: 12)).foregroundStyle(Color.w(0.4)).multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity).padding(.vertical, 14).padding(.horizontal, 12)
+    }
+
+    /// web .q-more
     private func note(_ t: String) -> some View {
         Text(t).font(.system(size: 11)).foregroundStyle(Color.w(0.4)).multilineTextAlignment(.center)
             .frame(maxWidth: .infinity).padding(.top, 10).padding(.bottom, 4)
