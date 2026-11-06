@@ -108,8 +108,13 @@ struct ArtistGrid: View {
     var body: some View {
         // the same grid as Library (web .albums-grid), round covers with the same glass edge (web .artist-card)
         let cols = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: 3)
+        let names = Artists.all()
+        if names.isEmpty {
+            Text("Add songs to see artists.").font(.system(size: 12)).foregroundStyle(Color.w(0.45))      // web .artist-note
+                .multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(20)
+        }
         LazyVGrid(columns: cols, alignment: .center, spacing: 14) {
-            ForEach(Artists.all(), id: \.self) { name in
+            ForEach(names, id: \.self) { name in
                 Button { Haptics.light(); ui.push(.artist(name)) } label: {
                     VStack(spacing: 8) {
                         Color.clear.aspectRatio(1, contentMode: .fit)

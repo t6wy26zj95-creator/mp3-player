@@ -358,19 +358,36 @@ struct LoadingPanel: View {
 /// No songs yet: "Tap to add your songs", as in the web player.
 struct EmptyLibraryPanel: View {
     private var ui: UIState { .shared }
+    @State private var pressed = false
     var body: some View {
-        Button { ui.importing = true } label: {
-            VStack(spacing: 6) {
-                Text("Tap to add your songs").font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+        // web .drop-zone inside the panel: a dashed 16 pt box, 30 pt padding, 14 pt text at 60 % white, the line under it
+        // 11 pt at 70 % of that; pressed: lighter, the border and text brighter
+        let box = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        Button { Haptics.light(); ui.importing = true } label: {
+            VStack(spacing: 2) {
+                Text("Tap to add your songs").font(.system(size: 14))
                 Text("They stay in the app. You can also copy music into the MacawP3 folder in the Files app.")
-                    .font(.system(size: 11)).foregroundStyle(Color.w(0.7)).multilineTextAlignment(.center)
+                    .font(.system(size: 11)).opacity(0.7)
             }
-            .padding(Theme.panelPad + 8)
-            .frame(maxWidth: .infinity).frame(minHeight: 186)
-            .contentShape(Rectangle())
+            .multilineTextAlignment(.center)
+            .foregroundStyle(Color.w(pressed ? 1 : 0.6))
+            .padding(30)
+            .frame(maxWidth: .infinity)
+            .background(box.fill(Color.w(pressed ? 0.08 : 0.02)))
+            .overlay(box.strokeBorder(Color.w(pressed ? 0.4 : 0.2), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+            .contentShape(box)
         }
-        .buttonStyle(PressStyle())
+        .buttonStyle(PressReport(pressed: $pressed))
+        .padding(Theme.panelPad)
         .panelGlass(RoundedRectangle(cornerRadius: Theme.panelRadius, style: .continuous), classic: ui.classic)
+    }
+}
+
+/// A button style that only reports whether it's held (the look is drawn by the label itself).
+struct PressReport: ButtonStyle {
+    @Binding var pressed: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.onChange(of: configuration.isPressed) { _, v in pressed = v }
     }
 }
 

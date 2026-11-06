@@ -1009,8 +1009,9 @@ struct PlaylistPage: View {
                     player.playAll(ts, name: p.name)
                 }
                 if ts.isEmpty {
-                    Text("Swipe a song right (or hold it) and tick this playlist to add it.")
-                        .font(.system(size: 11)).foregroundStyle(Color.w(0.4)).multilineTextAlignment(.center).padding(.vertical, 10)
+                    Text("No songs here yet. Hold a song in Library, or swipe it right, to add it.")       // web .artist-note
+                        .font(.system(size: 12)).foregroundStyle(Color.w(0.45)).multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity).padding(16)
                 }
                 LazyVStack(spacing: 0) {
                     ForEach(Array(ts.enumerated()), id: \.element.id) { i, t in
