@@ -26,6 +26,10 @@ final class XPMotion {
     /// The first line of the big title / artist line when it wraps (its width and height): centred text, so the morph
     /// carries that line, not the block's corner, onto the small one-line copy (else the name jumps at the hand-over).
     @ObservationIgnored var line1: [String: CGSize] = [:]
+    /// where the controls' row got to on the last frame of the motion, and which way p was going (see XPLayout)
+    @ObservationIgnored var rowY: Double?
+    @ObservationIgnored var rowP: Double = -1
+    @ObservationIgnored var rowDir: Double = 0
 
     /// greedy word wrap, as Text lays it out: the first line's width and how many lines
     nonisolated static func firstLine(_ s: String, font: UIFont, width: CGFloat) -> (w: CGFloat, lines: Int) {
@@ -324,7 +328,7 @@ enum XPLayout {
             let ang = lerp(a0, a1, t * t), r = edge(ang, size / 2) + lerp(g0, g1, t)
             return (ccx + r * cos(ang), ccy + r * sin(ang))
         }
-        struct Line { var X = 0.0; var Y = 0.0; var k = 1.0; var r = 1.0; var below = 0.0; var swap = true }
+        struct Line { var X = 0.0; var Y = 0.0; var k = 1.0; var r = 1.0; var below = 0.0; var swap = true; var y0 = 0.0; var y1 = 0.0 }
         var lead: Line?
         var artistLine: Line?
         for (name, ratio) in [("title", 20.0 / 17), ("artist", 13.5 / 13)] {
@@ -344,7 +348,11 @@ enum XPLayout {
             if reveal > 0 { shown = lerp(reveal, Double(xb.width), fade(P, 0, 0.45)); out.titleReveal = name == "title" && P < 1 ? CGFloat(shown) : nil }
             let inPlace = swap || reveal > 0
             let cOp = inPlace ? (P > 0 ? 0 : 1) : max(0, 1 - fade(P, 0.1, 0.22)), xOp = inPlace ? (P > 0 ? 1 : 0) : fade(P, 0.06, 0.2)
-            let (cx, cy) = orbit((Double(cb.minX), Double(cb.midY) - oy / r), (Double(L.minX), Double(L.minY)), P)
+            let o0y = Double(cb.midY) - oy / r, o1y = Double(L.minY)
+            var (cx, cy) = orbit((Double(cb.minX), o0y), (Double(L.minX), o1y), P)
+            // never lower than the lower of its two resting places: the corner's path round the cover passes straight below
+            // its centre before reaching its spot under the cover's left half, so the text dipped and came back up
+            cy = min(cy, max(o0y, o1y))
             var X = cx, Y = cy + oy * sc
             if P > 0 && P < 1 {
                 let full = Double(L.width)
@@ -356,13 +364,16 @@ enum XPLayout {
             }
             if let l = lead, P > 0 && P < 1 {                          // the artist line keeps below the title on the way
                 let leadBottom = l.Y + l.below * l.k / l.r, need = leadBottom + 2 - (Y - oy * sc)
-                Y += max(0, need) * (l.swap ? fade(P, 0, 0.2) : fade(P, 0, 0.06))
+                // only beyond what they already overlap at rest at either end (pushing that away at once was a jerk down
+                // as a pull began)
+                let n0 = l.y0 + l.below / l.r + 2 - (Double(cb.midY) - oy / r), n1 = l.y1 + l.below + 2 - (Double(L.midY) - oy)
+                Y += max(0, need - lerp(max(0, n0), max(0, n1), P))
             }
             map["c." + name] = XPPose(dx: X - Double(cb.minX), dy: Y - Double(cb.midY), scale: k, anchor: UnitPoint(x: 0, y: 0.5), opacity: cOp)
             // scaled round that line's left middle, which lands on (X, Y)
             let anchor = UnitPoint(x: (L.minX - xb.minX) / max(1, xb.width), y: (L.midY - xb.minY) / max(1, xb.height))
             map["b." + name] = XPPose(dx: X - Double(L.minX), dy: Y - Double(L.midY), scale: sc, anchor: anchor, opacity: xOp)
-            let line = Line(X: X, Y: Y, k: k, r: r, below: Double(xb.maxY - L.midY), swap: swap)
+            let line = Line(X: X, Y: Y, k: k, r: r, below: Double(xb.maxY - L.midY), swap: swap, y0: Double(cb.midY), y1: Double(L.midY))
             if name == "title" { lead = line } else { artistLine = line }
         }
 
@@ -373,8 +384,20 @@ enum XPLayout {
             let subBottom = al.Y + al.below * al.k / al.r
             let gapEnd = Double(xbar.minY) - Double(xart.maxY)
             let barTop = rowY(Double(cbar.midY), Double(xbar.midY)) - Double(xbar.height) / 2
-            push = max(0, subBottom + gapEnd * 0.5 + 9 * sin(.pi * P) - barTop)
+            // again only beyond the overlap the two have at rest at either end
+            let raw0 = al.y0 + al.below / al.r + gapEnd * 0.5 - (Double(cbar.midY) - Double(xbar.height) / 2)
+            let raw1 = al.y1 + al.below + gapEnd * 0.5 - (Double(xbar.midY) - Double(xbar.height) / 2)
+            push = max(0, subBottom + gapEnd * 0.5 + 9 * sin(.pi * P) - barTop - lerp(max(0, raw0), max(0, raw1), P))
         }
+        // the rows only ever move one way while p does: their wanted spot could rise for a moment and drop again (a small
+        // bounce of the buttons and bar near the end); held where they got to until the motion catches up
+        if let cp = c["c.play"], let xp = b["b.play"], P > 0 && P < 1 {
+            let mo = XPMotion.shared, want = rowY(Double(cp.midY), Double(xp.midY)) + push
+            let dir: Double = P > mo.rowP ? 1 : P < mo.rowP ? -1 : 0
+            if let last = mo.rowY, dir != 0, dir == mo.rowDir { push += dir > 0 ? max(0, last - want) : min(0, last - want) }
+            if dir != 0 { mo.rowDir = dir }
+            mo.rowY = rowY(Double(cp.midY), Double(xp.midY)) + push; mo.rowP = P
+        } else { let mo = XPMotion.shared; mo.rowY = nil; mo.rowP = -1; mo.rowDir = 0 }
         var playY = 0.0, playDy = 0.0, playDy0 = 0.0, tail0 = 0.0, tail1 = 0.0
         for (name, f, isTime, same) in [("prev", 0.5, false, true), ("play", 0.5, false, true), ("next", 0.5, false, true),
                                         ("bar", 0.5, false, true), ("cur", 0.0, true, true), ("left", 1.0, true, false)] {
