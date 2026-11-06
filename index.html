@@ -4865,7 +4865,12 @@ XP = (() => {
          hangs right and down from that corner, so going round the cover's right side and under it, no part of it (a long
          wrapped second line included) can cross the cover */
       const t = P, lead = m.lines[0], k = lerp(1, l.r, hsc), sc = k / l.r, dx = l.xb.off - l.xb.l0, oy = l.xb.oy;
-      const [cx, cy] = orbit([l.c0[0] - dx / l.r, l.c0[1] - oy / l.r], [l.x1[0] - dx, l.x1[1] - oy], ccx, ccy, size / 2, t);
+      const o0 = [l.c0[0] - dx / l.r, l.c0[1] - oy / l.r], o1 = [l.x1[0] - dx, l.x1[1] - oy];
+      let [cx, cy] = orbit(o0, o1, ccx, ccy, size / 2, t);
+      /* never lower than the lower of its two resting places: the corner's path round the cover passes straight below its
+         centre before reaching its spot under the cover's left half, so the text dipped below where it ends and came back
+         up (the artist name's "down, up" while the player opens or closes) */
+      cy = Math.min(cy, Math.max(o0[1], o1[1]));
       let X = cx + dx * sc, Y = cy + oy * sc;
       /* no room beside the cover for the whole line (what of it is showing: the album writes itself in)? Then it goes
          under the cover and moves in from the right edge, instead of running off it, fading there or vanishing */
@@ -4874,12 +4879,20 @@ XP = (() => {
         const vis = l.reveal > 0 ? shown : l === lead ? full : lerp(Math.min(full, m.xrw || full), full, extra);
         const f0 = fade(P, 0, .06), right = l.reveal > 0 ? shown : l === lead ? l.xb.right - l.xb.off : vis - dx;   // from the text's start to its (showing) end
         X -= f0 * Math.max(0, X + right * sc - limit);                // never past the right edge
-        const wd = Math.max(clamp01((vis * sc - (limit - (curX + size + 12)) + 40) / 80), clamp01((curX + size + 12 - (X - dx * sc)) / 16)) * f0;   // eased in before it's needed, so it glides under
+        /* where its showing text starts: a centred line under a wider second line starts further right than the block, and
+           that second line only shows as the album writes itself in (counting it from the start sent the artist name under
+           the cover with a jerk the moment a pull began) */
+        const left = X - dx * sc * (l === lead ? 1 : extra);
+        const wd = Math.max(clamp01((vis * sc - (limit - (curX + size + 12)) + 40) / 80), clamp01((curX + size + 12 - left) / 16)) * f0;   // eased in before it's needed, so it glides under
         Y += wd * Math.max(0, curY + size + 12 + oy * sc - Y);         // and under the cover when that brings it over it
       }
       if (l !== lead && P > 0 && P < 1) {                            // the artist line keeps below the title on the way
         const leadBottom = lead.Y + (lead.xb.h - lead.xb.oy) * lead.k / lead.r, need = leadBottom + 2 - (Y - oy * sc);
-        Y += Math.max(0, need) * (lead.swap ? fade(P, 0, .2) : fade(P, 0, .06));   // out of the big title's way before it shows (none at rest: there it already is)
+        /* only as much as it overlaps MORE than it does at rest at either end: the boxes overlap a little at rest (the
+           title's room for its glow), and pushing that away at once was the artist name's jerk down as a pull began */
+        const n0 = lead.c0[1] + (lead.xb.h - lead.xb.oy) / lead.r + 2 - (l.c0[1] - oy / l.r);
+        const n1 = lead.x1[1] + (lead.xb.h - lead.xb.oy) + 2 - (l.x1[1] - oy);
+        Y += Math.max(0, need - lerp(Math.max(0, n0), Math.max(0, n1), P));
       }
       l.X = X; l.Y = Y; l.k = k;
       l.c.style.transform = P ? `translate(${(X - l.c0[0]).toFixed(2)}px,${(Y - l.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
@@ -4908,13 +4921,28 @@ XP = (() => {
     const sl = m.lines[m.lines.length - 1], bar = m.pairs.find(q => q.track), env = Math.sin(Math.PI * P);
     const subBottom = l => l.Y + (l.xb.h - l.xb.oy) * l.k / l.r, barTop = (Y, q) => Y - q.xh / 2;
     const gapEnd = barTop(bar.x1[1], bar) - (sl.x1[1] + sl.xb.h - sl.xb.oy);
-    const push = P > 0 && P < 1 ? Math.max(0, subBottom(sl) + gapEnd * .5 + BOW_A * env - barTop(rowY(bar.c0[1], bar.x1[1]), bar)) : 0;
+    /* again only beyond what the two already overlap at rest (a two-line artist · album line measured against the small
+       bar): that rest overlap pushed the rows down at once as a pull began, then let them back up */
+    const r0 = bar.c0[1] - bar.xh / 2, r1 = bar.x1[1] - bar.xh / 2;
+    const raw0 = sl.c0[1] + (sl.xb.h - sl.xb.oy) / sl.r + gapEnd * .5 - r0, raw1 = sl.x1[1] + (sl.xb.h - sl.xb.oy) + gapEnd * .5 - r1;
+    const push = P > 0 && P < 1 ? Math.max(0, subBottom(sl) + gapEnd * .5 + BOW_A * env - barTop(rowY(bar.c0[1], bar.x1[1]), bar) - lerp(Math.max(0, raw0), Math.max(0, raw1), P)) : 0;
+    /* the rows only ever move one way while p does: following the text and the bend, their wanted spot could rise for a
+       moment and then drop again (a small bounce of the buttons and bar near the end). Held where they got to instead,
+       until the motion catches up; the hold is dropped at rest and whenever p turns round. */
+    const play = m.pairs.find(q => q.c === playBtn);
+    let push2 = push;
+    if (play && P > 0 && P < 1) {
+      const want = rowY(play.c0[1], play.x1[1]) + push, dir = Math.sign(P - (st.rowP ?? P));
+      if (st.rowY != null && dir !== 0 && dir === st.rowDir) push2 += dir > 0 ? Math.max(0, st.rowY - want) : Math.min(0, st.rowY - want);
+      if (dir !== 0) st.rowDir = dir;
+      st.rowY = want + push2 - push; st.rowP = P;
+    } else { st.rowY = null; st.rowP = null; st.rowDir = 0; }
     let playDy = 0, playDy0 = 0, playY = 0, tail0 = 0, tail1 = 0;
     for (const q of m.pairs) {
       /* like the lines: everything drops to its row first (all rows on the same timing, so they keep their order and never
          meet), then slides across, which makes a rounded path. The times slide only once the buttons are below them. */
       const tx = st.land ? fade(P, .2, 1) : 1 - Math.cos(fade(P, q.time ? .3 : .1, 1) * Math.PI / 2);   // on its side: the rows part first (above), then slide across
-      const X = lerp(q.c0[0], q.x1[0], tx), Y = rowY(q.c0[1], q.x1[1]) + push, k = lerp(1, q.r, hc);
+      const X = lerp(q.c0[0], q.x1[0], tx), Y = rowY(q.c0[1], q.x1[1]) + push2, k = lerp(1, q.r, hc);
       q.c.style.transform = P ? `translate(${(X - q.c0[0]).toFixed(2)}px,${(Y - q.c0[1]).toFixed(2)}px) scale(${k.toFixed(4)})` : "";
       /* the scrubber stretches from the small one's length to its own (its dot is kept round), so it is one bar all along */
       const kx = q.track ? lerp(q.cw, q.xw, hc) / q.xw : k / q.r, ky = q.track ? lerp(q.ky0, 1, hc) : k / q.r;
