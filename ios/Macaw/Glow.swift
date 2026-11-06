@@ -716,6 +716,9 @@ struct EdgeBand: View {
 struct Breath: ViewModifier {
     var index: Int
     var amount: CGFloat
+    /// below 1 (the big buttons while the player opens or closes): the small button's glow, enlarged, fades into this
+    /// one's own, so at the small end it is the small one's exactly (XPMorph)
+    var morph: CGFloat = 1
     @State private var side: CGFloat = 0
     private var g: Glow { .shared }
     func body(content: Content) -> some View {
@@ -728,7 +731,15 @@ struct Breath: ViewModifier {
                 if side > 0, let im = BreathArt.image(side: side, color: g.c1) {
                     Image(uiImage: im).resizable()
                         .frame(width: side + 2 + 2 * BreathArt.pad, height: side + 2 + 2 * BreathArt.pad)
-                        .opacity(v)
+                        .opacity(v * Double(morph))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+                if side > 0, morph < 1, let im = BreathArt.image(side: 34, color: g.c1) {
+                    let k = side / 34
+                    Image(uiImage: im).resizable()
+                        .frame(width: (34 + 2 + 2 * BreathArt.pad) * k, height: (34 + 2 + 2 * BreathArt.pad) * k)
+                        .opacity(v * Double(1 - morph))
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }

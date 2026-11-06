@@ -340,10 +340,14 @@ enum XPLayout {
             }
             let r = ratio, k = lerp(1, r, P), sc = k / r, oy = Double(L.height) / 2
             let avail = W - Theme.panelPad - Double(cb.minX)
-            let swap = Double(cb.width) < avail - 1                    // the small line isn't cut short: the big copy takes over in place
+            // the small line isn't cut short: the big copy takes over in place. For the title this is read from the text's own
+            // width (the big text at the small size against the small line's width): the old test against the panel's
+            // edge missed cut titles by a point or two, so the big one swapped in whole and the end jumped at the hand-over
+            let swap = name == "title" ? Double(L.width) / r <= Double(cb.width) + 1 : Double(cb.width) < avail - 1
             // cut short ("…") while the big one fits on one line: it still takes over in place, and the letters the small
             // one hid write themselves in (a cross-fade of two different copies read as the text jumping)
-            let reveal = name == "title" && !swap && L == xb ? max(0, Double(cb.width) - 14) * r : 0
+            // (the small title fades out over its last 20 pt instead of "…", so at either end the two look the same)
+            let reveal = name == "title" && !swap && L == xb ? max(1, Double(cb.width) - Double(SlidingTitle.cutFade)) * r : 0
             var shown = 0.0
             if reveal > 0 { shown = lerp(reveal, Double(xb.width), fade(P, 0, 0.45)); out.titleReveal = name == "title" && P < 1 ? CGFloat(shown) : nil }
             let inPlace = swap || reveal > 0
