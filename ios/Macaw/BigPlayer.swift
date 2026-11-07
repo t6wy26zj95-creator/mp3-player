@@ -189,7 +189,8 @@ struct BigArtFrame: View {
 /// The big bar: it bends like a carried string while the player opens or closes.
 struct BigScrubber: View {
     @Environment(\.xpPoses) private var poses
-    var body: some View { Scrubber(height: 4, bow: poses.moving ? poses.pt : 0)   // straight until it takes over }
+    // straight until the big copy takes over
+    var body: some View { Scrubber(height: 4, bow: poses.moving ? poses.pt : 0) }
 }
 
 /// The big artist · album · year line, on its own so that only it (not the whole big player) is redrawn on each frame
