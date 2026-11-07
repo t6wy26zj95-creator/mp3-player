@@ -328,7 +328,10 @@ enum XPLayout {
             out.compactOn = rawP < 0.5; out.bigOn = rawP >= 0.5; return out
         }
         out.bigOn = true; out.moving = true
-        let P = clamp01(rawP)
+        // the spring is let go (and the layout put back at rest) while p is still about 0.0005 short of its end, and that
+        // last frame drew the cover, bar, artist line and buttons one screen pixel short: they stepped into place a frame
+        // later (the 1/3 pt step at the end of opening). The last thousandth at either end is folded into the end itself.
+        let P = clamp01((rawP - 0.001) / 0.998)
         out.p = P
         var map: [String: XPPose] = [:]
 
