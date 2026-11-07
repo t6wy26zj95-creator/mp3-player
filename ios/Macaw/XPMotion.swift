@@ -53,7 +53,21 @@ final class XPMotion {
 
     private var ui: UIState { .shared }
 
-    func report(_ tag: String, _ r: CGRect) {
+    /// test runs only (-macawScreen motion): logs where the big parts are while they move and when they are measured
+    /// again at rest, so a last-frame step can be traced to its cause from the CI log
+    static let debugLog = CommandLine.arguments.contains("motion")
+    func report(_ tag: String, _ r: CGRect, pose: XPPose = XPPose()) {
+        if Self.debugLog && tag.hasPrefix("b.") {
+            func f(_ r: CGRect) -> String { String(format: "%.3f %.3f %.3f %.3f", r.minX, r.minY, r.width, r.height) }
+            if phase == .moving {
+                NSLog("MacawXP mv %@ p=%.4f r=%@ pose=%.3f %.3f s=%.4f a=%.3f %.3f w=%@", tag, p, f(r), pose.dx, pose.dy, pose.scale,
+                      pose.anchor.x, pose.anchor.y, pose.width.map { String(format: "%.3f", $0) } ?? "-")
+            } else if phase == .big, let old = b[tag] {
+                NSLog("MacawXP big %@ old=%@ new=%@", tag, f(old), f(r))
+            } else if phase == .measuring {
+                NSLog("MacawXP meas %@ r=%@", tag, f(r))
+            }
+        }
         if tag.hasPrefix("c.") {
             if phase == .compact || (phase == .measuring && tag != "c.stack") { c[tag] = r }
         } else if phase == .measuring || (phase == .big && ui.lyricsScroll == 0 && !ui.lyricsOpen) { b[tag] = r }
@@ -260,7 +274,7 @@ struct XPTag: ViewModifier {
     func body(content: Content) -> some View {
         let p = poses[tag]
         content
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("xp")) } action: { XPMotion.shared.report(tag, $0) }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("xp")) } action: { XPMotion.shared.report(tag, $0, pose: p) }
             .frame(width: p.width)
             .scaleEffect(p.scale, anchor: p.anchor)
             .offset(x: p.dx, y: p.dy)

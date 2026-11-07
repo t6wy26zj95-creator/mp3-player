@@ -235,6 +235,8 @@ jobs:
           xcrun simctl launch "$SIM" app.macaw.player -macawScreen motion
           sleep 80
           kill -INT $rec; wait $rec || true
+          xcrun simctl spawn "$SIM" log show --last 3m --style compact --predicate 'eventMessage CONTAINS "MacawXP"' > screens/xp-log.txt || true
+          wc -l screens/xp-log.txt || true
           # a song playing: the cover's light, glow and glass moving with the music (compared with the web's)
           xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
           xcrun simctl io "$SIM" recordVideo --codec h264 --force screens/playing.mp4 & rec=$!
