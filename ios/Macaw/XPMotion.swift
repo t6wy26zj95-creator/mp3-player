@@ -56,16 +56,26 @@ final class XPMotion {
     /// test runs only (-macawScreen motion): logs where the big parts are while they move and when they are measured
     /// again at rest, so a last-frame step can be traced to its cause from the CI log
     static let debugLog = CommandLine.arguments.contains("motion")
-    func report(_ tag: String, _ r: CGRect, pose: XPPose = XPPose()) {
+    /// the CI's `log show` doesn't catch NSLog from the app, so the lines go to Documents/xp-log.txt (copied by the workflow)
+    static var dbuf: [String] = []
+    static func dlog(_ s: String, flush: Bool = false) {
+        dbuf.append(String(format: "%.4f ", Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 1000)) + s)
+        guard flush else { return }                                  // written at rest, not on every frame of the motion
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("xp-log.txt")
+        let text = dbuf.joined(separator: "\n") + "\n"; dbuf.removeAll()
+        if let h = try? FileHandle(forWritingTo: url) { h.seekToEndOfFile(); h.write(text.data(using: .utf8)!); try? h.close() }
+        else { try? text.write(to: url, atomically: false, encoding: .utf8) }
+    }
+    func report(_ tag: String, _ r: CGRect, pose: XPPose = XPPose(), at P: Double = -1) {
         if Self.debugLog && tag.hasPrefix("b.") {
             func f(_ r: CGRect) -> String { String(format: "%.3f %.3f %.3f %.3f", r.minX, r.minY, r.width, r.height) }
             if phase == .moving {
-                NSLog("MacawXP mv %@ p=%.4f r=%@ pose=%.3f %.3f s=%.4f a=%.3f %.3f w=%@", tag, p, f(r), pose.dx, pose.dy, pose.scale,
-                      pose.anchor.x, pose.anchor.y, pose.width.map { String(format: "%.3f", $0) } ?? "-")
+                Self.dlog(String(format: "mv %@ p=%.5f r=%@ pose=%.3f %.3f s=%.4f a=%.3f %.3f w=%@", tag, P, f(r), pose.dx, pose.dy, pose.scale,
+                      pose.anchor.x, pose.anchor.y, pose.width.map { String(format: "%.3f", $0) } ?? "-"))
             } else if phase == .big, let old = b[tag] {
-                NSLog("MacawXP big %@ old=%@ new=%@", tag, f(old), f(r))
+                Self.dlog(String(format: "big %@ old=%@ new=%@", tag, f(old), f(r)), flush: true)
             } else if phase == .measuring {
-                NSLog("MacawXP meas %@ r=%@", tag, f(r))
+                Self.dlog(String(format: "meas %@ r=%@", tag, f(r)), flush: true)
             }
         }
         if tag.hasPrefix("c.") {
@@ -97,6 +107,7 @@ final class XPMotion {
             self.phase = .moving
             withAnimation(Self.curve, completionCriteria: .removed) { self.p = 1 } completion: {
                 if self.p == 1 && self.phase == .moving { self.phase = .big }
+                if Self.debugLog { Self.dlog("phase big", flush: true) }
             }
         }
     }
@@ -274,7 +285,7 @@ struct XPTag: ViewModifier {
     func body(content: Content) -> some View {
         let p = poses[tag]
         content
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("xp")) } action: { XPMotion.shared.report(tag, $0, pose: p) }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("xp")) } action: { XPMotion.shared.report(tag, $0, pose: p, at: poses.p) }
             .frame(width: p.width)
             .scaleEffect(p.scale, anchor: p.anchor)
             .offset(x: p.dx, y: p.dy)
