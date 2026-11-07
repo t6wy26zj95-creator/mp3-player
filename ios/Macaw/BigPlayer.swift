@@ -189,7 +189,8 @@ struct BigArtFrame: View {
 /// The big bar: it bends like a carried string while the player opens or closes.
 struct BigScrubber: View {
     @Environment(\.xpPoses) private var poses
-    var body: some View { Scrubber(height: 4, bow: poses.moving ? poses.p : 0) }
+    // straight until the big copy takes over
+    var body: some View { Scrubber(height: 4, bow: poses.moving ? poses.pt : 0) }
 }
 
 /// The big artist · album · year line, on its own so that only it (not the whole big player) is redrawn on each frame
@@ -227,6 +228,19 @@ struct BigSubtitle: View {
                 .font(.system(size: 13.5)).lineSpacing(1.5)
                 .multilineTextAlignment(.center).lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+                // on two lines too, the small line's " ›" rides after the artist's name until it has faded
+                .overlay(alignment: .top) {
+                    if poses.chev > 0.001 {
+                        let f = UIFont.systemFont(ofSize: 13.5), all = bal.joined()
+                        let l1 = String(all.prefix(while: { $0 != "\n" })), name = String(bal[0].prefix(while: { $0 != "\n" }))
+                        let w1 = (l1 as NSString).size(withAttributes: [.font: f]).width
+                        let wn = (name as NSString).size(withAttributes: [.font: f]).width
+                        let wc = (" ›" as NSString).size(withAttributes: [.font: f]).width
+                        Text(" ›").foregroundStyle(Color.w(0.3)).fixedSize()
+                            .offset(x: -w1 / 2 + wn + wc / 2)
+                            .opacity(poses.chev)
+                    }
+                }
                 .contentShape(Rectangle())
                 .onTapGesture { if let a = t?.shownArtist { ui.showArtist(a) } }
                 .xp("b.artistName")
@@ -265,11 +279,14 @@ struct BigSubtitle: View {
         HStack(spacing: 0) {
             Button { if let a = t?.shownArtist { ui.showArtist(a) } } label: {
                 Text(t?.shownArtist ?? "").foregroundStyle(Color.w(e >= 1 ? 0.85 : 0.6 + 0.25 * e))
-                    .overlay(alignment: .trailing) {
+                    .overlay(alignment: .leading) {
                         if poses.chev > 0.001 {
-                            Text(" ›").foregroundStyle(Color.w(0.85)).fixedSize()
-                                .alignmentGuide(.trailing) { d in d[.leading] }
-                                .opacity(poses.chev * 0.5)
+                            // the small line's " ›" exactly (white at 30 %), right after the name, so it doesn't change at the
+                            // hand-over (placed by the name's measured width: a trailing alignment guide put it over the last letter)
+                            let wn = ((t?.shownArtist ?? "") as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 13.5)]).width
+                            Text(" ›").foregroundStyle(Color.w(0.3)).fixedSize()
+                                .offset(x: wn)
+                                .opacity(poses.chev)
                         }
                     }
             }
@@ -584,10 +601,12 @@ struct BigTitle: View {
             .lineLimit(3)
             .shadow(color: .black.opacity(0.45), radius: 3, y: 2)           // web: text-shadow 0 2px 6px rgba(0,0,0,.45)
             .mask(alignment: .leading) {
-                // while it opens from a cut-short small title, the hidden end writes itself in (soft 22 pt edge)
+                // while it opens from a cut-short small title, the hidden end writes itself in: the same soft edge as the
+                // small title's (20 pt there, scaled to this size), so the two match exactly where they hand over
                 if let a = poses.titleReveal {
-                    LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: a / (a + 22)), .init(color: .clear, location: 1)],
-                                   startPoint: .leading, endPoint: .trailing).frame(width: a + 22)
+                    let fw = SlidingTitle.cutFade * 20 / 17
+                    LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: a / (a + fw)), .init(color: .clear, location: 1)],
+                                   startPoint: .leading, endPoint: .trailing).frame(width: a + fw).padding(.vertical, -14)
                 } else { Color.black.padding(-30) }
             }
             .xp(tag)                                                         // the morph measures the text itself

@@ -76,18 +76,18 @@ final class WalkThrough: XCTestCase {
         tap(id("tab-library"), "Library tab"); shot("library")
         drag(CGVector(dx: 0.5, dy: 0.75), CGVector(dx: 0.5, dy: 0.4), speed: .fast); shot("library-scrolled")
         drag(CGVector(dx: 0.5, dy: 0.4), CGVector(dx: 0.5, dy: 0.8), speed: .fast)
-        if tap(text("Blue Record"), "album tile") {
+        if tap(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Wish (30th")).firstMatch, "album tile") {
             shot("album")
             drag(CGVector(dx: 0.5, dy: 0.7), CGVector(dx: 0.5, dy: 0.45)); shot("album-scrolled")
             // swipe a song left (Play next), then right (its menu)
-            let row = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Ocean Floor")).firstMatch   // album rows read "4. Ocean Floor"
+            let row = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open (Remastered")).firstMatch   // album rows read "4. Open (Remastered 2022)"
             if row.waitForExistence(timeout: 2) {
                 row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.05, thenDragTo: row.coordinate(withNormalizedOffset: CGVector(dx: -1.2, dy: 0.5)))
                 Thread.sleep(forTimeInterval: 1); shot("swiped-play-next")
                 row.press(forDuration: 0.8); Thread.sleep(forTimeInterval: 1); shot("song-menu")
                 app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap(); Thread.sleep(forTimeInterval: 1)
             } else { missed.append("song row") }
-            tap(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Ocean Floor")).firstMatch, "play a song"); shot("played-from-album")
+            tap(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open (Remastered")).firstMatch, "play a song"); shot("played-from-album")
             tap(button(containing: "Back"), "back to Library"); shot("library-again")
         }
         if tap(text("All Tracks"), "All Tracks") { shot("all-tracks"); tap(button(containing: "Back"), "back from All Tracks") }

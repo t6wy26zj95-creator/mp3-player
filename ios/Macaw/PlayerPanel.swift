@@ -47,6 +47,9 @@ struct PlayerPanel: View {
                 }
                 .xp("c.stack")
             }
+            // while it moves, the small copies (title, buttons) sit over the big layer: the big cover's colour glow went
+            // over the small title and tinted it, and the tint went off in the close's last frame (a sudden light change)
+            .zIndex(motion.phase == .moving ? 1 : 0)
             if motion.phase != .compact {
                 XPLayer(big: true) { BigPlayer(close: close).xp("b.stack") }
                     .transition(.identity)
@@ -155,7 +158,7 @@ struct CompactPlayer: View {
                 .accessibilityIdentifier("cover")
                 .padding(.leading, 34)
                 VStack(alignment: .leading, spacing: 2) {
-                    SlidingTitle(text: player.current?.title ?? "", size: 17, direction: player.songDirection, tag: "c.title", spark: true)
+                    SlidingTitle(text: player.current?.title ?? "", size: 17, direction: player.songDirection, tag: "c.title", spark: true, fadeCut: true)
                     HStack(spacing: 6) {
                         Button { if let a = player.current?.shownArtist { ui.showArtist(a) } } label: {
                             // web .track-artist::after: the ' ›' at half the artist's brightness
@@ -243,17 +246,45 @@ struct SlidingTitle: View {
     var tag = ""
     /// The compact title glows now and then (web: the title spark).
     var spark = false
+    /// A title too long for its line fades out over its last 20 pt instead of ending in "…" (the compact title): the big
+    /// player's title lands on exactly this look when it closes, so nothing changes at the hand-over.
+    var fadeCut = false
+    @State private var avail: CGFloat = 0
+    static let cutFade: CGFloat = 20
     var body: some View {
+        let natural = fadeCut ? (text as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: size, weight: .semibold)]).width : 0
+        let cut = fadeCut && avail > 0 && natural > avail + 0.5
         Text(text)
             .font(.system(size: size, weight: .semibold))
             .foregroundStyle(.white)
             .shadow(color: .black.opacity(0.5), radius: 2.5, y: 2)        // web: text-shadow 0 2px 5px rgba(0,0,0,.5)
             .lineLimit(1)
+            .fixedSize(horizontal: cut, vertical: false)
             .overlay(alignment: .leading) { if spark { TitleGlint(text: text, size: size) } }
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { if spark { Glow.shared.titleW = $0 } }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w in if spark { Glow.shared.titleW = cut ? min(w, avail) : w } }
+            .frame(width: cut ? avail : nil, alignment: .leading)
+            .mask(alignment: .leading) {
+                if cut {
+                    LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: max(0, (avail - Self.cutFade) / avail)),
+                                           .init(color: .clear, location: 1)], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: avail).padding(.vertical, -14)
+                } else { Color.black.padding(-30) }
+            }
             .songSwap(text, direction: direction, center: center)
             .xp(tag)
             .frame(maxWidth: .infinity, alignment: center ? .center : .leading)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { if fadeCut, abs($0 - avail) > 0.5 { avail = $0 } }
+            .modifier(BoxTag(tag: fadeCut && !tag.isEmpty ? tag + "Box" : ""))   // its room: the big motion reads from it whether the title is cut
+    }
+}
+
+/// Reports a view's frame to the big-player motion without posing it.
+struct BoxTag: ViewModifier {
+    var tag: String
+    func body(content: Content) -> some View {
+        if tag.isEmpty { content } else {
+            content.onGeometryChange(for: CGRect.self) { $0.frame(in: .named("xp")) } action: { XPMotion.shared.report(tag, $0) }
+        }
     }
 }
 
@@ -306,6 +337,18 @@ private struct GlintBand: View, Animatable {
     }
 }
 
+/// The big player's buttons while it opens or closes: at the small end each one is the small button enlarged (its icon,
+/// rim, shadow and breathing glow in proportion), so after the morph's scaling it is the small one to the pixel and nothing
+/// changes where the two hand over; it blends into its own look as it opens. q: 0 = the small look, 1 = its own.
+enum XPMorph {
+    static let small: CGFloat = 34                       // the compact player's buttons
+    static func q(_ size: CGFloat, _ poses: XPPoses) -> CGFloat {
+        guard size >= 44, poses.moving else { return 1 }
+        return CGFloat(poses.pt * poses.pt)               // the small look until the hand-over, then its own
+    }
+    static func mix(_ a: CGFloat, _ b: CGFloat, _ q: CGFloat) -> CGFloat { a + (b - a) * q }
+}
+
 struct TransportButton: View {
     enum Kind { case prev, play, next }
     var kind: Kind
@@ -321,22 +364,23 @@ struct SkipButton: View {
     var next: Bool
     var size: CGFloat
     @State private var nudge: Double = 1                // rest = 1
+    @Environment(\.xpPoses) private var poses
     private var player: Player { .shared }
     var body: some View {
-        let d: Double = next ? 1 : -1
+        let d: Double = next ? 1 : -1, q = XPMorph.q(size, poses), ic = XPMorph.mix(14 * size / XPMorph.small, size >= 44 ? 20 : 14, q)
         Button {
             Haptics.light(); replay($nudge, duration: 0.4)
             if next { player.next() } else { player.previous() }
         } label: {
             // the web's own icon: 14 px in the small player, 20 px in the big one
             SVGIcon(d: next ? SVGIcon.next : SVGIcon.prev).fill(.white)
-                .frame(width: size >= 44 ? 20 : 14, height: size >= 44 ? 20 : 14)
+                .frame(width: ic, height: ic)
                 // web nudge: 0 → 4 px the way it points (30 %) → 1 px back (65 %) → 0, 400 ms ease
                 .modifier(KFEffect(p: nudge, dx: KF(stops: [(0, 0), (0.3, d * 4), (0.65, -d), (1, 0)], whole: .ease)))
         }
-        .buttonStyle(RoundButtonStyle(size: size, touchPoint: true))
+        .buttonStyle(RoundButtonStyle(size: size, touchPoint: true, morph: q))
         .accessibilityIdentifier(next ? "next" : "prev")
-        .modifier(Breath(index: next ? 2 : 0, amount: 0.035))
+        .modifier(Breath(index: next ? 2 : 0, amount: 0.035, morph: q))
     }
 }
 
@@ -355,8 +399,11 @@ struct PlayButton: View {
     @State private var cometB: Double = 1
     @State private var fired = false
     @State private var holdTask: Task<Void, Never>?
+    @Environment(\.xpPoses) private var poses
     private var player: Player { .shared }
-    private var icon: CGFloat { size >= 56 ? 26 : size == 34 ? 14 : size * 0.41 }   // web: 14 px small, 26 px big
+    private var icon0: CGFloat { size >= 56 ? 26 : size == 34 ? 14 : size * 0.41 }   // web: 14 px small, 26 px big
+    // while the big player opens or closes, the big Play is the small one enlarged at the small end (XPMorph)
+    private var icon: CGFloat { XPMorph.mix(14 * size / XPMorph.small, icon0, XPMorph.q(size, poses)) }
 
     var body: some View {
         Button {
@@ -370,9 +417,10 @@ struct PlayButton: View {
                 .modifier(KFEffect(p: turn, scale: KF(stops: [(0, 0.72), (1, 1)], whole: Bezier(0.22, 1.35, 0.36, 1)),
                                    angle: KF(stops: [(0, turnFrom), (1, 0)], whole: Bezier(0.22, 1.35, 0.36, 1))))
         }
-        .buttonStyle(RoundButtonStyle(size: size, touchPoint: true, onPress: { p in if p { if holdTask == nil { startHold() } } else { stopHold() } }))
+        .buttonStyle(RoundButtonStyle(size: size, touchPoint: true, onPress: { p in if p { if holdTask == nil { startHold() } } else { stopHold() } },
+                                      morph: XPMorph.q(size, poses)))
         .accessibilityIdentifier("play")
-        .modifier(Breath(index: 1, amount: 0.06))
+        .modifier(Breath(index: 1, amount: 0.06, morph: XPMorph.q(size, poses)))
         .overlay {
             ZStack {
                 Circle().stroke(Color.w(0.16), lineWidth: 2.3)
@@ -756,6 +804,18 @@ struct CoverArt: View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         let t = motion ? shown : track
         ZStack {
+            // the shadow: two soft squares under everything, drawn exactly as the big cover's (BigArtFrame), so the two
+            // covers' shadows match where they hand over (a SwiftUI .shadow here came out a little darker than those)
+            if big == nil {
+                ForEach(0..<2, id: \.self) { i in
+                    shape.fill(Color.black.opacity(i == 0 ? 0.32 : 0.18))
+                        .frame(width: size, height: size)
+                        .offset(y: sh(i == 0 ? 7 : 2))
+                        .blur(radius: sh(i == 0 ? 9 : 2.5))
+                        .modifier(CoverMotion(arrive: arrive, dip: dip, bump: bump, d: Double(direction) * 22, fromDx: fromDx, fromScale: fromScale, shape: shape))
+                }
+                .allowsHitTesting(false)
+            }
             if glow, t != nil { CoverGlowBack(size: size) }
             ZStack {
                 Color.black.opacity(0.22)
@@ -766,8 +826,6 @@ struct CoverArt: View {
             .frame(width: size, height: size)
             .clipShape(shape)
             .overlay(shape.stroke(.black.opacity(0.45 * (1 - (big?.g ?? 0))), lineWidth: 0.5 / (big?.s ?? 1)))
-            .shadow(color: .black.opacity(big == nil ? 0.18 : 0), radius: sh(2.5), y: sh(2))
-            .shadow(color: .black.opacity(big == nil ? 0.32 : 0), radius: sh(9), y: sh(7))
             .modifier(CoverMotion(arrive: arrive, dip: dip, bump: bump, d: Double(direction) * 22, fromDx: fromDx, fromScale: fromScale, shape: shape))
         }
         .frame(width: size, height: size)

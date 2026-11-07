@@ -223,8 +223,10 @@ struct RoundButtonStyle: ButtonStyle {
     var touchPoint = false
     /// told when the finger goes down and comes up (Play's hold-to-restart ring), without a second gesture on the button
     var onPress: ((Bool) -> Void)? = nil
+    /// 1 = its own look; below 1 the rim and shadow are the small player's, enlarged (XPMorph)
+    var morph: CGFloat = 1
     func makeBody(configuration: Configuration) -> some View {
-        RoundButtonBody(label: configuration.label, pressed: configuration.isPressed, size: size, filled: filled, touchPoint: touchPoint)
+        RoundButtonBody(label: configuration.label, pressed: configuration.isPressed, size: size, filled: filled, touchPoint: touchPoint, morph: morph)
             .onChange(of: configuration.isPressed) { _, p in onPress?(p) }
     }
 }
@@ -237,12 +239,14 @@ private struct RoundButtonBody<L: View>: View {
     var size: CGFloat
     var filled: Bool
     var touchPoint: Bool
+    var morph: CGFloat = 1
     @State private var at = UnitPoint.center
     @State private var hl: Double = 0
     @State private var place = FrameBox()
 
     var body: some View {
         let far = hypot(max(at.x, 1 - at.x), max(at.y, 1 - at.y)) * size      // CSS: circle … farthest-corner
+        let u = morph >= 1 ? 1 : 1 + (size / 34 - 1) * (1 - morph)            // the small button's px, enlarged
         label
             .frame(width: size, height: size)
             .background {
@@ -254,8 +258,8 @@ private struct RoundButtonBody<L: View>: View {
                     }
                 }
             }
-            .overlay(Circle().strokeBorder(Color.w(filled ? 0.15 : 0), lineWidth: 1))
-            .shadow(color: .black.opacity(filled ? 0.2 : 0), radius: 2.5, y: 2)
+            .overlay(Circle().strokeBorder(Color.w(filled ? 0.15 : 0), lineWidth: u))
+            .shadow(color: .black.opacity(filled ? 0.2 : 0), radius: 2.5 * u, y: 2 * u)
             .contentShape(Circle())
             // where the finger landed: read from the window's touch watcher, not from a gesture of our own (a drag
             // gesture on the button swallowed its taps)

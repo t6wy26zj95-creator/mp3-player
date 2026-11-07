@@ -219,6 +219,7 @@ struct XPPoses: Equatable {
     var artScale: Double?         // its current scale (its own px → screen px)
     var extra: Double = 1         // album · year write themselves in
     var chev: Double = 0          // the small artist line's " ›", riding along
+    var pt: Double = 0            // how far past the hand-over (0 until hand, 1 open): the big copies' own look follows it
     var moving = false
     var measuring = false         // the big layer is being laid out unseen (drawn at 0.1 % so it's ready on the first frame)
     subscript(_ k: String) -> XPPose { map[k] ?? XPPose() }
@@ -275,6 +276,10 @@ enum XPLayout {
     static func lin(_ p: Double, _ a: Double, _ b: Double) -> Double { clamp01((p - a) / (b - a)) }
     static func fade(_ p: Double, _ a: Double, _ b: Double) -> Double { let t = lin(p, a, b); return t * t * (3 - 2 * t) }
     static func grow(_ p: Double) -> Double { p * p * (1.6 - 0.6 * p) }
+    /// Where the small and big copies of the text, buttons and bar swap: a fifth of the way, while they move fast. At the
+    /// ends (p = 0) nothing moves, so the two copies' slightly different drawing (font optical size, weight, the dot) read
+    /// as the title / bar snapping in the last frame of a close.
+    static let hand = 0.2
     /// distance from a rounded square's centre to its edge at angle a (the path hugs the cover in a smooth curve)
     static func edge(_ a: Double, _ half: Double) -> Double { half / pow(pow(abs(cos(a)), 4) + pow(abs(sin(a)), 4), 0.25) }
 
@@ -315,9 +320,11 @@ enum XPLayout {
 
         // title and artist line, circling round the growing cover
         let ccx = curX + size / 2, ccy = curY + size / 2, W = Double(cs.width), limit = W - 14
-        let extra = fade(P, 0.14, 0.72)
+        let H = hand, inSmall = P < H
+        let extra = fade(P, H + 0.04, 0.76)
         out.extra = extra
-        out.chev = 1 - fade(P, 0, 0.13)
+        out.chev = 1 - fade(P, H, H + 0.13)
+        out.pt = clamp01((P - H) / (1 - H))
         let c0x = Double(ca.midX), c0y = Double(ca.midY), c1x = Double(ba.midX), c1y = Double(ba.midY)
         func orbit(_ a: (Double, Double), _ bb: (Double, Double), _ t: Double) -> (Double, Double) {
             let a0 = atan2(a.1 - c0y, a.0 - c0x)
@@ -340,14 +347,18 @@ enum XPLayout {
             }
             let r = ratio, k = lerp(1, r, P), sc = k / r, oy = Double(L.height) / 2
             let avail = W - Theme.panelPad - Double(cb.minX)
-            let swap = Double(cb.width) < avail - 1                    // the small line isn't cut short: the big copy takes over in place
+            // the small line isn't cut short: the big copy takes over in place. A cut small title is exactly as wide as its
+            // room (it fades out at the end of it), so the title is read against its own room, not the panel's edge
+            let room = name == "title" ? Double(c["c.titleBox"]?.width ?? CGFloat(avail)) : avail
+            let swap = Double(cb.width) < room - 0.5
             // cut short ("…") while the big one fits on one line: it still takes over in place, and the letters the small
             // one hid write themselves in (a cross-fade of two different copies read as the text jumping)
-            let reveal = name == "title" && !swap && L == xb ? max(0, Double(cb.width) - 14) * r : 0
+            // (the small title fades out over its last 20 pt instead of "…", so at either end the two look the same)
+            let reveal = name == "title" && !swap && L == xb ? max(1, Double(cb.width) - Double(SlidingTitle.cutFade)) * r : 0
             var shown = 0.0
-            if reveal > 0 { shown = lerp(reveal, Double(xb.width), fade(P, 0, 0.45)); out.titleReveal = name == "title" && P < 1 ? CGFloat(shown) : nil }
+            if reveal > 0 { shown = lerp(reveal, Double(xb.width), fade(P, H, H + 0.45)); out.titleReveal = name == "title" && P < 1 ? CGFloat(shown) : nil }
             let inPlace = swap || reveal > 0
-            let cOp = inPlace ? (P > 0 ? 0 : 1) : max(0, 1 - fade(P, 0.1, 0.22)), xOp = inPlace ? (P > 0 ? 1 : 0) : fade(P, 0.06, 0.2)
+            let cOp = inPlace ? (inSmall ? 1 : 0) : max(0, 1 - fade(P, 0.1, 0.22)), xOp = inPlace ? (inSmall ? 0 : 1) : fade(P, 0.06, 0.2)
             let o0y = Double(cb.midY) - oy / r, o1y = Double(L.minY)
             var (cx, cy) = orbit((Double(cb.minX), o0y), (Double(L.minX), o1y), P)
             // never lower than the lower of its two resting places: the corner's path round the cover passes straight below
@@ -408,10 +419,11 @@ enum XPLayout {
             let tx = 1 - cos(fade(P, isTime ? 0.3 : 0.1, 1) * .pi / 2)
             let X = lerp(c0.0, x1.0, tx), Y = rowY(c0.1, x1.1) + push, k = lerp(1, r, hc)
             let anchor = UnitPoint(x: f, y: 0.5)
-            let cOp = same ? (P > 0 ? 0 : 1) : max(0, 1 - fade(P, 0, 0.12)), xOp = same ? (P > 0 ? 1 : 0) : fade(P, 0.12, 0.32)
+            let cOp = same ? (inSmall ? 1 : 0) : max(0, 1 - fade(P, 0, 0.12)), xOp = same ? (inSmall ? 0 : 1) : fade(P, 0.12, 0.32)
             map[cname] = XPPose(dx: X - c0.0, dy: Y - c0.1, scale: k, anchor: anchor, opacity: cOp)
             if track {
-                let w = lerp(Double(cb.width), Double(xb.width), hc)    // the bar opens up from the small one's length (its dot stays round)
+                // the bar opens up from the small one's length (its dot stays round), only once the big one has taken over
+                let w = lerp(Double(cb.width), Double(xb.width), out.pt * out.pt)
                 map["b.bar"] = XPPose(dx: X - x1.0, dy: Y - x1.1, anchor: anchor, opacity: xOp, width: w)
             } else {
                 map["b." + name] = XPPose(dx: X - x1.0, dy: Y - x1.1, scale: k / r, anchor: anchor, opacity: xOp)
