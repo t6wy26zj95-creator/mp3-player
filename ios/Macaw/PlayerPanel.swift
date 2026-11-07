@@ -341,7 +341,7 @@ enum XPMorph {
     static let small: CGFloat = 34                       // the compact player's buttons
     static func q(_ size: CGFloat, _ poses: XPPoses) -> CGFloat {
         guard size >= 44, poses.moving else { return 1 }
-        return CGFloat(poses.p * poses.p)                 // as the buttons' own scale (hc)
+        return CGFloat(poses.pt * poses.pt)               // the small look until the hand-over, then its own
     }
     static func mix(_ a: CGFloat, _ b: CGFloat, _ q: CGFloat) -> CGFloat { a + (b - a) * q }
 }
