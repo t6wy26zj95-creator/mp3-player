@@ -23,6 +23,10 @@ final class XPMotion {
     /// Only taken while that layout is at rest and untouched by the motion.
     @ObservationIgnored var c: [String: CGRect] = [:]
     @ObservationIgnored var b: [String: CGRect] = [:]
+    /// Where each big part is laid out WHILE it moves (before its pose's offset). The panel is laid out a little
+    /// differently then (fixed height), so a pose worked out from the resting spot (b) put some parts about a third of a
+    /// point off, and they stepped back in the open's last frame. The poses are corrected by the difference.
+    @ObservationIgnored var bm: [String: CGRect] = [:]
     /// The first line of the big title / artist line when it wraps (its width and height): centred text, so the morph
     /// carries that line, not the block's corner, onto the small one-line copy (else the name jumps at the hand-over).
     @ObservationIgnored var line1: [String: CGSize] = [:]
@@ -56,7 +60,8 @@ final class XPMotion {
     func report(_ tag: String, _ r: CGRect) {
         if tag.hasPrefix("c.") {
             if phase == .compact || (phase == .measuring && tag != "c.stack") { c[tag] = r }
-        } else if phase == .measuring || (phase == .big && ui.lyricsScroll == 0 && !ui.lyricsOpen) { b[tag] = r }
+        } else if phase == .measuring || (phase == .big && ui.lyricsScroll == 0 && !ui.lyricsOpen) { b[tag] = r; bm[tag] = nil }
+        else if phase == .moving { bm[tag] = r }
     }
 
     func open() {
@@ -443,6 +448,13 @@ enum XPLayout {
         map["b.strip"] = XPPose(dy: (1 - bo) * 12, opacity: bo)
         map["b.handle"] = XPPose(opacity: fade(P, 0.5, 0.9))
         map["b.lyr"] = XPPose(opacity: 0)
+        // laid out elsewhere while moving than at rest: keep each big part on its pose all the same (by centres: the
+        // bar's width changes round its centre)
+        for (k, var pose) in map where k.hasPrefix("b.") {
+            guard let r0 = b[k], let r1 = m.bm[k] else { continue }
+            pose.dx += r0.midX - r1.midX; pose.dy += r0.midY - r1.midY
+            map[k] = pose
+        }
         out.map = map
         return out
     }

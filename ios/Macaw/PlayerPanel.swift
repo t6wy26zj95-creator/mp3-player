@@ -47,6 +47,9 @@ struct PlayerPanel: View {
                 }
                 .xp("c.stack")
             }
+            // while it moves, the small copies (title, buttons) sit over the big layer: the big cover's colour glow went
+            // over the small title and tinted it, and the tint went off in the close's last frame (a sudden light change)
+            .zIndex(motion.phase == .moving ? 1 : 0)
             if motion.phase != .compact {
                 XPLayer(big: true) { BigPlayer(close: close).xp("b.stack") }
                     .transition(.identity)
