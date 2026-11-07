@@ -1188,7 +1188,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.6";
+const APP_VERSION = "v0.7";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -5166,7 +5166,7 @@ XP = (() => {
       if (sv.s > .5 || sv.raf) { svTo(0, 0, close); return; }
     }
     if (!st.raf) prep();
-    animateTo(0, 0);
+    animateTo(0, st.raf ? st.v : 0);                                 // turned round mid-way: from its current speed, no sudden stop
   }
   function reset() { cancelAnimationFrame(st.raf); st.sheet = st.pendingOpen = false; wrap.classList.remove("sheet"); if (shown()) settle(0); wrap.style.height = ""; }
   /* Library / Artists / Queue while expanded: fold back to the compact row and let the section fill the tall panel */
@@ -5196,6 +5196,7 @@ XP = (() => {
   const INTENT = 9, STEEP = 1.4;                                     // px before a touch's intent is decided; how vertical "down" must be
   let dragEndAt = 0;                                                 // a drag that ended on a button must not also press it
   function gStart(ev, from, onTap, any) {
+    if (g && !g.started && ev.pointerId !== g.id && performance.now() - g.t0 > 1000) g = null;   // a touch whose end never came (it can't hold up every later tap)
     if (g || (ev.pointerType === "mouse" && ev.button)) return;
     g = { id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, t0: performance.now(), from, onTap, any, started: false, dead: false, samples: [] };
     ev._xp = true;                                                   // the bubble leaves this pull alone
@@ -5273,7 +5274,7 @@ XP = (() => {
     g = { id: d.id, x0: ev.clientX, y0: ev.clientY, t0: performance.now(), from: st.expanded ? 1 : 0, started: false, dead: false, samples: [] };
     begin(ev); return true;
   };
-  artBox.addEventListener("pointerdown", ev => gStart(ev, 0, open));
+  artBox.addEventListener("pointerdown", ev => { if (!st.raf) gStart(ev, 0, open); });   // while it moves, the panel's own handler below takes the tap
   /* the rest of the row: the bubble reports pulls that start here (see xpPullHook); without the bubble (Old panel), and on
      the artist name (a link, so the bubble leaves it alone), the row starts the expand gesture itself */
   pm.addEventListener("pointerdown", ev => { if (!ev._xp && (!bubble.on || ev.target.closest(".track-artist"))) gStart(ev, 0, null); });
@@ -5293,7 +5294,14 @@ XP = (() => {
     gStart(ev, 1, fold ? close : null);
     if (g && g.id === ev.pointerId) g.fold = fold;
   });
-  wrap.addEventListener("pointerdown", ev => { if (st.raf && !st.sheet && !drawerOpen()) gStart(ev, st.target, null, true); });
+  /* while it springs a touch anywhere catches it; a tap on the cover (wherever it is on its way) turns it round, like a
+     tap on it at rest does. Taps on the moving cover did nothing before, so quick repeated taps seemed to be ignored */
+  wrap.addEventListener("pointerdown", ev => {
+    if (!st.raf || st.sheet || drawerOpen()) return;
+    const r = (st.p > 0 ? $("xp-art") : artBox).getBoundingClientRect();
+    const onArt = ev.clientX >= r.left - 6 && ev.clientX <= r.right + 6 && ev.clientY >= r.top - 6 && ev.clientY <= r.bottom + 6;
+    gStart(ev, st.target, onArt ? () => { if (st.target === 1) { haptic("light"); close(); } else open(); } : null, true);
+  });
   xp.addEventListener("click", ev => { if (performance.now() - dragEndAt < 350) { ev.stopPropagation(); ev.preventDefault(); } }, true);
   handle.addEventListener("click", e => { if (e.detail === 0) close(); });   // keyboard
   document.addEventListener("keydown", e => {
