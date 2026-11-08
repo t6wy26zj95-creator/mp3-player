@@ -32,26 +32,18 @@ struct SettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    header("Wallpaper")
+                    header("Wallpapers")
                     group {
-                        row {
-                            ZStack {
-                                if let w = ui.wallpaper { Image(uiImage: w).resizable().scaledToFill() } else { Color.w(0.1) }
-                            }
-                            .frame(width: 36, height: 36).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            label("Wallpaper", Wallpaper.hasCustom ? "Your photo" : "Default")
-                            PhotosPicker(selection: $photo, matching: .images) { pill("Change") }
+                        WallGrid()
+                        divider
+                        // the photo library only (no camera)
+                        PhotosPicker(selection: $photo, matching: .images, photoLibrary: .shared()) {
+                            Text("Choose your own").font(.system(size: 15, weight: .medium)).foregroundStyle(Theme.teal)
+                                .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading).padding(.horizontal, 14)
+                                .contentShape(Rectangle())
                         }
-                        if Wallpaper.hasCustom {
-                            divider
-                            Button {
-                                Wallpaper.clearCustom(); ui.reloadWallpaper()
-                            } label: {
-                                Text("Use the default wallpaper").font(.system(size: 15)).foregroundStyle(Theme.teal)
-                                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 14)
-                            }
-                            .buttonStyle(PressStyle())
-                        }
+                        .buttonStyle(PressStyle())
+                        .accessibilityIdentifier("chooseWall")
                         divider
                         VStack(spacing: 10) {
                             HStack {
@@ -336,5 +328,45 @@ struct MacawSlider: View {
             }.onEnded { _ in held = false; editing?(false) })
         }
         .frame(height: 28)
+    }
+}
+
+/// web .wall-grid: the built-in wallpapers as squares to pick from (+ your own photo while it's the one on),
+/// the one on has a teal ring and a check
+private struct WallGrid: View {
+    private var ui: UIState { .shared }
+    var body: some View {
+        let _ = ui.wallpaperVersion                                       // redraw when the wallpaper changes
+        let own = Wallpaper.hasCustom, on = own ? "own" : Wallpaper.chosen.id
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 68), spacing: 10)], spacing: 10) {
+            ForEach(Wallpaper.builtins) { b in
+                Button {
+                    guard b.id != on else { return }
+                    Haptics.light(); Wallpaper.choose(b); ui.reloadWallpaper()
+                } label: { tile(Wallpaper.thumb(b), on: b.id == on) }
+                .buttonStyle(PopStyle())
+                .accessibilityLabel(b.name)
+                .accessibilityAddTraits(b.id == on ? .isSelected : [])
+            }
+            if own {
+                tile(ui.wallpaper, on: true).accessibilityLabel("Your photo").accessibilityAddTraits(.isSelected)
+            }
+        }
+        .padding(14)
+    }
+    private func tile(_ img: UIImage?, on: Bool) -> some View {
+        Color(red: 0x1d / 255, green: 0x4e / 255, blue: 0x5f / 255)
+            .aspectRatio(1, contentMode: .fit)
+            .overlay { if let img { Image(uiImage: img).resizable().scaledToFill() } }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.w(0.18), lineWidth: 1))
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "checkmark").font(.system(size: 10, weight: .heavy)).foregroundStyle(Color(red: 10 / 255, green: 24 / 255, blue: 32 / 255))
+                    .frame(width: 20, height: 20).background(Circle().fill(Theme.teal)).padding(5)
+                    .opacity(on ? 1 : 0).scaleEffect(on ? 1 : 0.6)
+            }
+            .padding(4)
+            .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).strokeBorder(Theme.teal, lineWidth: 2).opacity(on ? 1 : 0))
+            .padding(-4)
     }
 }

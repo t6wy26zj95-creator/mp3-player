@@ -8,7 +8,7 @@ import WebKit
 final class Migration: NSObject, WKScriptMessageHandler, WKURLSchemeHandler {
     static let doneKey = "nativeMigrated"
     /// Keys taken over as they are (same names and format in this app).
-    static let keys = ["playlists", "hiddenAlbums", "albumOrder", "releaseMap2", "tileCovers", "allName", "wallpaperBlur", "repeatMode",
+    static let keys = ["playlists", "hiddenAlbums", "albumOrder", "releaseMap2", "tileCovers", "allName", "wallpaperBlur", "wallDefault", "repeatMode",
                        "playState", "playPos", "tgKey", "tgDone", "tgAlbums", "tgDur", "tgPending", "syncSeen", "oldPanel", "retroMode",
                        "libView", "lightMin", "tiltOn", "artistCache", "lyrics1"]
 

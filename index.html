@@ -883,7 +883,17 @@ button.set-row:active{background:rgba(255,255,255,.08)}
 .set-in:focus{border-color:rgba(255,255,255,.45)}
 .qr-box{width:150px;height:150px;flex-shrink:0;background:#fff;border-radius:12px;padding:6px;box-sizing:border-box}
 .qr-box svg{display:block;width:100%;height:100%}
-.set-wall{width:34px;height:34px;flex-shrink:0;border-radius:9px;background:#1d4e5f center/cover no-repeat;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+/* Wallpapers: the built-in ones as squares to pick from (+ your own photo while it's on), then "Choose your own" */
+.wall-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:10px;padding:14px}
+.wall-grid+.set-row{box-shadow:inset 0 1px rgba(255,255,255,.08)}
+.wall-t{position:relative;aspect-ratio:1;border:0;padding:0;border-radius:12px;background:#1d4e5f center/cover no-repeat;cursor:pointer;
+  box-shadow:0 0 0 1px rgba(255,255,255,.18);transition:box-shadow var(--t-n) var(--ease),transform var(--t-n) var(--ease-pop)}
+.wall-t:active{transform:scale(.94)}
+.wall-t[aria-checked="true"]{box-shadow:0 0 0 2px rgba(10,24,32,.9),0 0 0 4px rgb(120,222,202)}
+.wall-t i{position:absolute;right:5px;bottom:5px;width:20px;height:20px;border-radius:50%;background:rgb(120,222,202);display:flex;align-items:center;justify-content:center;
+  opacity:0;transform:scale(.6);transition:opacity var(--t-n) var(--ease),transform var(--t-n) var(--ease-pop)}
+.wall-t i svg{width:14px;height:14px;fill:#0a1820}
+.wall-t[aria-checked="true"] i{opacity:1;transform:none}
 .set-slide{flex-wrap:wrap;row-gap:4px;padding-bottom:12px}
 .set-slide input{flex-basis:100%;margin:0;height:28px;background:none;-webkit-appearance:none;appearance:none;cursor:pointer;touch-action:none}
 .set-slide input::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,#fff var(--v,0%),rgba(255,255,255,.18) var(--v,0%))}
@@ -1128,10 +1138,10 @@ html.cf-land .cf-s{font-size:13px}
 <div class="floating-customizer" id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="set-title">
   <div class="set-head"><h2 id="set-title">Settings</h2><button class="set-x" id="settings-close" aria-label="Close settings"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
   <div class="set-body">
-    <div class="set-h no-float">Wallpaper</div>
+    <div class="set-h no-float">Wallpapers</div>
     <div class="set-group no-float">
-      <div class="set-row"><i class="set-wall" id="wall-thumb"></i><span class="set-l">Wallpaper<small id="wall-name">Default</small></span><button class="set-pill" id="upload-wall">Change</button></div>
-      <button class="set-row set-link" id="reset-wall" hidden>Use the default wallpaper</button>
+      <div class="wall-grid" id="wall-grid" role="radiogroup" aria-label="Wallpapers"></div>
+      <button class="set-row set-link" id="upload-wall">Choose your own</button>
       <div class="set-row set-slide"><span class="set-l">Blur</span><span class="set-v" id="blur-val">Off</span><input type="range" id="blur-slider" min="0" max="30" step="1" value="0" aria-label="Wallpaper blur"></div>
     </div>
     <div class="set-h">Library</div>
@@ -1188,7 +1198,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.7";
+const APP_VERSION = "v0.8";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -1212,7 +1222,7 @@ const tgStore = tgAt("9.0") && TG.DeviceStorage ? TG.DeviceStorage : null;
 /* Each write to Telegram's storage is a round trip through the app, so a key is sent at most once per its delay (the
    latest value wins), and whatever is still waiting is sent straight away when the app is hidden or closed. The play
    position changes every few seconds while you listen: it goes at most every 30 s (and on pause / hide). */
-const MIRROR = ["photoData", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName", "libView", "lightMin"], mirrorT = {}, mirrorV = {};
+const MIRROR = ["photoData", "wallDefault", "wallpaperBlur", "oldPanel", "repeatMode", "hiddenAlbums", "albumOrder", "releaseMap2", "artistCache", "playState", "playPos", "perfLite", "retroMode", "playlists", "tileCovers", "allName", "libView", "lightMin"], mirrorT = {}, mirrorV = {};
 /* Your library layout is shared by all your devices through your music server (see SHARED LIBRARY LAYOUT): playlists,
    hidden albums, tile order and covers, the All Tracks name, and which release each album was matched to, so an album
    lists the same songs (grey ones too) in Telegram, in the iOS app and in the Windows app. syncAt = when each key last
@@ -1341,31 +1351,55 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
 })();
 
 /* ---------- WALLPAPER ---------- */
-const DEFAULT_WALL = "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?auto=format&fit=crop&w=2400&q=75";
+/* the built-in wallpapers, in the order Settings shows them; the first is the default. pos: where "cover" anchors it (x, y). */
+const WALLS = [
+  { id: "autumn", name: "Autumn sky", src: "https://raw.githubusercontent.com/t6wy26zj95-creator/mp3-player/main/walls/autumn-sky.jpg", pos: [.5, .5] }
+];
+/* the wallpaper that's on: your own photo, or the built-in one you picked (the first one until you pick) */
+function wallNow() {
+  const own = store.get("photoData");
+  if (own) return { id: "own", name: "Your photo", src: own, pos: [.5, .5] };
+  return WALLS.find(w => w.id === store.get("wallDefault")) || WALLS[0];
+}
 const FALLBACK_BG = "linear-gradient(160deg,#0b1d24,#1d4e5f 60%,#0b1d24)";
 const mainBg = $("main-bg");
 function applyBg() {
   const bl = +(store.get("wallpaperBlur") || 0);
   mainBg.style.filter = bl ? `blur(${bl}px)` : "";                  // no blur(0px) filter: even a zero blur costs an extra full-screen pass
   mainBg.style.setProperty("--bgm", bl ? Math.ceil(bl * 2.5 + 8) + "px" : "0px");   // keep the blur's dark fringe off screen (see .bg-container)
-  const custom = store.get("photoData");
-  mainBg.style.backgroundImage = `url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;
-  const pos = custom ? "center" : "70% 24%";
+  const w = wallNow();
+  mainBg.style.backgroundImage = `url('${w.src}'), ${FALLBACK_BG}`;
+  const pos = `${w.pos[0] * 100}% ${w.pos[1] * 100}%`;
   mainBg.style.backgroundPosition = `${pos}, center`;
   // Same wallpaper painted on the page canvas itself, so it also fills the strip under Safari's bar.
   // Inside Telegram there is no such bar: a plain colour there saves painting the full-size photo twice.
   const root = document.documentElement.style, vig = "radial-gradient(circle at center,rgba(0,0,0,0) 30%,rgba(0,0,0,.6) 100%)";
   if (TG) root.backgroundImage = "";
   else {
-    root.backgroundImage = `${vig}, url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;
+    root.backgroundImage = `${vig}, url('${w.src}'), ${FALLBACK_BG}`;
     root.backgroundSize = "100% 100%, cover, cover";
     root.backgroundPosition = `center, ${pos}, center`;
   }
   if (window.__bgChanged) window.__bgChanged();                     // the Liquid Glass panel draws the wallpaper itself
-  wallTone(custom || DEFAULT_WALL);
-  $("wall-thumb").style.backgroundImage = `url('${custom || DEFAULT_WALL}'), ${FALLBACK_BG}`;   // Settings: which wallpaper is on
-  $("wall-name").textContent = custom ? "Your photo" : "Default";
-  $("reset-wall").hidden = !custom;
+  wallTone(w.src);
+  wallGrid(w);
+}
+/* Settings > Wallpapers: one square per built-in wallpaper, and your own photo while it's the one on */
+function wallGrid(on) {
+  const g = $("wall-grid"), list = on.id === "own" ? [...WALLS, on] : WALLS;
+  g.textContent = "";
+  for (const w of list) {
+    const b = document.createElement("button");
+    b.className = "wall-t"; b.setAttribute("role", "radio"); b.setAttribute("aria-label", w.name); b.title = w.name;
+    b.setAttribute("aria-checked", String(w.id === on.id));
+    b.style.backgroundImage = `url('${w.src}')`;
+    b.innerHTML = '<i><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></i>';
+    if (w.id !== "own") b.addEventListener("click", () => {
+      if (w.id === on.id) return;
+      store.set("photoData", ""); store.set("wallDefault", w.id); applyBg(); haptic("light");
+    });
+    g.appendChild(b);
+  }
 }
 /* How bright the wallpaper is where you see it: a light photo gets a darker tint on the glass (--scrim), so white text
    stays readable. The Liquid Glass panel also darkens bright spots pixel by pixel (see glassy in its shader); this is the
@@ -1405,7 +1439,6 @@ PERF.on(v => {                                                       // glide th
   requestAnimationFrame(step);
 });
 $("upload-wall").addEventListener("click", () => $("photo-input").click());
-$("reset-wall").addEventListener("click", () => { store.set("photoData", ""); applyBg(); haptic("light"); });
 $("photo-input").addEventListener("change", e => {
   const f = e.target.files[0]; if (!f) return;
   const img = new Image(), u = URL.createObjectURL(f);
@@ -1475,7 +1508,7 @@ const BOOT = (() => {
   if (!done) {
     B.hold("wall");
     const im = new Image(), fin = () => B.ok("wall");
-    im.src = store.get("photoData") || DEFAULT_WALL;
+    im.src = wallNow().src;
     if (im.decode) im.decode().then(fin, fin); else { im.onload = im.onerror = fin; }
     let uid = ""; try { uid = TG.initDataUnsafe.user.id; } catch (e) {}
     if (NAT || (botMode && store.get("libCache1:" + uid))) B.hold("lib");   // your songs come a moment after the page (same key as libKey)
@@ -4121,7 +4154,7 @@ const bubble = (() => {
     }
     function loadTex() {
       if (!gl) return;
-      const src = store.get("photoData") || DEFAULT_WALL; if (src === texSrc) return; texSrc = src;
+      const src = wallNow().src; if (src === texSrc) return; texSrc = src;
       const im = new Image(); im.crossOrigin = "anonymous"; im.decoding = "async";
       im.onload = () => {
         if (texSrc !== src) return;
@@ -4319,7 +4352,7 @@ const bubble = (() => {
       /* where the wallpaper sits: .bg-container is fixed, background-size cover at applyBg's position, moved by the tilt
          parallax and scaled 1.04 about its centre. uv = ((pc - c - t) / 1.04 + c - off) / size */
       const cw0 = geo.cw, ch0 = geo.ch, tx = TILT.ex || 0, ty = TILT.ey || 0;
-      const custom = !!store.get("photoData"), posX = custom ? .5 : .7, posY = custom ? .5 : .24;
+      const [posX, posY] = wallNow().pos;
       const scl = Math.max(cw0 / texW, ch0 / texH), dw = texW * scl, dh = texH * scl, offX = (cw0 - dw) * posX, offY = (ch0 - dh) * posY;
       const cx = cw0 / 2, cy = ch0 / 2, S = 1.04, ttx = tx * -6, tty = ty * -6;
       gl.viewport(0, 0, bw, bh); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);

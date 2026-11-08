@@ -91,23 +91,33 @@ struct CoverImage: View {
     }
 }
 
-/// The wallpaper: your own photo (Settings > Wallpaper), or the default one, kept in the app.
+/// The wallpaper: your own photo (Settings > Wallpapers > Choose your own), or one of the built-in ones (web WALLS),
+/// which come with the app (Walls/). The first built-in one is the default.
 enum Wallpaper {
-    static let defaultURL = URL(string: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?auto=format&fit=crop&w=2400&q=75")!
+    struct Builtin: Identifiable { let id: String; let name: String; let file: String }
+    static let builtins = [Builtin(id: "autumn", name: "Autumn sky", file: "autumn-sky")]
+
     static var customFile: URL { Library.shared.supportFolder.appendingPathComponent("wallpaper.jpg") }
-    static var defaultFile: URL { Library.shared.supportFolder.appendingPathComponent("wallpaper-default.jpg") }
+    static func url(_ b: Builtin) -> URL? { Bundle.main.url(forResource: b.file, withExtension: "jpg") }
+    /// the built-in one you picked (same Store key as the web: wallDefault), the first until you pick
+    @MainActor static var chosen: Builtin { builtins.first { $0.id == Store.shared["wallDefault"] } ?? builtins[0] }
+    /// picking a built-in one puts your own photo away
+    @MainActor static func choose(_ b: Builtin) { clearCustom(); Store.shared["wallDefault"] = b.id }
 
     static func saveCustom(_ jpeg: Data) { try? jpeg.write(to: customFile, options: .atomic) }
     static func clearCustom() { try? FileManager.default.removeItem(at: customFile) }
     static var hasCustom: Bool { FileManager.default.fileExists(atPath: customFile.path) }
 
-    static func load() async -> UIImage? {
-        let file = hasCustom ? customFile : defaultFile
-        if !FileManager.default.fileExists(atPath: file.path) && !hasCustom {
-            if case let (data, _)? = try? await URLSession.shared.data(from: defaultURL), UIImage(data: data) != nil {
-                try? data.write(to: defaultFile, options: .atomic)
-            }
-        }
+    @MainActor static func load() async -> UIImage? {
+        guard let file = hasCustom ? customFile : url(chosen) else { return nil }
         return await Task.detached { Covers.downsample(url: file, px: 1800) }.value
+    }
+
+    /// Settings' squares: small copies, made once
+    @MainActor private static var thumbs: [String: UIImage] = [:]
+    @MainActor static func thumb(_ b: Builtin) -> UIImage? {
+        if let t = thumbs[b.id] { return t }
+        guard let u = url(b), let t = Covers.downsample(url: u, px: 240) else { return nil }
+        thumbs[b.id] = t; return t
     }
 }
