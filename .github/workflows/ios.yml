@@ -132,9 +132,9 @@ jobs:
           fi
 
   # Runs the app in an iPhone simulator with a few test songs and takes screenshots of each screen, so the native app
-  # can be compared with the web player before a build goes to a phone. (Native app branch only.)
+  # can be compared with the web player before a build goes to a phone. (Claude's working branches only.)
   screens:
-    if: github.ref == 'refs/heads/claude/project-thread-rbe9f3'
+    if: startsWith(github.ref, 'refs/heads/claude/')
     runs-on: xcode-27
     timeout-minutes: 70
     steps:
