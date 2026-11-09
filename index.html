@@ -999,6 +999,14 @@ html.cf-land #player-main,html.cf-land #controls-main{display:none!important}
 html.cf-land .cf-stage{margin:0 -16px}
 html.cf-land .cf-t{font-size:16px}
 html.cf-land .cf-s{font-size:13px}
+/* Hidden is really hidden (speed): faded out, these were still frosted glass the phone kept as layers and blurred behind
+   (Settings alone a whole screen's worth, and one on every album cover in Library). Now they leave the page's drawing once
+   their fade-out has finished (visibility, switched after the fade), and come back at once when shown. */
+html:not(.desk-float) .floating-customizer:not(.active){visibility:hidden;transition:opacity var(--t-n) var(--ease),transform var(--t-s) var(--ease),visibility 0s linear var(--t-s)}
+.toast:not(.show){visibility:hidden;transition:opacity var(--t-n) var(--ease),transform var(--t-s) var(--ease),visibility 0s linear var(--t-s)!important}
+.albums-grid:not(.editing) .del-badge{visibility:hidden;transition:opacity var(--t-n) var(--ease),transform var(--t-s) var(--ease),background var(--t-n) var(--ease),visibility 0s linear var(--t-s)}
+.player-footer:not(.edit) .done-btn{visibility:hidden;transition:background var(--t-n) var(--ease),color var(--t-n) var(--ease),transform var(--t-q) var(--ease),border-color var(--t-n) var(--ease),opacity var(--t-n) var(--ease),visibility 0s linear var(--t-n)}
+.tab-pill:not(.on){visibility:hidden;transition:opacity var(--t-n) var(--ease),scale var(--t-s) var(--ease-pop),visibility 0s linear var(--t-s)}
 </style>
 </head>
 <body>
@@ -1198,7 +1206,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.8";
+const APP_VERSION = "v0.9";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -5144,14 +5152,18 @@ XP = (() => {
        (or from the finger's speed when let go) and eases out without the crawl. PC keeps the curve. */
     if (PHONE_SPRING) {
       const W = 2 * Math.PI / .4, y0 = p0 - target, w0 = (v0 || 0) + W * y0;   // y(t) = (y0 + (v0 + W·y0)·t)·e^(−W·t)
+      let tc = 0;
       const spring = now => {
         /* the first frame shows the start as it is (with the big player's layer now on screen): everything in it, the
            cover's glow included, gets drawn once before anything moves. Starting to move in that same frame showed the
            glow missing for one frame (the small one already hidden, the big one not drawn yet): a flicker on opening */
-        if (!t0) t0 = now;
+        /* its clock moves on by at most 1/20 s a frame: when the phone stalls for a moment (a slow frame), the motion
+           waits and carries on from where it was, instead of jumping ahead to where it would have been by then
+           (a 0.25 s stall on the first frame showed the big player already 90 % open) */
+        if (!t0) t0 = now; else tc += Math.min(.05, (now - last) / 1000);
         const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
         PERF.frame(now);
-        const t = (now - t0) / 1000, ex = Math.exp(-W * t), y = (y0 + w0 * t) * ex;
+        const t = tc, ex = Math.exp(-W * t), y = (y0 + w0 * t) * ex;
         const prev = st.p;
         st.p = clamp01(target + y);
         st.v = dt ? (st.p - prev) / dt : 0;
@@ -5788,6 +5800,7 @@ XP = (() => {
 })();
 
 /* ---------- LIQUID GLASS: tilt (optional) adds to the cover light; the light also moves on its own ---------- */
+let tiltHoldUntil = 0;                                               // the tilt holds still until then (see tick below)
 let tiltAt = 0;                                                      // last time tilt/mouse moved the light (keeps the light loop at full frame rate)
 (function () {
   if (matchMedia("(prefers-reduced-motion:reduce)").matches) return;
@@ -5797,15 +5810,28 @@ let tiltAt = 0;                                                      // last tim
      whole page, which was the single biggest cause of the lag. Now it is written only where it is read (the cover's
      glow), the wallpaper is moved with a plain transform, and the glass edge is told directly. Changes smaller than
      ~0.1 degree (sensor noise, you can't see them) aren't written at all, so a phone lying still costs nothing. */
+  /* While you touch the player, and while a panel opens, closes or the big player moves, the tilt holds still: each tilt
+     step moves the wallpaper and redraws the whole glass panel, and on an iPhone held in the hand (Telegram's motion
+     sensor is always on) that ran 30 times a second right through every animation, competing with it. Afterwards the
+     wallpaper and the cover light glide to the new tilt over ~0.15 s instead of jumping there. */
+  let held = false, heldEnd = -1e9;
+  const wrapEl = document.querySelector(".player-wrapper");
+  new MutationObserver(() => { tiltHoldUntil = performance.now() + MOTION.s + 100; }).observe($("drawer-box"), { attributes: true, attributeFilter: ["class"] });   // a section opening or closing (also from Telegram's Back)
+  const tiltHeld = now => uiHold || now < uiCalmAt || now < tiltHoldUntil || wrapEl.classList.contains("xp-anim");
   function tick(now) {
-    raf = 0; const k = 1 - Math.pow(.9, Math.min(4, lastT ? (now - lastT) / 16.7 : 1)); lastT = now;   // same smoothing at 30, 60 or 120 fps
+    const dms = lastT ? now - lastT : 16.7;
+    raf = 0; const k = 1 - Math.pow(.9, Math.min(4, dms / 16.7)); lastT = now;   // same smoothing at 30, 60 or 120 fps
     cx += (tx - cx) * k; cy += (ty - cy) * k;
+    const h = tiltHeld(now);
+    if (h !== held) { held = h; if (!h) heldEnd = now; }
+    if (held) { lastT = 0; clearTimeout(tick.t); tick.t = setTimeout(go, 80); return; }   // checked again shortly (no frame-by-frame loop while held)
     if (Math.abs(cx - wx) + Math.abs(cy - wy) > .012) {
-      wx = cx; wy = cy; tiltAt = now; TILT.x = cx; TILT.y = cy;
-      pm.style.setProperty("--tx", cx.toFixed(3)); pm.style.setProperty("--ty", cy.toFixed(3));
+      const g = now - heldEnd < 600 ? 1 - Math.exp(-Math.min(50, dms) / 50) : 1;   // just after a hold: glide, don't jump
+      wx += (cx - wx) * g; wy += (cy - wy) * g; tiltAt = now; TILT.x = wx; TILT.y = wy;
+      pm.style.setProperty("--tx", wx.toFixed(3)); pm.style.setProperty("--ty", wy.toFixed(3));
       pend = true;
     }
-    const moving = Math.abs(tx - cx) + Math.abs(ty - cy) > .012;
+    const moving = Math.abs(tx - cx) + Math.abs(ty - cy) > .012 || Math.abs(cx - wx) + Math.abs(cy - wy) > .012;
     /* the wallpaper and the glass edge move together, at the decorative frame rate: each move redraws the whole glass */
     if (pend && (!moving || now - lastA >= 1000 / PERF.decoFps - 4)) { pend = false; lastA = now; TILT.apply(); }
     if (moving || pend) go(); else lastT = 0;
