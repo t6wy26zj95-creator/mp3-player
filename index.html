@@ -1209,7 +1209,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.12";
+const APP_VERSION = "v0.13";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -4806,7 +4806,7 @@ XP = (() => {
   const pm = $("player-main"), cm = $("controls-main"), fm = $("footer-main"), artBox = $("album-art-box"), tText = pm.querySelector(".track-text");
   const REPEAT = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z", REPEAT_ONE = REPEAT + "m-4-2V9h-1l-2 1v1h1.5v4H13z";
   let LYR = null;                                                    // the lyrics (set further down)
-  const st = { p: 0, v: 0, over: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, m: null, shT: 0, sheetAt: 0 };
+  const st = { p: 0, v: 0, over: 0, raf: 0, target: 0, expanded: false, sheet: false, pendingOpen: false, h0: 0, h1: 0, S: 280, compactH: 0, hOff: 0, hPr: 0, m: null, shT: 0, sheetAt: 0 };
   const clamp01 = v => Math.max(0, Math.min(1, v)), lerp = (a, b, t) => a + (b - a) * t, lin = (p, a, b) => clamp01((p - a) / (b - a));
   const fade = (p, a, b) => { const t = lin(p, a, b); return t * t * (3 - 2 * t); };
   /* a rounded path instead of a straight line: down first, then across (a quarter of an ellipse). r: how round, 0 = straight.
@@ -4994,7 +4994,7 @@ XP = (() => {
     /* the compact height is measured only while the compact layout is the one laid out: measured with the big player open
        (on iPhone) it came out as the tall panel, so the close ended tall and then jumped shut */
     if (!drawerOpen() && (!st.expanded || !st.compactH)) st.compactH = naturalH();
-    st.h0 = h0 != null ? h0 : st.compactH;
+    st.h0 = h0 != null ? h0 : st.compactH; st.hOff = 0;
     measureRects();
     coverLooks();
     render(st.p);                                                    // laid out in the same frame it appears: never one frame of an unplaced layout
@@ -5212,7 +5212,8 @@ XP = (() => {
     /* the panel is carried by what's in it: its bottom edge keeps to the controls (the same distance below them as at
        rest at either end), so it grows and shrinks with the content instead of sliding open as a box of its own. The room
        for what's below (the tabs, Up next) comes and goes with it. */
-    wrap.style.height = (playY + lerp(tail0, tail1, fade(P, .1, 1)) + st.over).toFixed(1) + "px";
+    const hw = st.hOff ? (P <= st.hPr ? P / st.hPr : (1 - P) / (1 - st.hPr)) : 0;   // see retarget: 0 at either end
+    wrap.style.height = (playY + lerp(tail0, tail1, fade(P, .1, 1)) + st.over + st.hOff * hw).toFixed(1) + "px";
     const fo = st.land ? fade(P, .88, 1) : fade(P, .72, 1);          // shuffle / repeat: ride with the big controls' row (on its side, once the row is in place)
     FOLLOW.forEach(el => { el.style.transform = `translateY(${playDy.toFixed(2)}px)`; setOp(el, fo); });
     fm.style.transform = P ? `translateY(${playDy0.toFixed(2)}px)` : ""; setOp(fm, 1 - fade(P, 0, .13));   // the compact tab row leaves with the controls above it
@@ -5220,8 +5221,18 @@ XP = (() => {
     handle.style.opacity = fade(P, .5, .9).toFixed(3);
     gear.style.opacity = ((1 - fade(P, 0, .25)) * .75).toFixed(3); gear.style.pointerEvents = P > .1 ? "none" : "";
   }
+  /* Opened from Library / Queue, the player unfolds from the tall panel (h0 = the drawer's height). Caught on the way
+     (the spring's last fraction of a px takes about a second, so a quick tap to close lands here), the way back must
+     lead to the compact panel, not to that tall start: h0 becomes the compact height, and the difference this makes
+     right now is carried as an offset that melts to nothing towards either end, so nothing jumps. */
+  function retarget() {
+    if (st.sheet || drawerOpen() || !st.compactH || Math.abs(st.h0 - st.compactH) < .5) return;
+    const P = st.p, d = (1 - fade(P, .1, 1)) * (st.h0 - st.compactH) + (st.hOff ? st.hOff * (P <= st.hPr ? P / st.hPr : (1 - P) / (1 - st.hPr)) : 0);
+    st.h0 = st.compactH;
+    if (P > .001 && P < .999 && Math.abs(d) > .05) { st.hOff = d; st.hPr = P; } else { st.hOff = 0; }
+  }
   function settle(t) {
-    st.raf = 0; st.p = t; st.v = 0; st.over = 0; wrap.classList.remove("xp-lay");
+    st.raf = 0; st.hOff = 0; st.p = t; st.v = 0; st.over = 0; wrap.classList.remove("xp-lay");
     if (st.m) art.style.transform = artPose(t); dropLooks();
     if (t === 1) {
       render(1); st.expanded = true; LYR.song(); svRender();
@@ -5327,7 +5338,7 @@ XP = (() => {
       if (lyr.open) { lyrClose(close); return; }
       if (sv.s > .5 || sv.raf) { svTo(0, 0, close); return; }
     }
-    if (!st.raf) prep();
+    if (!st.raf) prep(); else retarget();
     animateTo(0, st.raf ? st.v : 0);                                 // turned round mid-way: from its current speed, no sudden stop
   }
   function reset() { cancelAnimationFrame(st.raf); st.sheet = st.pendingOpen = false; wrap.classList.remove("sheet"); if (shown()) settle(0); wrap.style.height = ""; }
@@ -5364,7 +5375,7 @@ XP = (() => {
     ev._xp = true;                                                   // the bubble leaves this pull alone
   }
   function begin(ev) {
-    if (st.raf) { cancelAnimationFrame(st.raf); st.raf = 0; }         // caught mid-spring: carry on from where it is
+    if (st.raf) { cancelAnimationFrame(st.raf); st.raf = 0; retarget(); }   // caught mid-spring: carry on from where it is
     else if (!st.warm && (!st.expanded || !st.m)) prep();            // already open (or warmed up by the touch): everything is measured, just move
     else if (!st.looks && st.m) coverLooks();                           // open, at rest: the cover's motion looks are made again
     st.warm = false;
