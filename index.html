@@ -2064,6 +2064,12 @@ async function mbSong(t) {                                           // -> its h
     const r = await mbFetch(`${MBW}/recording?query=${enc("isrc:" + luc(t.isrc))}&limit=25&fmt=json`); if (mbErr(r)) return null;   // a search answer carries each release's album (the /isrc lookup can't)
     recs = mbPick({ ...t, dur: 0 }, r.recordings || []);                // the ID code is the recording: only the artist and title are checked
   }
+  const fa = cleanTitle(String(t._ed || t.album || "")).trim();
+  if (!recs.length && fa && !/^unknown album$/i.test(fa)) {             // the file's album narrows 220 "Just Like Heaven"s to the 3 on Kiss Me (a search lists equal matches in any order)
+    const q = `recording:"${luc(cleanTitle(t.title) || t.title)}" AND artist:"${luc(artist)}" AND release:"${luc(fa)}"`;
+    const r = await mbFetch(`${MBW}/recording?query=${enc(q)}&limit=100&fmt=json`); if (mbErr(r)) return null;
+    recs = mbPick(t, r.recordings || []);
+  }
   if (!recs.length) {
     const q = `recording:"${luc(cleanTitle(t.title) || t.title)}" AND artist:"${luc(artist)}"`;
     const r = await mbFetch(`${MBW}/recording?query=${enc(q)}&limit=100&fmt=json`); if (mbErr(r)) return null;
