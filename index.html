@@ -1212,7 +1212,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.18";
+const APP_VERSION = "v0.19";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -1988,7 +1988,7 @@ const mbKey = t => t.isrc ? "i:" + String(t.isrc).toUpperCase() : "t:" + [norm(m
 function mbHomeOf(t) { if (!MB) return null; const h = MB.home[mbKey(t)]; return h && h.g ? h : null; }
 const yr = d => String(d || "").slice(0, 4);
 const luc = s => String(s).replace(/([+\-!(){}\[\]^"~*?:\\\/]|&&|\|\|)/g, "\\$1");
-const mbErr = r => { const bad = !r || (r.error && !/not found/i.test(r.error)); if (bad && MB) MB.err = r ? String(r.error).slice(0, 60) : "no answer"; return bad; };   // no answer / "slow down": try again later
+const mbErr = r => { const bad = !r || (r.error && /exceed|rate|unavailable|busy|HTTP 5|no answer|blocked|offline/i.test(r.error));   // any other error: that one song isn't found, the rest go on if (bad && MB) MB.err = r ? String(r.error).slice(0, 60) : "no answer"; return bad; };   // no answer / "slow down": try again later
 async function mbRGs(aid) {                                          // the artist's release groups: id -> [first date, type, extra types, title]
   const c = MB.rg[aid]; if (c && Date.now() - c.at < 30 * 864e5) return c.m;
   const m = {};
@@ -2055,7 +2055,7 @@ async function mbSong(t) {                                           // -> its h
   const artist = mainArtist(t.artist); if (!artist || artist === "Unknown Artist") return { x: 1, at: Date.now() };
   let recs = [];
   if (t.isrc) {
-    const r = await mbFetch(`${MBW}/isrc/${enc(t.isrc)}?inc=releases+release-groups+media+artist-credits&fmt=json`); if (mbErr(r)) return null;
+    const r = await mbFetch(`${MBW}/recording?query=${enc("isrc:" + luc(t.isrc))}&limit=25&fmt=json`); if (mbErr(r)) return null;   // a search answer carries each release's album (the /isrc lookup can't)
     recs = mbPick({ ...t, dur: 0 }, r.recordings || []);                // the ID code is the recording: only the artist and title are checked
   }
   if (!recs.length) {
