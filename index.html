@@ -1206,7 +1206,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.10";
+const APP_VERSION = "v0.11";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -4883,7 +4883,9 @@ XP = (() => {
     [cTitle, cArtist].forEach(el => el.getAnimations().forEach(an => an.finish())); pm.querySelectorAll(".tt-ghost").forEach(g => g.remove());
     sync(true, true);
     layout();
-    if (!drawerOpen()) st.compactH = naturalH();
+    /* the compact height is measured only while the compact layout is the one laid out: measured with the big player open
+       (on iPhone) it came out as the tall panel, so the close ended tall and then jumped shut */
+    if (!drawerOpen() && (!st.expanded || !st.compactH)) st.compactH = naturalH();
     st.h0 = h0 != null ? h0 : st.compactH;
     measureRects();
     coverLooks();
@@ -5117,7 +5119,7 @@ XP = (() => {
       render(1); st.expanded = true; LYR.song(); svRender();
       /* opened from Library / Queue, it unfolded from the tall panel (h0 = the drawer's height): the way back is to the
          compact panel, whatever starts the close (a drag doesn't measure again). At rest h0 isn't drawn, so nothing moves. */
-      if (!drawerOpen()) { st.compactH = naturalH(); st.h0 = st.compactH; }
+      if (!drawerOpen() && st.compactH) st.h0 = st.compactH;
       wrap.classList.add("xp-on"); clearMoved();                     // at rest: the big layout as laid out, the compact one hidden
       void getComputedStyle(playBtn).opacity; wrap.classList.remove("xp-anim");   // (styles settle while the buttons' own fades are still off)
       if (stripDirty) renderStrip();
@@ -5132,7 +5134,7 @@ XP = (() => {
     void getComputedStyle(playBtn).opacity; wrap.classList.remove("xp-anim");
     tText.style.transform = ""; artBox.style.opacity = ""; st.hm = null; smBloom.style.removeProperty("--hm"); smLight.style.removeProperty("--hm"); gear.style.opacity = ""; gear.style.pointerEvents = "";
     if (st.sheet) { st.shT = setTimeout(settleHeight, Math.max(0, 440 - (performance.now() - st.sheetAt))); }   // let the drawer finish opening first
-    else wrap.style.height = "";
+    else settleHeight();                                             // normally already the compact height; if not, it glides there instead of jumping
   }
   function settleHeight() {                                          // sheet: from the tall panel to the section's own height, smoothly
     const from = wrap.offsetHeight; wrap.style.height = ""; const to = wrap.offsetHeight;
