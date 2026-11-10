@@ -2018,7 +2018,7 @@ function mbPick(t, recs, loose) {
     if (!(r.releases || []).length || !tts.some(sameT)) continue;       // a recording on no release can't have an album
     const wh = tts.some(x => norm(x) === whole && whole.length > base.length), v = wh ? "" : myV;
     const dis = String(r.disambiguation || "").replace(VT_SKIP, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();   // "album original mix" says nothing
-    const rv = [vtag(r.title), ...tts.filter(x => !(wh && norm(x) === whole)).map(vtag), dis].filter(Boolean).join(" ");
+    const rv = [wh && norm(r.title) === whole ? "" : vtag(r.title), dis].filter(Boolean).join(" ");   // only the recording's own name and note: one of its 150 releases calling it "Lullaby (remix)" doesn't make it a remix
     if (!!v !== !!rv) continue;                                  // the plain song vs a live / demo / outtake: never the same
     if (myC && verOf(full) && verOf(full) !== myC) continue;          // live vs demo
     const diff = t.dur && r.length ? Math.abs(t.dur - r.length / 1000) : 0;
@@ -2082,7 +2082,7 @@ async function mbSong(t) {                                           // -> its h
   if (!recs.length) return { x: 1, at: Date.now(), v: MBV };
   for (const r of recs.slice(0, 3)) {                                // a search lists only some releases of a popular song (Lullaby without Disintegration): ask for all of them
     const f = await mbFetch(`${MBW}/release?recording=${r.id}&status=official&inc=release-groups+media&limit=100&fmt=json`); if (mbErr(f)) return null;
-    if (f.releases && f.releases.length) r.releases = f.releases;
+    r.releases = f.releases || [];                                   // no official release (only bootlegs): it can't be the album's
   }
   const ac = (recs[0]["artist-credit"] || [])[0], aid = ac && ac.artist && ac.artist.id;
   const rgm = aid ? await mbRGs(aid) : null; if (aid && !rgm) return null;
