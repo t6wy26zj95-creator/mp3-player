@@ -1212,7 +1212,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.20";
+const APP_VERSION = "v0.21";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -1985,7 +1985,8 @@ const mbLoad = k => { try { return JSON.parse(store.get(k) || "{}") || {}; } cat
 var MB = { home: mbLoad("mbHome"), alb: mbLoad("mbAlb"), rg: mbLoad("mbRG"), busy: false, t: 0, wait: {}, albP: {} };
 const mbSave = k => { try { localStorage.setItem(k, JSON.stringify(MB[{ mbHome: "home", mbAlb: "alb", mbRG: "rg" }[k]])); } catch (e) {} };
 const mbKey = t => t.isrc ? "i:" + String(t.isrc).toUpperCase() : "t:" + [norm(mainArtist(t.artist)), String(t.title).toLowerCase().trim(), t.dur ? Math.round(t.dur / 10) : ""].join("|");   // the length too: two "Other Voices (Live)" can be two concerts
-function mbHomeOf(t) { if (!MB) return null; const h = MB.home[mbKey(t)]; return h && h.g ? h : null; }
+const MBV = 2;                                                        // the rules' version: answers from older rules are worked out again
+function mbHomeOf(t) { if (!MB) return null; const h = MB.home[mbKey(t)]; return h && h.g && h.v === MBV ? h : null; }
 const yr = d => String(d || "").slice(0, 4);
 const luc = s => String(s).replace(/([+\-!(){}\[\]^"~*?:\\\/]|&&|\|\|)/g, "\\$1");
 const mbErr = r => { const bad = !r || (r.error && /exceed|rate|unavailable|busy|HTTP 5|no answer|blocked|offline/i.test(r.error)); if (bad && MB) MB.err = r ? String(r.error).slice(0, 60) : "no answer"; return bad; };   // no answer / "slow down": try again later. Any other error: that one song isn't found, the rest go on
@@ -2028,11 +2029,13 @@ function mbPick(t, recs, loose) {
   if (myV && cands.length > 1 && (!best.hit || cands[1].s > best.s - 10)) return [];   // several live recordings and nothing tells them apart: don't guess
   return myV ? [best.r] : cands.filter(c => c.hit >= best.hit && Math.abs(c.diff - best.diff) <= 3).map(c => c.r);
 }
-function mbHomeFrom(recs, rgm, artistName) {
+function mbHomeFrom(recs, rgm, artistName, live) {
   const by = new Map();
   for (const r of recs) for (const x of r.releases || []) {
     const st = x.status || "Official"; if (st !== "Official" || !x.date) continue;
     const g = x["release-group"] || {}; if (!g.id) continue;
+    if (rgm && !rgm[g.id]) continue;                                  // only the artist's own records: not a various-artists concert or an 80s compilation it's on
+    if (!live && /Live/i.test((rgm && rgm[g.id] ? rgm[g.id][2] : (g["secondary-types"] || []).join(",")))) continue;   // a studio song never lives in a live album
     const info = (rgm && rgm[g.id]) || ["", g["primary-type"] || "", (g["secondary-types"] || []).join(","), g.title];
     let e = by.get(g.id); if (!e) by.set(g.id, e = { g: g.id, n: info[3] || g.title, first: info[0], pt: info[1] || g["primary-type"] || "", st: info[2], mine: "9999", rels: [], recs: new Set() });
     if (x.date < e.mine) e.mine = x.date;
@@ -2046,13 +2049,13 @@ function mbHomeFrom(recs, rgm, artistName) {
   const h = L.find(e => e.studio && e.orig) || L.find(e => e.albumish && e.orig) || L.find(e => e.ep && e.orig)
     || L.find(e => e.single && e.orig) || L.find(e => e.studio || e.albumish) || null;
   if (!h) return null;
-  const out = { g: h.g, n: h.single ? SB + " · " + artistName : h.n, y: +yr(h.first) || 0, r: [...h.recs], at: Date.now() };
+  const out = { g: h.g, n: h.single ? SB + " · " + artistName : h.n, y: +yr(h.first) || 0, r: [...h.recs], at: Date.now(), v: MBV };
   if (h.single) { out.sb = 1; out.sn = h.n; }
   else out.rel = h.rels.filter(x => yr(x[1]) === yr(h.first)).sort((a, b) => a[1].localeCompare(b[1]) || a[2] - b[2]).slice(0, 3);   // its first releases (where its tracklist comes from)
   return out;
 }
 async function mbSong(t) {                                           // -> its home, { x: 1 } (not found), or null (no answer: try later)
-  const artist = mainArtist(t.artist); if (!artist || artist === "Unknown Artist") return { x: 1, at: Date.now() };
+  const artist = mainArtist(t.artist); if (!artist || artist === "Unknown Artist") return { x: 1, at: Date.now(), v: MBV };
   let recs = [];
   if (t.isrc) {
     const r = await mbFetch(`${MBW}/recording?query=${enc("isrc:" + luc(t.isrc))}&limit=25&fmt=json`); if (mbErr(r)) return null;   // a search answer carries each release's album (the /isrc lookup can't)
@@ -2068,17 +2071,18 @@ async function mbSong(t) {                                           // -> its h
       recs = mbPick(t, r2.recordings || [], true);
     }
   }
-  if (!recs.length) return { x: 1, at: Date.now() };
+  if (!recs.length) return { x: 1, at: Date.now(), v: MBV };
   const ac = (recs[0]["artist-credit"] || [])[0], aid = ac && ac.artist && ac.artist.id;
   const rgm = aid ? await mbRGs(aid) : null; if (aid && !rgm) return null;
-  return mbHomeFrom(recs, rgm, (ac && ac.artist && ac.artist.name) || artist) || { x: 1, at: Date.now() };
+  const live = /live/i.test(verOf(t.title)) || recs.some(r => /\blive\b/i.test(r.disambiguation || ""));
+  return mbHomeFrom(recs, rgm, (ac && ac.artist && ac.artist.name) || artist, live) || { x: 1, at: Date.now(), v: MBV };
 }
 /* Songs are looked up one file album at a time, and an album's songs move to their homes together when it's done, so the
    Library doesn't reshuffle with every answer. A song MusicBrainz didn't know is asked again after two weeks. */
 function mbScanSoon(ms) { clearTimeout(MB.t); MB.t = setTimeout(mbScan, ms == null ? 1500 : ms); mbShow(); }
 async function mbScan() {
   if (MB.busy) return; MB.busy = true; MB.err = ""; mbShow();
-  const due = t => { const h = MB.home[mbKey(t)]; return !h || (h.x && Date.now() - h.at > 14 * 864e5); };
+  const due = t => { const h = MB.home[mbKey(t)]; return !h || h.v !== MBV || (h.x && Date.now() - h.at > 14 * 864e5); };
   try {
     for (;;) {
       const todo = tracks.filter(due); if (!todo.length) break;
@@ -2100,7 +2104,7 @@ async function mbScan() {
 /* Settings > Album sorting: how far the first sorting has got, or why it's stuck. */
 function mbShow() {
   const sub = $("mb-sub"), val = $("mb-val"), bar = $("mb-bar"); if (!sub || !tracks.length) return;
-  const keys = [...new Set(tracks.map(mbKey))], done = keys.filter(k => MB.home[k]).length, known = keys.filter(k => MB.home[k] && MB.home[k].g).length;
+  const cur = k => MB.home[k] && MB.home[k].v === MBV, keys = [...new Set(tracks.map(mbKey))], done = keys.filter(cur).length, known = keys.filter(k => cur(k) && MB.home[k].g).length;
   const left = keys.length - done;
   bar.hidden = !left; bar.style.setProperty("--p", Math.round(done / keys.length * 100) + "%");
   val.textContent = left ? Math.round(done / keys.length * 100) + "%" : "Done";
@@ -2156,7 +2160,7 @@ function albumEntries(name) {
   const pl = plOf(name); if (pl) return plTracks(pl).map(t => ({ track: t, title: t.title, num: 0, disc: 1 }));
   if (currentCat && name === currentCat.key) return catEntries(currentCat);
   const m = mbEntries(name); if (m) return m;
-  if (MB.busy && tracks.some(t => t.album === name && !MB.home[mbKey(t)])) MB.want = name;   // you're looking at it: sort it next
+  if (MB.busy && tracks.some(t => t.album === name && (MB.home[mbKey(t)] || {}).v !== MBV)) MB.want = name;   // you're looking at it: sort it next
   const rid = relOf(name);
   if (rid && relTracks[rid]) return catEntries({ id: rid, own: name, list: relTracks[rid] });
   const local = tracks.filter(t => t.album === name);              // already ordered disc -> track number
