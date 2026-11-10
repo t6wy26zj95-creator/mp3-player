@@ -1209,7 +1209,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.13";
+const APP_VERSION = "v0.14";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -4527,7 +4527,10 @@ const bubble = (() => {
     const r = Math.min(RAD, w / 2, h / 2), f = n => +n.toFixed(2);
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     svg.querySelector("#bb-path").setAttribute("d", `M${r} 0H${f(w - r)}A${r} ${r} 0 0 1 ${w} ${r}V${f(h - r)}A${r} ${r} 0 0 1 ${f(w - r)} ${h}H${r}A${r} ${r} 0 0 1 0 ${f(h - r)}V${r}A${r} ${r} 0 0 1 ${r} 0Z`);
-    glass.request(true);
+    /* drawn right away, in this same frame: a resize is seen (ResizeObserver) after this frame's animation callbacks, so
+       asking for the next frame left the glass one or two frames shorter than the panel while the Library / Queue drawer
+       opened. The strip in between showed the bare wallpaper (the panel's shadow is cut out under it): the "white ghost". */
+    glass.now(); if (glass.dirty) glass.request(true);
   }
   function apply() {                                                 // lean + stretch along the drag + press, as one matrix about the centre
     /* axis-aligned only: a diagonal pull stretches a little both ways instead of shearing the panel into a parallelogram */
