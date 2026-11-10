@@ -1212,7 +1212,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.15";
+const APP_VERSION = "v0.16";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -7154,8 +7154,9 @@ function pulseLoop(now) {
   if (pulse < .003 && !playing) pulse = 0;
   const pv = pulse.toFixed(2), xpOn = pEls.xp.classList.contains("show"), moving = xpOn && pEls.wrap.classList.contains("xp-anim");
   const big = !!(XP && XP.expanded) && !moving;                      // while it moves, both covers stay live: the one left at the end then shows the same light, not where it was before
-  if (!big) { pset(pEls.pm, "--pulse", pv); pset(pEls.thumb, "--pulse", pv); }
-  if (xpOn) { pset(pEls.xa, "--pulse", pv); pset(pEls.xThumb, "--pulse", pv); }
+  if (!pEls.lt) { pEls.lt = [$("art-bloom"), $("art-light")]; pEls.xlt = [$("xp-bloom"), $("xp-light")]; }
+  if (!big) { pEls.lt.forEach(el => pset(el, "--pulse", pv)); pset(pEls.thumb, "--pulse", pv); }
+  if (xpOn) { pEls.xlt.forEach(el => pset(el, "--pulse", pv)); pset(pEls.xThumb, "--pulse", pv); }
   sparkTick(playing, dt);
   if (flare > .003) { flare *= Math.exp(-dt / .45); rimA += flare * 260 * dt; } else flare = 0;   // song change: the cover light swings round quickly, then settles
   breathe(now, dt, big, xpOn);
@@ -7181,17 +7182,30 @@ function pulseLoop(now) {
      from the next tick once the move ends. The glow behind (bitmaps, moved and faded by the GPU) stays live. */
   if (xpOn) { const xa = pEls.xa, ps = pEls.pm.style; pset(xa, "--lk", ps.getPropertyValue("--lk") || "1");
     pset(xa, "--tx", tx.toFixed(3)); pset(xa, "--ty", ty.toFixed(3)); }
+  /* (speed, music playing) the cover's glass layers (edge glow, rim, hotspot, streak: gradients with masks, drawn by the
+     phone's CPU at 3x) are drawn again every time their light changes. With music on, the light's brightness followed the
+     music and changed on every frame, so they were redrawn 30 times a second, and at once everything else lagged. Now
+     on phones the small cover's glass light moves at 15 steps a second (the light drifts well under a pixel a step
+     there, so it looks the same), and its brightness goes in steps of 4 % (not visible as steps). The big cover keeps
+     every step: there the light travels a few pixels a step and would look jerky. The music's beat still shows in full
+     through the glow behind the cover, which the GPU moves and fades. */
+  const glassStep = !PERF.phone || flare > .05 || !playing || now - (pulseLoop.gw || 0) >= 1000 / 15 - 3;
+  if (glassStep) pulseLoop.gw = now;
   for (const pm of covers) {
     /* glass light: one direction shared by the halo behind, the rim, the edge glow and the surface hotspot */
     const la = rimA + 50 + tx * 40 - ty * 12, th = la * Math.PI / 180, rr = 30 + 6 * Math.sin(s / 7.3);
-    pset(pm, "--ang", (la - 50).toFixed(1) + "deg");
-    pset(pm, "--en", energy.toFixed(2)); pset(pm, "--fl", flare.toFixed(2));
-    pset(pm, "--br", (.5 + .5 * Math.sin(now / 2600)).toFixed(2));
-    if (!glassOn) continue;
+    /* the halo behind and the light canvas read these: set right on them, so a change doesn't restyle the whole row */
+    const lt = pm === pEls.pm ? pEls.lt : pEls.xlt;
+    for (const el of lt) {
+      pset(el, "--ang", (la - 50).toFixed(1) + "deg");
+      pset(el, "--en", energy.toFixed(2)); pset(el, "--fl", flare.toFixed(2));
+      pset(el, "--br", (.5 + .5 * Math.sin(now / 2600)).toFixed(2));
+    }
+    if (!glassOn || (pm === pEls.pm && !glassStep)) continue;
     pset(pm, "--la", (rimA + 50 + gTx * 40 - gTy * 12).toFixed(1) + "deg");
     const la2 = rimA + 50 + gTx * 40 - gTy * 12, th2 = la2 * Math.PI / 180;      // la with the gliding tilt
     pset(pm, "--gx", (50 + rr * Math.sin(th2) - gTx * 12).toFixed(1) + "%"); pset(pm, "--gy", (50 - rr * Math.cos(th2) - gTy * 12).toFixed(1) + "%");
-    pset(pm, "--gi", Math.min(1, .5 + energy * .12 + pulse * .14 + tilt * .35 + .06 * Math.sin(s / 3.1)).toFixed(2));
+    pset(pm, "--gi", (Math.round(Math.min(1, .5 + energy * .12 + pulse * .14 + tilt * .35 + .06 * Math.sin(s / 3.1)) * 25) / 25).toFixed(2));
     pset(pm, "--gt", tilt.toFixed(2));
     pset(pm, "--sh", Math.max(0, Math.min(1, .5 + .45 * Math.sin(s / 9.5) + gTx * .4)).toFixed(3));
     pset(pm, "--rx", (1.1 * Math.sin(s / 8.7) + gTx * 2.6).toFixed(1) + "px"); pset(pm, "--ry", (1.1 * Math.cos(s / 11.3) + gTy * 2.6).toFixed(1) + "px");
