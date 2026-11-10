@@ -1206,7 +1206,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.9";
+const APP_VERSION = "v0.10";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -3881,7 +3881,7 @@ function endViewFade() {
   const f = viewFade; if (!f) return;
   const keep = shownView(); viewFade = null;
   clearTimeout(f.t); if (f.a) f.a.cancel();
-  ["position", "left", "top", "width", "pointerEvents", "zIndex"].forEach(k => { f.el.style[k] = ""; });
+  ["position", "left", "top", "width", "margin", "boxSizing", "pointerEvents", "zIndex"].forEach(k => { f.el.style[k] = ""; });
   if (f.el !== keep) f.el.style.display = "none";
 }
 const shownView = () => allWraps.find(w => w.style.display === "block" && !(viewFade && viewFade.el === w));
@@ -3893,7 +3893,9 @@ function showOnly(el, dir) {
   const ghost = open && prev && prev !== el && !RM && prev.animate ? { el: prev, top: prev.offsetTop, left: prev.offsetLeft, width: prev.offsetWidth } : null;
   swap();
   if (ghost) {
-    Object.assign(prev.style, { display: "block", position: "absolute", top: ghost.top + "px", left: ghost.left + "px", width: ghost.width + "px", pointerEvents: "none", zIndex: "0" });
+    /* margin 0 + border-box: offsetLeft/Top/Width already include the view's own margins and padding (Library and Artists
+       have -20px margins and 20px padding); counted twice, the fading grid was laid out 40 px wider and its covers grew */
+    Object.assign(prev.style, { display: "block", position: "absolute", top: ghost.top + "px", left: ghost.left + "px", width: ghost.width + "px", margin: "0", boxSizing: "border-box", pointerEvents: "none", zIndex: "0" });
     ghost.a = prev.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translate(${-(dir || 0) * 12}px,${dir ? 0 : -4}px)` }], { duration: MOTION.n, easing: MOTION.ease, fill: "forwards" });
     viewFade = ghost; ghost.t = setTimeout(endViewFade, MOTION.n + 30);
   }
@@ -4729,7 +4731,9 @@ XP = (() => {
     return out;
   }
   function naturalH() {                                              // the compact panel's own height (drawer closed)
-    if (!drawerOpen()) { const s = wrap.style.height; wrap.style.height = ""; const h = wrap.offsetHeight; wrap.style.height = s; return h; }
+    /* the drawer may still be folding shut (its own transition): what's left of it isn't part of the compact panel. It was
+       counted in, so after Library / Queue the big player closed down to the tall panel and then jumped shut */
+    if (!drawerOpen()) { const s = wrap.style.height; wrap.style.height = ""; const h = wrap.offsetHeight - drawerBox.offsetHeight; wrap.style.height = s; return h; }
     return pm.offsetHeight + cm.offsetHeight + fm.offsetHeight + 48 + 42;
   }
   /* sizes: the cover takes about 60 % of the panel's width (COVER), smaller on short screens; the panel ends right
@@ -5111,6 +5115,9 @@ XP = (() => {
     if (st.m) art.style.transform = artPose(t); dropLooks();
     if (t === 1) {
       render(1); st.expanded = true; LYR.song(); svRender();
+      /* opened from Library / Queue, it unfolded from the tall panel (h0 = the drawer's height): the way back is to the
+         compact panel, whatever starts the close (a drag doesn't measure again). At rest h0 isn't drawn, so nothing moves. */
+      if (!drawerOpen()) { st.compactH = naturalH(); st.h0 = st.compactH; }
       wrap.classList.add("xp-on"); clearMoved();                     // at rest: the big layout as laid out, the compact one hidden
       void getComputedStyle(playBtn).opacity; wrap.classList.remove("xp-anim");   // (styles settle while the buttons' own fades are still off)
       if (stripDirty) renderStrip();
