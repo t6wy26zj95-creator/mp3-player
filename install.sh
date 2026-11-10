@@ -687,6 +687,29 @@ function member(req, res) {                                               // the
   if (!isMember(u.id)) { json(res, 403, { error: "you need an invite link from the bot's owner" }); return null; }
   return u.id;
 }
+/* MusicBrainz for the player's album sorting (ALBUMS (MUSICBRAINZ) in index.html). Asked from here, with the server's own
+   address and a proper User-Agent: a phone on a VPN or a work network shares its address with many people, and
+   MusicBrainz then answers "busy" to all of them. One request a second for everyone; answers are kept for a week. */
+const MB_UA = "MacawP3/1.0 ( https://github.com/t6wy26zj95-creator/mp3-player )", MB_KEEP = 7 * 864e5;
+const mbCache = new Map(); let mbLast = 0, mbQ = Promise.resolve();
+function mbGet(path) {
+  const hit = mbCache.get(path); if (hit && Date.now() - hit.at < MB_KEEP) return Promise.resolve(hit);
+  const job = mbQ.then(async () => {
+    const c = mbCache.get(path); if (c && Date.now() - c.at < MB_KEEP) return c;
+    let out = { code: 502, body: JSON.stringify({ error: "no answer from MusicBrainz" }) };
+    for (let i = 0; i < 3; i++) {
+      const wait = mbLast + 1100 * (i + 1) - Date.now(); if (wait > 0) await new Promise(r => setTimeout(r, wait));
+      mbLast = Date.now();
+      try { const r = await fetch("https://musicbrainz.org/" + path, { headers: { "User-Agent": MB_UA, Accept: "application/json" }, signal: AbortSignal.timeout(20000) }); out = { code: r.status, body: await r.text() }; }
+      catch (e) { out = { code: 502, body: JSON.stringify({ error: "no answer from MusicBrainz" }) }; }
+      if (out.code !== 503 && out.code !== 502) break;                    // "busy": wait a little longer and ask again
+    }
+    if (out.code === 200 || out.code === 404 || out.code === 400) { out.at = Date.now(); mbCache.set(path, out); if (mbCache.size > 20000) mbCache.delete(mbCache.keys().next().value); }
+    return out;
+  });
+  mbQ = job.catch(() => {});
+  return job;
+}
 http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x"), p = url.pathname;
   try {
@@ -739,6 +762,13 @@ http.createServer(async (req, res) => {
         if (p === "/api/search/logout") { const r = await finder("/logout", { uid }); return json(res, r.code, r.body); }
       } catch { return json(res, 503, { error: "song search isn't running" }); }
       return json(res, 404, { error: "not found" });
+    }
+    if (p === "/api/mb" && req.method === "GET") {                     // MusicBrainz, through the server (see mbGet)
+      const uid = member(req, res); if (uid == null) return;
+      const q = String(url.searchParams.get("p") || "");
+      if (q.length > 800 || !/^ws\/2\/[a-z-]+(\/[\w.-]+)?\?[\x21-\x7e]*$/.test(q)) return json(res, 400, { error: "bad request" });
+      const r = await mbGet(q);
+      res.writeHead(r.code, { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" }); return res.end(r.body);
     }
     if (p === "/api/state") {                                            // library layout shared by all your devices (playlists, hidden albums, album matches...)
       const uid = member(req, res); if (uid == null) return;

@@ -1212,7 +1212,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.19";
+const APP_VERSION = "v0.20";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -2104,7 +2104,7 @@ function mbShow() {
   const left = keys.length - done;
   bar.hidden = !left; bar.style.setProperty("--p", Math.round(done / keys.length * 100) + "%");
   val.textContent = left ? Math.round(done / keys.length * 100) + "%" : "Done";
-  sub.textContent = MB.err && left ? `Can't reach MusicBrainz (${MB.err}). Trying again in a minute · ${done} of ${keys.length} songs`
+  sub.textContent = MB.err && left ? `Can't reach MusicBrainz ${MB.via ? MB.via + " " : ""}(${MB.err}). Trying again in a minute · ${done} of ${keys.length} songs`
     : left ? `Finding each song's real album on MusicBrainz · ${done} of ${keys.length} songs, about ${Math.max(1, Math.ceil(left * 1.5 / 60))} min left`
     : `${known} of ${keys.length} songs are in their real albums. The rest MusicBrainz doesn't know, so they keep their file's album`;
 }
@@ -3804,12 +3804,28 @@ const artistCache = (() => { try { return JSON.parse(store.get("artistCache") ||
 const saveArtists = () => store.set("artistCache", JSON.stringify(artistCache));
 const enc = encodeURIComponent;
 let mbChain2 = Promise.resolve(), currentArtistName = "", artistStack = [];
+/* MusicBrainz goes through your music server when the player is linked to it (/api/mb in install.sh: its own address, a
+   proper name for the app, one request a second, answers kept for all your devices). A server without /api/mb yet, or
+   no server: straight to MusicBrainz, one request every 1.3 s. */
+let mbVia = null;                                                    // null: not tried yet; false: the server can't, go direct
+async function mbOne(u, headers, ms) {
+  const c = new AbortController(), to = setTimeout(() => c.abort(), ms);
+  try {
+    const x = await fetch(u, { signal: c.signal, headers: headers || {} }); const r = await x.json().catch(() => ({ error: "HTTP " + x.status }));
+    return { r, old: !!headers && x.status === 404 && r && r.error === "not found" };
+  } catch (e) { return { r: { error: e && e.name === "AbortError" ? "no answer in " + Math.round(ms / 1000) + " s" : "blocked or offline" } }; }   // the reason shows in Settings > Album sorting
+  finally { clearTimeout(to); }
+}
 function mbFetch(url) {
   return new Promise(res => { mbChain2 = mbChain2.then(async () => {
-    let r = null; const c = new AbortController(), to = setTimeout(() => c.abort(), 20000);
-    try { const x = await fetch(url, { signal: c.signal }); r = await x.json().catch(() => ({ error: "HTTP " + x.status })); }
-    catch (e) { r = { error: e && e.name === "AbortError" ? "no answer in 20 s" : "blocked or offline" }; }   // the reason shows in Settings > Album sorting
-    clearTimeout(to); await sleep(1300); res(r);
+    const h = stHeaders(), path = url.startsWith("https://musicbrainz.org/") ? url.slice(24) : null;
+    let r = null, gap = 1300;
+    if (h && path && mbVia !== false) {
+      const x = await mbOne(API_BASE + "/api/mb?p=" + enc(path), h, 90000);
+      if (x.old) mbVia = false; else { r = x.r; gap = 100; if (MB) MB.via = "through your server"; }
+    }
+    if (!r) { r = (await mbOne(url, null, 20000)).r; if (MB) MB.via = "direct"; }
+    await sleep(gap); res(r);
   }); });
 }
 const fmtNum = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1e3 ? Math.round(n / 1e3) + "K" : String(n);
