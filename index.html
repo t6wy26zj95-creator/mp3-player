@@ -1988,7 +1988,7 @@ const mbKey = t => t.isrc ? "i:" + String(t.isrc).toUpperCase() : "t:" + [norm(m
 function mbHomeOf(t) { if (!MB) return null; const h = MB.home[mbKey(t)]; return h && h.g ? h : null; }
 const yr = d => String(d || "").slice(0, 4);
 const luc = s => String(s).replace(/([+\-!(){}\[\]^"~*?:\\\/]|&&|\|\|)/g, "\\$1");
-const mbErr = r => { const bad = !r || (r.error && /exceed|rate|unavailable|busy|HTTP 5|no answer|blocked|offline/i.test(r.error));   // any other error: that one song isn't found, the rest go on if (bad && MB) MB.err = r ? String(r.error).slice(0, 60) : "no answer"; return bad; };   // no answer / "slow down": try again later
+const mbErr = r => { const bad = !r || (r.error && /exceed|rate|unavailable|busy|HTTP 5|no answer|blocked|offline/i.test(r.error)); if (bad && MB) MB.err = r ? String(r.error).slice(0, 60) : "no answer"; return bad; };   // no answer / "slow down": try again later. Any other error: that one song isn't found, the rest go on
 async function mbRGs(aid) {                                          // the artist's release groups: id -> [first date, type, extra types, title]
   const c = MB.rg[aid]; if (c && Date.now() - c.at < 30 * 864e5) return c.m;
   const m = {};
