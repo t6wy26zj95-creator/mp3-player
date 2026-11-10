@@ -1208,7 +1208,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.16";
+const APP_VERSION = "v0.17";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -1281,7 +1281,8 @@ let tracks = [], queue = [], curId = null, uid = 0;
    A song keeps the album its file (or your server) names: its edition, kept in t._ed. Everywhere else the player uses
    t.album, which is the album as a whole: editions of the same album by the same artist ("Kiss Me Kiss Me Kiss Me" and
    its "(Deluxe Edition)", "Static & Silence" and "Static And Silence") share one name, so they are one tile in Library
-   and one album page (see EDITIONS further down). Every song is made with trk(), which sets this up. */
+   and one album page. A song MusicBrainz knows goes to its real album instead, whatever its file says (see ALBUMS
+   (MUSICBRAINZ) further down). Every song is made with trk(), which sets this up. */
 function trk(o) {
   let ed = o.album; delete o.album;
   Object.defineProperty(o, "_ed", { get() { return ed; }, set(v) { ed = v; ALB.dirty = true; }, enumerable: false, configurable: true });
@@ -1956,8 +1957,7 @@ function albumCover(name) {
   if (tileCovers[coverKey(name)]) return tileCovers[coverKey(name)];
   const pl = plOf(name); if (pl) { const t = plTracks(pl).find(t => t.art || albumCover(t.album)); return t ? t.art || albumCover(t.album) : null; }
   if (currentCat && name === currentCat.key) return currentCat.cover; const t = tracks.find(t => t.album === name && t.art); if (t) return t.art;
-  if (albumMeta[name] && albumMeta[name].cover) return albumMeta[name].cover;
-  const g = mbAlbumOf(name); return g && !g.sb ? `https://coverartarchive.org/release-group/${g.g}/front-250` : null;
+  return (albumMeta[name] && albumMeta[name].cover) || null;
 }
 
 /* ---------- ALBUMS (MUSICBRAINZ) ----------
@@ -1980,7 +1980,7 @@ const SB = "Singles & B-sides";
 const mbLoad = k => { try { return JSON.parse(store.get(k) || "{}") || {}; } catch (e) { return {}; } };
 var MB = { home: mbLoad("mbHome"), alb: mbLoad("mbAlb"), rg: mbLoad("mbRG"), busy: false, t: 0, wait: {}, albP: {} };
 const mbSave = k => { try { localStorage.setItem(k, JSON.stringify(MB[{ mbHome: "home", mbAlb: "alb", mbRG: "rg" }[k]])); } catch (e) {} };
-const mbKey = t => t.isrc ? "i:" + String(t.isrc).toUpperCase() : "t:" + [norm(mainArtist(t.artist)), String(t.title).toLowerCase().trim()].join("|");
+const mbKey = t => t.isrc ? "i:" + String(t.isrc).toUpperCase() : "t:" + [norm(mainArtist(t.artist)), String(t.title).toLowerCase().trim(), t.dur ? Math.round(t.dur / 10) : ""].join("|");   // the length too: two "Other Voices (Live)" can be two concerts
 function mbHomeOf(t) { if (!MB) return null; const h = MB.home[mbKey(t)]; return h && h.g ? h : null; }
 const yr = d => String(d || "").slice(0, 4);
 const luc = s => String(s).replace(/([+\-!(){}\[\]^"~*?:\\\/]|&&|\|\|)/g, "\\$1");
@@ -1999,8 +1999,9 @@ async function mbRGs(aid) {                                          // the arti
 /* The recordings this song could be. Same title (the plain song, or the same kind of version: live stays live), length
    within a few seconds, the artist matching. The best one, plus (for a plain studio song) the other MusicBrainz entries
    of the same recording, which it often lists twice. */
-function mbPick(t, recs) {
+function mbPick(t, recs, loose) {
   const art = norm(mainArtist(t.artist)), base = songKey(cleanTitle(t.title) || t.title), myV = vtag(t.title), myC = verOf(t.title);
+  const sameT = x => { const k = songKey(cleanTitle(x) || x); return k === base || (loose && k.length >= 8 && base.endsWith(k)); };   // loose: "Music From The Film Soundtrack Carnage Visors" = "Carnage Visors"
   const words = new Set(myV.split(" ").filter(w => w.length > 1));
   const cands = [];
   for (const r of recs || []) {
@@ -2008,19 +2009,19 @@ function mbPick(t, recs) {
     if (!ac || !(ac.includes(art) || art.includes(ac))) continue;
     const tts = [r.title, ...(r.releases || []).flatMap(x => (x.media || []).flatMap(m => (m.track || m.tracks || []).map(k => k.title)))].filter(Boolean);
     const full = tts.join(" ") + " " + (r.disambiguation || "");
-    if (!tts.some(x => songKey(cleanTitle(x) || x) === base)) continue;
+    if (!tts.some(sameT)) continue;
     const rv = [vtag(r.title), ...tts.map(vtag), String(r.disambiguation || "").toLowerCase()].filter(Boolean).join(" ");
     if (!!myV !== !!rv) continue;                                  // the plain song vs a live / demo / outtake: never the same
     if (myC && verOf(full) && verOf(full) !== myC) continue;          // live vs demo
     const diff = t.dur && r.length ? Math.abs(t.dur - r.length / 1000) : 0;
-    if (diff > (myV ? 4 : 8)) continue;
+    if (diff > (myV || loose ? 4 : 8) || (loose && !diff && !(t.dur && r.length))) continue;   // a loose title needs the length to agree
     const hit = [...words].filter(w => rv.includes(w)).length;       // "somewhere summer 81" on the 1981 recording, not the 2025 one
     cands.push({ r, s: 100 - diff * 3 + hit * 25 + (r.score || 0) / 20, hit, diff });
   }
   if (!cands.length) return [];
   cands.sort((a, b) => b.s - a.s);
   const best = cands[0];
-  if (words.size && !best.hit && cands.length > 1) return [];       // several live recordings and nothing says which: don't guess
+  if (myV && cands.length > 1 && (!best.hit || cands[1].s > best.s - 10)) return [];   // several live recordings and nothing tells them apart: don't guess
   return myV ? [best.r] : cands.filter(c => c.hit >= best.hit && Math.abs(c.diff - best.diff) <= 3).map(c => c.r);
 }
 function mbHomeFrom(recs, rgm, artistName) {
@@ -2057,6 +2058,11 @@ async function mbSong(t) {                                           // -> its h
     const q = `recording:"${luc(cleanTitle(t.title) || t.title)}" AND artist:"${luc(artist)}"`;
     const r = await mbFetch(`${MBW}/recording?query=${enc(q)}&limit=100&fmt=json`); if (mbErr(r)) return null;
     recs = mbPick(t, r.recordings || []);
+    if (!recs.length && t.dur && /\s/.test(cleanTitle(t.title))) {           // nothing under that exact title: any recording whose title it ends with
+      const q2 = `recording:(${luc(cleanTitle(t.title) || t.title)}) AND artist:"${luc(artist)}"`;
+      const r2 = await mbFetch(`${MBW}/recording?query=${enc(q2)}&limit=100&fmt=json`); if (mbErr(r2)) return null;
+      recs = mbPick(t, r2.recordings || [], true);
+    }
   }
   if (!recs.length) return { x: 1, at: Date.now() };
   const ac = (recs[0]["artist-credit"] || [])[0], aid = ac && ac.artist && ac.artist.id;
@@ -2124,7 +2130,7 @@ function mbEntries(name) {                                           // null: Mu
   pass(other, same);                                                 // a song MusicBrainz doesn't know, filed under this album by its file
   const out = rows.map((x, i) => ({ track: got[i], title: got[i] ? got[i].title : x.title, want: x.title, num: x.num, disc: x.disc }));
   mine.filter(t => !used.has(t)).forEach(t => out.push({ ...plain(t, 60), head: "Bonus tracks" }));
-  other.filter(t => !used.has(t)).forEach(t => out.push(plain(t, 99)));
+  other.filter(t => !used.has(t)).forEach(t => out.push({ ...plain(t, 60), head: "Bonus tracks" }));   // MusicBrainz doesn't know it, but your file says it's from this album
   return out;
 }
 function albumEntries(name) {
