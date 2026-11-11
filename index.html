@@ -1212,7 +1212,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.21";
+const APP_VERSION = "v0.22";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -1985,7 +1985,7 @@ const mbLoad = k => { try { return JSON.parse(store.get(k) || "{}") || {}; } cat
 var MB = { home: mbLoad("mbHome"), alb: mbLoad("mbAlb"), rg: mbLoad("mbRG"), busy: false, t: 0, wait: {}, albP: {} };
 const mbSave = k => { try { localStorage.setItem(k, JSON.stringify(MB[{ mbHome: "home", mbAlb: "alb", mbRG: "rg" }[k]])); } catch (e) {} };
 const mbKey = t => t.isrc ? "i:" + String(t.isrc).toUpperCase() : "t:" + [norm(mainArtist(t.artist)), String(t.title).toLowerCase().trim(), t.dur ? Math.round(t.dur / 10) : ""].join("|");   // the length too: two "Other Voices (Live)" can be two concerts
-const MBV = 2;                                                        // the rules' version: answers from older rules are worked out again
+const MBV = 3;                                                        // the rules' version: answers from older rules are worked out again
 function mbHomeOf(t) { if (!MB) return null; const h = MB.home[mbKey(t)]; return h && h.g && h.v === MBV ? h : null; }
 const yr = d => String(d || "").slice(0, 4);
 const luc = s => String(s).replace(/([+\-!(){}\[\]^"~*?:\\\/]|&&|\|\|)/g, "\\$1");
@@ -2006,7 +2006,8 @@ async function mbRGs(aid) {                                          // the arti
    of the same recording, which it often lists twice. */
 function mbPick(t, recs, loose) {
   const art = norm(mainArtist(t.artist)), base = songKey(cleanTitle(t.title) || t.title), myV = vtag(t.title), myC = verOf(t.title);
-  const sameT = x => { const k = songKey(cleanTitle(x) || x); return k === base || (loose && k.length >= 8 && base.endsWith(k)); };   // loose: "Music From The Film Soundtrack Carnage Visors" = "Carnage Visors"
+  const whole = norm(t.title);                                     // "Good Sister - Bad Sister" is the whole name, not "Good Sister" in a "Bad Sister" version
+  const sameT = x => { const k = songKey(cleanTitle(x) || x); return k === base || norm(x) === whole || (loose && k.length >= 8 && base.endsWith(k)); };   // loose: "Music From The Film Soundtrack Carnage Visors" = "Carnage Visors"
   const words = new Set(myV.split(" ").filter(w => w.length > 1));
   const cands = [];
   for (const r of recs || []) {
@@ -2014,12 +2015,14 @@ function mbPick(t, recs, loose) {
     if (!ac || !(ac.includes(art) || art.includes(ac))) continue;
     const tts = [r.title, ...(r.releases || []).flatMap(x => (x.media || []).flatMap(m => (m.track || m.tracks || []).map(k => k.title)))].filter(Boolean);
     const full = tts.join(" ") + " " + (r.disambiguation || "");
-    if (!tts.some(sameT)) continue;
-    const rv = [vtag(r.title), ...tts.map(vtag), String(r.disambiguation || "").toLowerCase()].filter(Boolean).join(" ");
-    if (!!myV !== !!rv) continue;                                  // the plain song vs a live / demo / outtake: never the same
+    if (!(r.releases || []).length || !tts.some(sameT)) continue;       // a recording on no release can't have an album
+    const wh = tts.some(x => norm(x) === whole && whole.length > base.length), v = wh ? "" : myV;
+    const dis = String(r.disambiguation || "").replace(VT_SKIP, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();   // "album original mix" says nothing
+    const rv = [wh && norm(r.title) === whole ? "" : vtag(r.title), dis].filter(Boolean).join(" ");   // only the recording's own name and note: one of its 150 releases calling it "Lullaby (remix)" doesn't make it a remix
+    if (!!v !== !!rv) continue;                                  // the plain song vs a live / demo / outtake: never the same
     if (myC && verOf(full) && verOf(full) !== myC) continue;          // live vs demo
     const diff = t.dur && r.length ? Math.abs(t.dur - r.length / 1000) : 0;
-    if (diff > (myV || loose ? 4 : 8) || (loose && !diff && !(t.dur && r.length))) continue;   // a loose title needs the length to agree
+    if (diff > (v || loose ? 4 : 8) || (loose && !diff && !(t.dur && r.length))) continue;   // a loose title needs the length to agree
     const hit = [...words].filter(w => rv.includes(w)).length;       // "somewhere summer 81" on the 1981 recording, not the 2025 one
     cands.push({ r, s: 100 - diff * 3 + hit * 25 + (r.score || 0) / 20, hit, diff });
   }
@@ -2061,6 +2064,12 @@ async function mbSong(t) {                                           // -> its h
     const r = await mbFetch(`${MBW}/recording?query=${enc("isrc:" + luc(t.isrc))}&limit=25&fmt=json`); if (mbErr(r)) return null;   // a search answer carries each release's album (the /isrc lookup can't)
     recs = mbPick({ ...t, dur: 0 }, r.recordings || []);                // the ID code is the recording: only the artist and title are checked
   }
+  const fa = cleanTitle(String(t._ed || t.album || "")).trim();
+  if (!recs.length && fa && !/^unknown album$/i.test(fa)) {             // the file's album narrows 220 "Just Like Heaven"s to the 3 on Kiss Me (a search lists equal matches in any order)
+    const q = `recording:"${luc(cleanTitle(t.title) || t.title)}" AND artist:"${luc(artist)}" AND release:"${luc(fa)}"`;
+    const r = await mbFetch(`${MBW}/recording?query=${enc(q)}&limit=100&fmt=json`); if (mbErr(r)) return null;
+    recs = mbPick(t, r.recordings || []);
+  }
   if (!recs.length) {
     const q = `recording:"${luc(cleanTitle(t.title) || t.title)}" AND artist:"${luc(artist)}"`;
     const r = await mbFetch(`${MBW}/recording?query=${enc(q)}&limit=100&fmt=json`); if (mbErr(r)) return null;
@@ -2070,8 +2079,17 @@ async function mbSong(t) {                                           // -> its h
       const r2 = await mbFetch(`${MBW}/recording?query=${enc(q2)}&limit=100&fmt=json`); if (mbErr(r2)) return null;
       recs = mbPick(t, r2.recordings || [], true);
     }
+    if (!recs.length && /\s[-–]\s/.test(t.title)) {                       // "Good Sister - Bad Sister": the whole name, not just the part before " - "
+      const q3 = `recording:"${luc(t.title.replace(/\s*[\(\[].*?[\)\]]/g, "").replace(/\s[-–]\s/, "/").trim())}" AND artist:"${luc(artist)}"`;
+      const r3 = await mbFetch(`${MBW}/recording?query=${enc(q3)}&limit=100&fmt=json`); if (mbErr(r3)) return null;
+      recs = mbPick(t, r3.recordings || []);
+    }
   }
   if (!recs.length) return { x: 1, at: Date.now(), v: MBV };
+  for (const r of recs.slice(0, 3)) {                                // a search lists only some releases of a popular song (Lullaby without Disintegration): ask for all of them
+    const f = await mbFetch(`${MBW}/release?recording=${r.id}&status=official&inc=release-groups+media&limit=100&fmt=json`); if (mbErr(f)) return null;
+    r.releases = f.releases || [];                                   // no official release (only bootlegs): it can't be the album's
+  }
   const ac = (recs[0]["artist-credit"] || [])[0], aid = ac && ac.artist && ac.artist.id;
   const rgm = aid ? await mbRGs(aid) : null; if (aid && !rgm) return null;
   const live = /live/i.test(verOf(t.title)) || recs.some(r => /\blive\b/i.test(r.disambiguation || ""));
