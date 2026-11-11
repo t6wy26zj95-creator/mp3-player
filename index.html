@@ -1212,7 +1212,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.22";
+const APP_VERSION = "v0.23";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
@@ -2167,7 +2167,9 @@ function mbEntries(name) {                                           // null: Mu
   const pass = (L, fn) => rows.forEach((x, i) => { if (got[i]) return; const t = L.find(l => !used.has(l) && fn(l, x)); if (t) { used.add(t); got[i] = t; } });
   const same = (l, x) => songKey(l.title) === songKey(x.title) && vtag(l.title) === vtag(x.title) && !(l.dur && x.dur && Math.abs(l.dur - x.dur) > 8);
   pass(mine, (l, x) => x.rec && (mbHomeOf(l).r || []).includes(x.rec));   // the very recording
+  const sameName = (l, x) => songKey(l.title) === songKey(x.title) && vtag(l.title) === vtag(x.title);
   pass(mine, same);                                                  // the same song (MusicBrainz sometimes lists a recording twice)
+  pass(mine, sameName);                                              // its home is this album, so the same name is that row even at another length ("Violence" without the interlude the CD joins to it)
   pass(other, same);                                                 // a song MusicBrainz doesn't know, filed under this album by its file
   const out = rows.map((x, i) => ({ track: got[i], title: got[i] ? got[i].title : x.title, want: x.title, num: x.num, disc: x.disc }));
   mine.filter(t => !used.has(t)).forEach(t => out.push({ ...plain(t, 60), head: "Bonus tracks" }));
