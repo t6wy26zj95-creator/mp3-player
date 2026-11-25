@@ -164,4 +164,33 @@ final class WalkThrough: XCTestCase {
                               + "\nTapped by position (not reachable for accessibility): " + (forced.isEmpty ? "nothing" : forced.joined(separator: ", ")))
         a.name = "missed"; a.lifetime = .keepAlways; add(a)
     }
+
+    /// The hidden switch: 3 taps on the version line in Settings → the web player; 3 taps on the web player's own
+    /// version line → back to the native player.
+    func testWebSwitch() {
+        tap(id("settings"), "web: Settings")
+        let ver = id("version")
+        for _ in 0..<6 where !(ver.exists && ver.isHittable) { drag(CGVector(dx: 0.5, dy: 0.8), CGVector(dx: 0.5, dy: 0.3), speed: .fast) }
+        shot("web-0-native-settings")
+        guard ver.waitForExistence(timeout: 3) else { missed.append("native version line"); return }
+        ver.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        Thread.sleep(forTimeInterval: 8)
+        shot("web-1-web-player")
+        // the web player's Settings, scrolled to its version line
+        let gear = app.buttons["Settings"].firstMatch
+        if gear.waitForExistence(timeout: 10) { gear.tap() } else { missed.append("web gear") }
+        Thread.sleep(forTimeInterval: 1.5)
+        let wver = textContaining("· web")
+        for _ in 0..<8 where !(wver.exists && wver.isHittable) { drag(CGVector(dx: 0.5, dy: 0.8), CGVector(dx: 0.5, dy: 0.3), speed: .fast) }
+        shot("web-2-web-settings")
+        guard wver.waitForExistence(timeout: 3) else { missed.append("web version line"); NSLog("MacawMissed web version line"); return }
+        wver.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        Thread.sleep(forTimeInterval: 4)
+        shot("web-3-back-to-native")
+        XCTAssertTrue(id("settings").waitForExistence(timeout: 5), "back on the native player")
+        // remembered between launches: open again, still native
+        app.terminate(); app.launch(); Thread.sleep(forTimeInterval: 5)
+        shot("web-4-relaunched")
+        NSLog("MacawMissedWeb %@", missed.joined(separator: " | "))
+    }
 }

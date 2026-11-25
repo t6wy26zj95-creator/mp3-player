@@ -11,6 +11,7 @@ on:
     paths:
       - ios/**
       - .github/workflows/ios.yml
+      - index.html                 # the app keeps a copy of the web player inside it
   workflow_dispatch:
 
 permissions:
@@ -38,6 +39,16 @@ jobs:
           # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
           xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || sudo xcodebuild -downloadComponent MetalToolchain || true
           xcrun metal --version || true
+
+      # the hidden web player (tap the version line in Settings 3 times): the repo's index.html, kept inside the app
+      - name: Put the web player inside the app
+        run: |
+          mkdir -p ios/Macaw/www
+          cp index.html ios/Macaw/www/index.html
+          # the tag reader, kept in the app so songs added offline still get their names and covers
+          curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js \
+            || curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdn.jsdelivr.net/gh/aadsm/jsmediatags@v3.9.5/dist/jsmediatags.min.js
+          test -s ios/Macaw/www/jsmediatags.min.js
 
       - name: Make the Xcode project
         run: |
@@ -150,6 +161,16 @@ jobs:
           # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
           xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || sudo xcodebuild -downloadComponent MetalToolchain || true
           xcrun metal --version || true
+
+      # the hidden web player (tap the version line in Settings 3 times): the repo's index.html, kept inside the app
+      - name: Put the web player inside the app
+        run: |
+          mkdir -p ios/Macaw/www
+          cp index.html ios/Macaw/www/index.html
+          # the tag reader, kept in the app so songs added offline still get their names and covers
+          curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js \
+            || curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdn.jsdelivr.net/gh/aadsm/jsmediatags@v3.9.5/dist/jsmediatags.min.js
+          test -s ios/Macaw/www/jsmediatags.min.js
 
       - name: Make the Xcode project
         run: |

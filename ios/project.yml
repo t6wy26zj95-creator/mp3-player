@@ -1,6 +1,6 @@
 # The iOS app (for sideloading with AltStore). Xcode project generated from this file by XcodeGen on GitHub's Mac
 # build machine: see .github/workflows/ios.yml. The app is native SwiftUI (Macaw/*.swift); it looks like the web player
-# (index.html) but doesn't use it.
+# (index.html); the web player itself is kept inside too, behind a hidden switch (WebMode.swift).
 name: MacawP3
 options:
   bundleIdPrefix: app.macaw
@@ -21,6 +21,12 @@ targets:
       - path: Macaw
         excludes:
           - Info.plist
+          - www
+      # the hidden web player: index.html (+ the tag reader), copied in by the build (.github/workflows/ios.yml)
+      - path: Macaw/www
+        type: folder
+        buildPhase: resources
+        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.macaw.player
