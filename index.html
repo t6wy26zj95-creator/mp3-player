@@ -1215,7 +1215,7 @@ const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { r
 const APP_VERSION = "v0.24";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(!v)return;v.textContent="MacawP3 "+APP_VERSION+" · web";
   // inside the native iPhone app (its hidden web player): 3 taps on this line switch back to the native player
-  if(window.MACAW_APP&&window.MACAW_APP.native&&window.webkit&&window.webkit.messageHandlers.macaw){let n=0,t=0;v.addEventListener("click",()=>{const now=Date.now();n=now-t<600?n+1:1;t=now;if(n>=3){n=0;try{window.webkit.messageHandlers.macaw.postMessage({cmd:"native"});}catch(e){}}});}});                                        // shown while loading: tells which copy of the player is running
+  if(window.MACAW_APP&&window.MACAW_APP.native&&window.webkit&&window.webkit.messageHandlers.macaw){let n=0,t=0,x=0,y=0;v.addEventListener("pointerdown",e=>{x=e.clientX;y=e.clientY;});v.addEventListener("pointerup",e=>{if(Math.abs(e.clientX-x)>12||Math.abs(e.clientY-y)>12)return;const now=Date.now();n=now-t<600?n+1:1;t=now;if(n>=3){n=0;try{window.webkit.messageHandlers.macaw.postMessage({cmd:"native"});}catch(e){}}});}});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */

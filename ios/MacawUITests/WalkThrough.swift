@@ -177,14 +177,19 @@ final class WalkThrough: XCTestCase {
         Thread.sleep(forTimeInterval: 8)
         shot("web-1-web-player")
         // the web player's Settings, scrolled to its version line
-        let gear = app.buttons["Settings"].firstMatch
-        if gear.waitForExistence(timeout: 10) { gear.tap() } else { missed.append("web gear") }
-        Thread.sleep(forTimeInterval: 1.5)
-        let wver = textContaining("· web")
+        let gear = app.webViews.buttons["Settings"].firstMatch
+        _ = gear.waitForExistence(timeout: 10)
+        NSLog("MacawWeb gear exists=%d hittable=%d", gear.exists ? 1 : 0, gear.exists && gear.isHittable ? 1 : 0)
+        tap(gear, "web gear", wait: 1.5)
+        let wver = app.webViews.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "· web")).firstMatch
         for _ in 0..<8 where !(wver.exists && wver.isHittable) { drag(CGVector(dx: 0.5, dy: 0.8), CGVector(dx: 0.5, dy: 0.3), speed: .fast) }
         shot("web-2-web-settings")
         guard wver.waitForExistence(timeout: 3) else { missed.append("web version line"); NSLog("MacawMissed web version line"); return }
-        wver.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        NSLog("MacawWeb version line hittable=%d frame=%@", wver.isHittable ? 1 : 0, String(describing: wver.frame))
+        // three taps the way a finger does them (a short pause between)
+        let f = wver.frame
+        let spot = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.midX, dy: f.midY))
+        for _ in 0..<3 { spot.tap(); Thread.sleep(forTimeInterval: 0.15) }
         Thread.sleep(forTimeInterval: 4)
         shot("web-3-back-to-native")
         XCTAssertTrue(id("settings").waitForExistence(timeout: 5), "back on the native player")

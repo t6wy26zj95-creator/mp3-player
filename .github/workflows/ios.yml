@@ -336,6 +336,7 @@ jobs:
                   src = os.path.join("walk", a["exportedFileName"])
                   base = n.split("_")[0] if n else a["exportedFileName"]
                   ext = os.path.splitext(a["exportedFileName"])[1]
+                  base = "".join(c if c.isalnum() or c in "-_." else "-" for c in base)   # names GitHub accepts
                   shutil.copy(src, os.path.join("screens", "walk-" + base + ext))
           PY
           xcrun simctl spawn "$SIM" log show --last 30m --style compact --predicate 'subsystem == "app.macaw.player" OR eventMessage CONTAINS "MacawPerf" OR eventMessage CONTAINS "MacawStep" OR eventMessage CONTAINS "MacawMissed"' > screens/walk-perf.txt || true
