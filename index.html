@@ -860,7 +860,7 @@ html.tg .floating-customizer{bottom:calc(var(--tg-bot) + 12px);max-height:calc(1
 .set-x:active{background:rgba(255,255,255,.22)}
 .set-body{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 14px 14px;scrollbar-width:none;touch-action:pan-y}
 .set-body::-webkit-scrollbar{display:none}
-.set-ver{font:400 12px -apple-system,system-ui,sans-serif;color:rgba(255,255,255,.45);text-align:center;padding:18px 6px 8px}
+.set-ver{font:400 12px -apple-system,system-ui,sans-serif;color:rgba(255,255,255,.45);text-align:center;padding:18px 6px 8px;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .set-h{font:600 11px -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.55);padding:14px 6px 6px}
 .set-group{border-radius:16px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);overflow:hidden}
 .set-row{display:flex;align-items:center;gap:12px;width:100%;min-height:50px;padding:8px 14px;box-sizing:border-box;border:0;background:none;color:#fff;text-align:left;
@@ -1212,8 +1212,10 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.23";
-document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(v)v.textContent="MacawP3 "+APP_VERSION+" · web";});                                        // shown while loading: tells which copy of the player is running
+const APP_VERSION = "v0.24";
+document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(!v)return;v.textContent="MacawP3 "+APP_VERSION+" · web";
+  // inside the native iPhone app (its hidden web player): 3 taps on this line switch back to the native player
+  if(window.MACAW_APP&&window.MACAW_APP.native&&window.webkit&&window.webkit.messageHandlers.macaw){v.setAttribute("role","button");let n=0,t=0,x=0,y=0;v.addEventListener("pointerdown",e=>{x=e.clientX;y=e.clientY;});v.addEventListener("pointerup",e=>{if(Math.abs(e.clientX-x)>12||Math.abs(e.clientY-y)>12)return;const now=Date.now();n=now-t<600?n+1:1;t=now;if(n>=3){n=0;try{window.webkit.messageHandlers.macaw.postMessage({cmd:"native"});}catch(e){}}});}});                                        // shown while loading: tells which copy of the player is running
 const API_BASE = "https://macawp3.duckdns.org";
 /* ===== SOURCE_BOT: the music bot whose inline search finds songs for the + on grey (not in your library) songs =====
    Put your music bot's username here instead of @mybot. See "+ ON A GREY SONG" for how it's used. */

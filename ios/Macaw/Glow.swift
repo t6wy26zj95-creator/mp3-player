@@ -92,6 +92,12 @@ final class Glow {
         startTilt()
     }
 
+    /// While the hidden web player is showing (WebMode), the light and the tilt rest: nothing of ours is on screen.
+    func hold(_ on: Bool) {
+        link?.isPaused = on
+        if on { motion.stopDeviceMotionUpdates() } else { startTilt() }
+    }
+
     /// web: deviceorientation → tx = (gamma - neutral) / 14, ty = (beta - neutral) / 14; the neutral pose slowly drifts
     /// to however you hold the phone. No permission needed on iOS for this.
     private func startTilt() {

@@ -160,6 +160,9 @@ struct SettingsView: View {
                     Text("MacawP3 \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") · native")
                         .font(.system(size: 11)).foregroundStyle(Color.w(0.35))
                         .frame(maxWidth: .infinity).padding(.top, 18).padding(.bottom, 4)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 3) { WebMode.shared.set(true) }   // hidden: switch to the web player
+                        .accessibilityIdentifier("version")
                 }
                 .padding(.horizontal, 14).padding(.bottom, 14)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentH = $0 }

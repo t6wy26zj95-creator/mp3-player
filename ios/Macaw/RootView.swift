@@ -5,7 +5,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var phase
     private var ui: UIState { .shared }
     private var model: AppModel { .shared }
-    @State private var booted = false
+    @State private var booted = Boot.done      // back from the web player: already set up
 
     var body: some View {
         GeometryReader { geo in
@@ -119,6 +119,7 @@ struct RootView: View {
         .task {
             guard !booted else { return }
             await Boot.start()
+            Boot.done = true
             withAnimation(Theme.ease) { booted = true }
         }
         .onChange(of: phase) { _, p in
@@ -138,6 +139,8 @@ struct RootView: View {
 }
 
 enum Boot {
+    /// The app has been set up once (this launch). Switching back from the web player doesn't set it up again.
+    @MainActor static var done = false
     @MainActor static func start() async {
         let t0 = Date()
         func mark(_ what: String) { NSLog("MacawBoot %@ %.2fs", what, Date().timeIntervalSince(t0)) }

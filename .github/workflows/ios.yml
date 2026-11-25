@@ -11,6 +11,7 @@ on:
     paths:
       - ios/**
       - .github/workflows/ios.yml
+      - index.html                 # the app keeps a copy of the web player inside it
   workflow_dispatch:
 
 permissions:
@@ -38,6 +39,16 @@ jobs:
           # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
           xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || sudo xcodebuild -downloadComponent MetalToolchain || true
           xcrun metal --version || true
+
+      # the hidden web player (tap the version line in Settings 3 times): the repo's index.html, kept inside the app
+      - name: Put the web player inside the app
+        run: |
+          mkdir -p ios/Macaw/www
+          cp index.html ios/Macaw/www/index.html
+          # the tag reader, kept in the app so songs added offline still get their names and covers
+          curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js \
+            || curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdn.jsdelivr.net/gh/aadsm/jsmediatags@v3.9.5/dist/jsmediatags.min.js
+          test -s ios/Macaw/www/jsmediatags.min.js
 
       - name: Make the Xcode project
         run: |
@@ -136,7 +147,7 @@ jobs:
   screens:
     if: startsWith(github.ref, 'refs/heads/claude/')
     runs-on: xcode-27
-    timeout-minutes: 70
+    timeout-minutes: 85
     steps:
       - uses: actions/checkout@v4
 
@@ -150,6 +161,16 @@ jobs:
           # the glass shader (Glass.metal) needs the Metal compiler, which some Xcode images leave out
           xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain || sudo xcodebuild -downloadComponent MetalToolchain || true
           xcrun metal --version || true
+
+      # the hidden web player (tap the version line in Settings 3 times): the repo's index.html, kept inside the app
+      - name: Put the web player inside the app
+        run: |
+          mkdir -p ios/Macaw/www
+          cp index.html ios/Macaw/www/index.html
+          # the tag reader, kept in the app so songs added offline still get their names and covers
+          curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js \
+            || curl -fsSL --retry 3 -o ios/Macaw/www/jsmediatags.min.js https://cdn.jsdelivr.net/gh/aadsm/jsmediatags@v3.9.5/dist/jsmediatags.min.js
+          test -s ios/Macaw/www/jsmediatags.min.js
 
       - name: Make the Xcode project
         run: |
@@ -277,7 +298,7 @@ jobs:
       # a walk through the whole app like a person would use it (MacawUITests): a screenshot after every step and the
       # speed meter's log, while Instruments' Time Profiler records where the app spends its time
       - name: Walk through the app
-        timeout-minutes: 25
+        timeout-minutes: 34
         run: |
           xcrun simctl terminate "$SIM" app.macaw.player 2>/dev/null || true
           # the profiler records the app only (all processes filled the disk), once the test has launched it
@@ -315,6 +336,7 @@ jobs:
                   src = os.path.join("walk", a["exportedFileName"])
                   base = n.split("_")[0] if n else a["exportedFileName"]
                   ext = os.path.splitext(a["exportedFileName"])[1]
+                  base = "".join(c if c.isalnum() or c in "-_." else "-" for c in base)   # names GitHub accepts
                   shutil.copy(src, os.path.join("screens", "walk-" + base + ext))
           PY
           xcrun simctl spawn "$SIM" log show --last 30m --style compact --predicate 'subsystem == "app.macaw.player" OR eventMessage CONTAINS "MacawPerf" OR eventMessage CONTAINS "MacawStep" OR eventMessage CONTAINS "MacawMissed"' > screens/walk-perf.txt || true

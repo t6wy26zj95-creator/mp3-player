@@ -6,7 +6,7 @@ struct MacawApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     var body: some Scene {
         WindowGroup {
-            RootView()
+            AppShell()                              // the native player, or the hidden web player (WebMode)
                 .modifier(CoverPicker())
         }
     }

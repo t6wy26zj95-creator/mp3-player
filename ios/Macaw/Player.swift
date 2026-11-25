@@ -446,6 +446,21 @@ final class Player {
 
     // MARK: lock screen, Control Center, headphones
 
+    /// The hidden web player takes over (WebMode): stop, and hand the lock screen and headphone buttons to it.
+    func handOver() {
+        if isPlaying { pause() } else { saveStateNow() }
+        let c = MPRemoteCommandCenter.shared()
+        for cmd in [c.playCommand, c.pauseCommand, c.togglePlayPauseCommand, c.nextTrackCommand, c.previousTrackCommand, c.changePlaybackPositionCommand] {
+            cmd.removeTarget(nil)
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+    /// Back from the web player: the lock screen and headphone buttons are ours again.
+    func takeBack() {
+        setUpRemote()
+        updateNowPlaying()
+    }
+
     private func setUpRemote() {
         let c = MPRemoteCommandCenter.shared()
         c.playCommand.addTarget { [weak self] _ in Task { @MainActor in self?.play() }; return .success }
