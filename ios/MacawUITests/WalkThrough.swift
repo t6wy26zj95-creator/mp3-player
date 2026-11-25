@@ -186,10 +186,8 @@ final class WalkThrough: XCTestCase {
         shot("web-2-web-settings")
         guard wver.waitForExistence(timeout: 3) else { missed.append("web version line"); NSLog("MacawMissed web version line"); return }
         NSLog("MacawWeb version line hittable=%d frame=%@", wver.isHittable ? 1 : 0, String(describing: wver.frame))
-        // three taps the way a finger does them (a short pause between)
-        let f = wver.frame
-        let spot = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.midX, dy: f.midY))
-        for _ in 0..<3 { spot.tap(); Thread.sleep(forTimeInterval: 0.15) }
+        // one quick triple tap, in one gesture (separate taps from the test come ~1 s apart: too slow to count as 3)
+        wver.tap(withNumberOfTaps: 3, numberOfTouches: 1)
         Thread.sleep(forTimeInterval: 4)
         shot("web-3-back-to-native")
         XCTAssertTrue(id("settings").waitForExistence(timeout: 5), "back on the native player")
