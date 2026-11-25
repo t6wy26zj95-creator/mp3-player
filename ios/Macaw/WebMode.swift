@@ -73,7 +73,7 @@ struct WebPlayer: UIViewControllerRepresentable {
 ///   { cmd: "open", url }               open a link in another app (Telegram)
 ///   { cmd: "native" }                  switch back to the native player (3 taps on the version line)
 /// and the app calls window.natSync() when songs were added.
-final class WebPlayerController: UIViewController, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, UIDocumentPickerDelegate {
+final class WebPlayerController: UIViewController, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, UIDocumentPickerDelegate, UIGestureRecognizerDelegate {
     static let pageColor = UIColor(red: 0x0b / 255.0, green: 0x1d / 255.0, blue: 0x24 / 255.0, alpha: 1)
     static weak var current: WebPlayerController?
     private var web: WKWebView!
@@ -111,6 +111,26 @@ final class WebPlayerController: UIViewController, WKScriptMessageHandler, WKUID
         web.navigationDelegate = self
         web.isInspectable = true                                   // lets Safari on a Mac look inside, for debugging
         view = web
+
+        // 3 taps on the web player's version line (bottom of its Settings) switch back to the native player. Watched here
+        // too, not only by the page, so it works however the web view hands the taps to the page.
+        let triple = UITapGestureRecognizer(target: self, action: #selector(tripleTap(_:)))
+        triple.numberOfTapsRequired = 3
+        triple.cancelsTouchesInView = false
+        triple.delaysTouchesEnded = false
+        triple.delegate = self
+        web.addGestureRecognizer(triple)
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+    @objc private func tripleTap(_ g: UITapGestureRecognizer) {
+        guard g.state == .ended else { return }
+        let p = g.location(in: web)
+        let js = "(function(){var e=document.elementFromPoint(\(p.x),\(p.y));return !!(e&&e.closest&&e.closest('#set-ver'));})()"
+        web.evaluateJavaScript(js) { r, _ in
+            if (r as? Bool) == true { MainActor.assumeIsolated { WebMode.shared.set(false) } }
+        }
     }
 
     override func viewDidLoad() {
