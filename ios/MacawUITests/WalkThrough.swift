@@ -181,7 +181,7 @@ final class WalkThrough: XCTestCase {
         _ = gear.waitForExistence(timeout: 10)
         NSLog("MacawWeb gear exists=%d hittable=%d", gear.exists ? 1 : 0, gear.exists && gear.isHittable ? 1 : 0)
         tap(gear, "web gear", wait: 1.5)
-        let wver = app.webViews.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "· web")).firstMatch
+        let wver = app.webViews.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", "· web")).firstMatch
         for _ in 0..<8 where !(wver.exists && wver.isHittable) { drag(CGVector(dx: 0.5, dy: 0.8), CGVector(dx: 0.5, dy: 0.3), speed: .fast) }
         shot("web-2-web-settings")
         guard wver.waitForExistence(timeout: 3) else { missed.append("web version line"); NSLog("MacawMissed web version line"); return }
