@@ -1212,7 +1212,7 @@ const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return 
 const tgAt = v => { try { return !!TG && TG.isVersionAtLeast(v); } catch (e) { return false; } };
 /* Bot library: inside Telegram the songs are the ones you sent the bot, listed and streamed by your server.
    In the browser / home-screen app nothing changes: songs come from the phone's file picker. */
-const APP_VERSION = "v0.24";
+const APP_VERSION = "v0.25";
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("set-ver");if(!v)return;v.textContent="MacawP3 "+APP_VERSION+" · web";
   // inside the native iPhone app (its hidden web player): 3 taps on this line switch back to the native player
   if(window.MACAW_APP&&window.MACAW_APP.native&&window.webkit&&window.webkit.messageHandlers.macaw){v.setAttribute("role","button");let n=0,t=0,x=0,y=0;v.addEventListener("pointerdown",e=>{x=e.clientX;y=e.clientY;});v.addEventListener("pointerup",e=>{if(Math.abs(e.clientX-x)>12||Math.abs(e.clientY-y)>12)return;const now=Date.now();n=now-t<600?n+1:1;t=now;if(n>=3){n=0;try{window.webkit.messageHandlers.macaw.postMessage({cmd:"native"});}catch(e){}}});}});                                        // shown while loading: tells which copy of the player is running
@@ -1728,7 +1728,7 @@ const cleanTitle = s => s.replace(/\s*[\(\[].*?[\)\]]/g, "").replace(/\s-\s.*$/,
 const mainArtist = s => String(s || "").split(/\s*(?:;|\s\/\s|[([]\s*(?:feat\.?|ft\.?|featuring|with)\s|\s(?:feat\.?|ft\.?|featuring)\s)\s*/i)[0].trim() || String(s || "").trim();
 function refreshNowPlaying() {
   const t = trackById(curId); if (!t) return;
-  setCover(t.art || albumCover(t.album));
+  setCover(artOf(t));
 }
 /* Cover change: the old cover stays on screen until the new one is downloaded and decoded, then they swap in one frame.
    (Before, the cover went invisible first and faded back in once loaded: a visible blank gap on a slow phone.) */
@@ -1961,8 +1961,10 @@ function vtag(s) {
 }
 function albumCover(name) {
   if (tileCovers[coverKey(name)]) return tileCovers[coverKey(name)];
-  const pl = plOf(name); if (pl) { const t = plTracks(pl).find(t => t.art || albumCover(t.album)); return t ? t.art || albumCover(t.album) : null; }
-  if (currentCat && name === currentCat.key) return currentCat.cover; const t = tracks.find(t => t.album === name && t.art); if (t) return t.art;
+  const pl = plOf(name); if (pl) { const t = plTracks(pl).find(t => artOf(t)); return t ? artOf(t) : null; }
+  if (currentCat && name === currentCat.key) return currentCat.cover;
+  const mc = mbCover(name); if (mc) return mc;                       // the album's own cover (see ALBUM COVERS), never a song file's
+  const t = tracks.find(t => t.album === name && t.art); if (t) return t.art;
   return (albumMeta[name] && albumMeta[name].cover) || null;
 }
 
@@ -2114,7 +2116,7 @@ async function mbScan() {
         const h = await mbSong(t); if (!h) { MB.err = MB.err || "no answer"; mbScanSoon(60000); return; }
         got.push([k, h]); MB.n = (MB.n || 0) + 1; if (MB.n % 3 === 0) mbShow();
       }
-      got.forEach(([k, h]) => { MB.home[k] = h; }); mbSave("mbHome");
+      got.forEach(([k, h]) => { MB.home[k] = h; }); mbSave("mbHome"); refreshNowPlaying();                          // the song playing may now wear its album's cover
       if (L.some(t => t.album === MB.want)) MB.want = null;
       if (got.some(([, h]) => h.g)) { ALB.dirty = true; libRenderSoon(); if (playlistWrapper.style.display === "block") renderPlaylist(); }
       mbShow();
@@ -2154,6 +2156,39 @@ async function mbTracklist(g, name) {                                // the albu
     }
     MB.alb[g] = { rel: "", y: 0, tr: [], at: Date.now() }; mbSave("mbAlb"); return MB.alb[g];
   })();
+}
+/* ---------- ALBUM COVERS ----------
+   An album's cover and year are the ALBUM's, not its songs' files'. Before, the album page, the Library tile and the grey
+   rows showed the cover of the first song file, and the year from the files' tags: one song the bot found on a Greatest
+   Hits (the very same recording, so it rightly belongs on Enema Of The State) turned the whole album into "Greatest Hits,
+   2018". Now an album MusicBrainz knows shows its official cover (Cover Art Archive) and the year it first came out, and
+   every song of that album plays with that cover. A song whose recording is different (live, remix, re-recorded) is not
+   this album's song at all: it has its own album and keeps its own cover. A cover you chose yourself still wins.
+   File covers stay the fallback: the album isn't sorted yet, MusicBrainz has no cover for it, or it can't be reached.
+   A found cover is kept on the device (mbCov); a failed one is tried again on the next launch. */
+const MBC = { ok: mbLoad("mbCov"), bad: {}, p: {} };
+function mbCoverG(g) {
+  if (!g) return null; if (MBC.ok[g]) return MBC.ok[g];
+  if (!MBC.bad[g] && !MBC.p[g]) {
+    MBC.p[g] = 1; const url = `https://coverartarchive.org/release-group/${g}/front-500`, im = new Image();
+    im.onload = () => { MBC.ok[g] = url; try { localStorage.setItem("mbCov", JSON.stringify(MBC.ok)); } catch (e) {} mbCoverCame(); };
+    im.onerror = () => { MBC.bad[g] = 1; };
+    im.src = url;
+  }
+  return null;
+}
+function mbCover(name) { const a = mbAlbumOf(name); return a && !a.sb ? mbCoverG(a.g) : null; }
+function artOf(t) {                                                  // the cover a song shows: its album's, if MusicBrainz put it on a real album
+  if (!t) return null; const h = mbHomeOf(t);
+  if (h && !h.sb) { const c = tileCovers[coverKey(t.album)] || mbCoverG(h.g); if (c) return c; }
+  return t.art || albumCover(t.album);
+}
+let mbCovT = 0;
+function mbCoverCame() {                                             // covers arrive one by one: repaint once they settle
+  clearTimeout(mbCovT); mbCovT = setTimeout(() => {
+    libRenderSoon(); if (playlistWrapper.style.display === "block") renderPlaylist();
+    refreshNowPlaying();
+  }, 150);
 }
 function mbEntries(name) {                                           // null: MusicBrainz doesn't know this album (yet)
   const a = mbAlbumOf(name); if (!a) return null;
@@ -2337,9 +2372,10 @@ const flow = (() => {
         special.push({ key, name: all ? allName() : pl.name, artist: "", sub: n + (n === 1 ? " song" : " songs"), cover: tileCovers[coverKey(key)] || null, icon: all ? FOLDER_SVG : NOTES_SVG, i });
         return;
       }
-      const a = per.get(key) || { art: new Map(), aa: new Map(), year: 0, id: 0 };
+      const a = per.get(key) || { art: new Map(), aa: new Map(), year: 0, id: 0 }, mbA = mbAlbumOf(key);
+      if (mbA && !mbA.sb && mbA.y) a.year = mbA.y;                   // the year the album came out, not the newest file's tag
       const artist = a.aa.size ? top(a.aa) : a.art.size > 2 ? "Various Artists" : a.art.size ? top(a.art) : (albumMeta[key] && albumMeta[key].artist) || "";
-      albums.push({ key, name: key, artist, year: a.year, id: a.id, sub: [artist, a.year || ""].filter(Boolean).join(" · "), cover: tileCovers[coverKey(key)] || a.cover || (albumMeta[key] && albumMeta[key].cover) || null, icon: NOTES_SVG, i });   // = albumCover(), without a search per album
+      albums.push({ key, name: key, artist, year: a.year, id: a.id, sub: [artist, a.year || ""].filter(Boolean).join(" · "), cover: tileCovers[coverKey(key)] || mbCover(key) || a.cover || (albumMeta[key] && albumMeta[key].cover) || null, icon: NOTES_SVG, i });   // = albumCover(), without a search per album
     });
     albums.sort((x, y) => cmp(sortName(x.artist) || "~", sortName(y.artist) || "~") || (x.year || 1e4) - (y.year || 1e4) || cmp(x.name, y.name));
     items = special.concat(albums);
@@ -2561,7 +2597,7 @@ function songMenu(t, row) {
   const k = tkey(t), here = plOf(currentAlbum) && playlistWrapper.style.display === "block" ? plOf(currentAlbum) : null;
   plMenu(row, ({ el, item, sep, ask }) => {
     const head = document.createElement("div"); head.className = "pl-song";
-    head.innerHTML = itemHTML(t.art || albumCover(t.album), t.title, t.artist).replace('class="item-text"', 'class="t"').replace('class="item-title"', "").replace('class="item-artist"', 'class="a"');
+    head.innerHTML = itemHTML(artOf(t), t.title, t.artist).replace('class="item-text"', 'class="t"').replace('class="item-title"', "").replace('class="item-artist"', 'class="a"');
     el.appendChild(head);
     item("Play next", ICON_NEXT, () => { plPopClose(); enqueue(t.id, false); });
     item("Play last", ICON_LAST, () => { plPopClose(); enqueue(t.id, true); });
@@ -2846,13 +2882,13 @@ function renderPlaylist() {
       if (gctx) { item.dataset.get = gkey(gctx, e.title); item.appendChild(getButton(gctx, e.title)); }
       ui.appendChild(item); return;
     }
-    item.innerHTML = itemHTML(t.art || albumCover(t.album), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : ""));
+    item.innerHTML = itemHTML(artOf(t), label, t.artist + (verOf(e.title) ? " · " + verOf(e.title) : ""));
     if (!pl) getLand(item, t, gctx);
     item.addEventListener("click", () => { if (item._swiped) { item._swiped = false; return; } startContext(t.id); });
     const row = swShell(item); row.classList.add("can"); libSwipe(row, t.id);   // swipe left: Play next / Play last; right: the song's menu
     if (pl) {                                                        // hold and move (or drag the handle): reorder; hold and let go: the menu
       item.classList.add("q-fg"); row.classList.add("q-row"); row.dataset.group = "pl"; row._qi = pi;
-      const art = t.art || albumCover(t.album); if (art) row.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
+      const art = artOf(t); if (art) row.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
       attachReorder(row, pi++, "pl", { ui, drop: plReorder, still: () => songMenu(t, row) });
       item.addEventListener("contextmenu", ev => { ev.preventDefault(); if (ev.pointerType === "mouse" || ev.button === 2) songMenu(t, row); });
     } else holdFor(item, () => { item._swiped = true; setTimeout(() => { item._swiped = false; }, 600); songMenu(t, row); });
@@ -3312,7 +3348,7 @@ function renderQueue(scrollToNow) {
   const note = (t, cls, fn) => { const m = document.createElement(fn ? "button" : "div"); m.className = cls; m.textContent = t; if (fn) m.addEventListener("click", fn); ui.appendChild(m); };
   const row = (t, kind, i, group) => {
     const fg = document.createElement("div"); fg.className = "q-fg";
-    fg.innerHTML = itemHTML(t.art || albumCover(t.album), t.title, t.artist);
+    fg.innerHTML = itemHTML(artOf(t), t.title, t.artist);
     const r = swShell(fg); r.classList.add("q-row", kind);
     if (kind !== "now") {
       fg.addEventListener("click", () => { if (fg._swiped) { fg._swiped = false; return; } playFromQueue(kind, i); });
@@ -3320,7 +3356,7 @@ function renderQueue(scrollToNow) {
     }
     if (group) { r._qi = i; r.dataset.group = group; attachReorder(r, i, group, { still: () => songMenu(t, r) }); }   // hold and move: reorder; hold and let go: the menu
     else if (kind === "hist") holdFor(fg, () => { fg._swiped = true; setTimeout(() => { fg._swiped = false; }, 600); songMenu(t, r); });
-    const art = t.art || albumCover(t.album); if (art) r.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
+    const art = artOf(t); if (art) r.style.setProperty("--art", `url("${String(art).replace(/"/g, "%22")}")`);
     ui.appendChild(r); return r;
   };
   const hist = history.slice(-30), h0 = history.length - hist.length;
@@ -3535,7 +3571,7 @@ function loadTrack(id, autoplay, o = {}) {
   $("track-title").innerText = t.title; titleCut(); sparkStop();
   $("track-artist").innerText = t.artist;
   if (anim) songIn(dir);
-  setCover(t.art || albumCover(t.album));
+  setCover(artOf(t));
   clearTimeout(timeHold.t); timeHold.on = false;
   if (anim) {                                                        // the times and bar keep the old song's until its title has gone, then change with the new title
     timeHold.on = true; timeHold.t = setTimeout(() => { timeHold.on = false; paintTimes(); }, SONG_OUT);
@@ -3544,8 +3580,8 @@ function loadTrack(id, autoplay, o = {}) {
   if (!autoplay) setPlayIcon(false);                                 // autoplay: Play stays as it is, no flicker between songs
   if ("mediaSession" in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.album,
-      artwork: (t.art || albumCover(t.album)) ? [{ src: t.art || albumCover(t.album), sizes: "512x512" }] : [] });
-    const src = t.art || albumCover(t.album);                        // the desktop app: Windows' media overlay only takes http/data/blob covers
+      artwork: (artOf(t)) ? [{ src: artOf(t), sizes: "512x512" }] : [] });
+    const src = artOf(t);                        // the desktop app: Windows' media overlay only takes http/data/blob covers
     if (DESK && src && src.startsWith("macaw:")) fetch(src).then(r => r.ok ? r.blob() : null).then(bl => {
       const m = navigator.mediaSession.metadata; if (!bl || !m || m.title !== t.title) return;
       URL.revokeObjectURL(loadTrack.artURL || ""); loadTrack.artURL = URL.createObjectURL(bl); m.artwork = [{ src: loadTrack.artURL, sizes: "512x512", type: bl.type }];
@@ -3996,6 +4032,7 @@ function artistLocal(name, note) {
     if (norm(mainArtist(t.artist)) !== k && !(t.albumArtist && norm(mainArtist(t.albumArtist)) === k)) return;
     if (hiddenSet.has(t.album)) return;
     const a = m.get(t.album) || { name: t.album, year: 0 }; a.year = Math.max(a.year, t.year || 0); m.set(t.album, a);
+    const mbA = mbAlbumOf(t.album); if (mbA && !mbA.sb && mbA.y) a.year = mbA.y;
   });
   const list = [...m.values()].sort((a, b) => (a.year || 9999) - (b.year || 9999) || a.name.localeCompare(b.name));
   const grid = $("artist-albums"); grid.innerHTML = "";
@@ -5724,7 +5761,7 @@ XP = (() => {
     let nowEl = null;
     all.forEach(it => {
       const t = trackById(it.id); if (!t) return;
-      const c = document.createElement("div"), a = t.art || albumCover(t.album);
+      const c = document.createElement("div"), a = artOf(t);
       c.className = "xp-card" + (it.kind === "queue" ? " q" : it.kind === "hist" ? " past" : it.kind === "now" ? " now" : ""); c.dataset.kind = it.kind; c._i = it.i;
       c.innerHTML = `<div class="xp-card-art">${a ? thumbImg(a) : noteSvg}</div><div class="xp-card-t"><div class="xp-card-title"></div><div class="xp-card-artist"></div></div>`;
       c.querySelector(".xp-card-title").textContent = t.title; c.querySelector(".xp-card-artist").textContent = t.artist; c._id = it.id;
@@ -5975,7 +6012,7 @@ XP = (() => {
     function head() {
       const t = trackById(curId); if (!t) return;
       $("lyr-title").textContent = t.title; $("lyr-artist").textContent = t.artist;
-      const a = t.art || albumCover(t.album); $("lyr-art").style.backgroundImage = a ? `url("${String(a).replace(/"/g, "%22")}")` : "";
+      const a = artOf(t); $("lyr-art").style.backgroundImage = a ? `url("${String(a).replace(/"/g, "%22")}")` : "";
     }
     function note(text) { list.className = "lyr-list"; list.innerHTML = ""; const n = document.createElement("div"); n.className = "lyr-note"; n.textContent = text; list.appendChild(n); els = []; }
     /* the bubble: the line just sung, the one being sung, the next. Unsynced lyrics show their first three lines; while
